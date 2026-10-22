@@ -1,0 +1,33 @@
+/* Токены из презентации первого этапа. Значения сверяем с макетами Варвары. */
+:root {
+  --bg: #f2efe8;
+  --surface: #fbfaf6;
+  --surface-muted: #e9e4d8;
+  --ink: #1f3150;
+  --ink-soft: #4a5468;
+  --accent: #5b6b3f;
+  --accent-soft: #a6b58a;
+  --accent-tint: #dfe5d2;
+  --warn-tint: #f1dfc0;
+  --warn-ink: #7a5420;
+  --line: #ddd6c6;
+
+  --radius: 14px;
+  --font: "Onest", system-ui, sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #141b27;
+    --surface: #1c2535;
+    --surface-muted: #263044;
+    --ink: #eef0f3;
+    --ink-soft: #aab3c2;
+    --accent: #a6b58a;
+    --accent-soft: #6f7f52;
+    --accent-tint: #2c3527;
+    --warn-tint: #3a2f1f;
+    --warn-ink: #e7c58f;
+    --line: #2d3749;
+  }
+}

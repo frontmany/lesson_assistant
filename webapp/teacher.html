@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Урок: учитель</title>
+  <link rel="stylesheet" href="css/tokens.css">
+  <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+  <main>
+    <h1 id="title">Урок</h1>
+    <div class="toolbar">
+      <span class="indicator">Аналитика активна</span>
+      <button id="join">Войти в урок</button>
+      <button id="mic" hidden>Выключить микрофон</button>
+      <span id="state" class="state"></span>
+    </div>
+    <!-- TODO(Фёдор): по макету Варвары — участники звонка слева, панель класса справа, выключатель -->
+    <section class="roster" id="roster"></section>
+  </main>
+  <script src="https://cdn.jsdelivr.net/npm/livekit-client@2.22.3/dist/livekit-client.umd.js"></script>
+  <script type="module" src="js/teacher.js"></script>
+</body>
+</html>

@@ -1,0 +1,20 @@
+# Python 3.12. Версии зафиксированы; после первой сборки с конвейером
+# обновить список через `pip freeze` внутри контейнера (задача Ярослава).
+
+# сервер
+fastapi==0.115.12
+uvicorn[standard]==0.34.2
+pydantic==2.11.4
+python-dotenv==1.1.0
+
+# звонок: LiveKit. livekit — скрытый участник, который слушает урок,
+# livekit-api — токены для входа в комнату
+livekit==1.1.19
+livekit-api==1.2.1
+
+# бот MAX и LLM
+httpx==0.28.1
+
+# распознавание речи: faster-whisper тянет ctranslate2, onnxruntime и av,
+# а Silero VAD входит в него как ONNX-модель (без PyTorch)
+faster-whisper==1.1.1

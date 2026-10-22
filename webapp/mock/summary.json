@@ -1,0 +1,19 @@
+{
+  "type": "summary",
+  "lesson_id": "10a-history-05",
+  "carried": ["ivan_i", "maria_s"],
+  "dropped": ["dmitry_p"],
+  "weak_topics": ["Табель о рангах", "Коллегии"],
+  "ask_next": [
+    {
+      "student_id": "artem_k",
+      "topic": "Реформы Петра I",
+      "question": "Зачем Петру понадобился Табель о рангах?"
+    },
+    {
+      "student_id": "dmitry_p",
+      "topic": "Северная война",
+      "question": "Что дал России выход к Балтийскому морю?"
+    }
+  ]
+}

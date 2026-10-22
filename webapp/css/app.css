@@ -1,0 +1,83 @@
+/* Черновые стили каркаса. Заменяются по макетам из design/screens/. */
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--ink);
+}
+
+main { max-width: 1100px; margin: 0 auto; padding: 24px 16px; }
+
+h1 { font-size: 24px; margin: 0 0 16px; }
+
+.indicator {
+  display: inline-block;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--accent-tint);
+  color: var(--accent);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+
+.toolbar button {
+  padding: 8px 16px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--ink);
+  color: var(--surface);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.state { font-size: 14px; color: var(--ink-soft); }
+
+.roster { display: grid; gap: 8px; margin-top: 16px; }
+
+.row.speaking { box-shadow: inset 0 0 0 2px var(--accent-soft); }
+
+.row {
+  display: grid;
+  grid-template-columns: 140px 1fr auto;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.row.off { opacity: 0.45; }
+
+.bars { display: flex; gap: 6px; }
+.bar { width: 40px; height: 8px; border-radius: 4px; background: var(--surface-muted); }
+.bar.on { background: var(--accent); }
+
+.flag { font-size: 13px; padding: 4px 10px; border-radius: 999px; }
+.flag.long_silence { background: var(--warn-tint); color: var(--warn-ink); }
+.flag.quiet_but_precise { background: var(--accent-tint); color: var(--accent); }
+
+.roles { display: grid; gap: 12px; max-width: 360px; }
+.roles a {
+  display: block;
+  padding: 16px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.scale { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 24px; }
+.step { padding: 16px 12px; border-radius: var(--radius); background: var(--surface); color: var(--ink-soft); }
+.step.reached { background: var(--accent); color: #fbfaf6; }
+
+@media (max-width: 600px) {
+  .row { grid-template-columns: 1fr auto; }
+  .row .flag { grid-column: 1 / -1; justify-self: start; }
+  .scale { grid-template-columns: repeat(2, 1fr); }
+}
