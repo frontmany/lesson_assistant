@@ -1,0 +1,5 @@
+# В репозитории и в Docker-образе — переводы строк LF, независимо от ОС
+* text=auto eol=lf
+*.pdf binary
+*.png binary
+*.wav binary
