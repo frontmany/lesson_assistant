@@ -1,0 +1,15 @@
+{
+  "lesson_id": "10a-history-05",
+  "class_name": "10А",
+  "subject": "История",
+  "topic": "Реформы Петра I",
+  "teacher": { "id": "teacher", "name": "Елена Викторовна" },
+  "students": [
+    { "id": "ivan_i", "name": "Иван И." },
+    { "id": "maria_s", "name": "Мария С." },
+    { "id": "artem_k", "name": "Артём К." },
+    { "id": "sofya_l", "name": "Софья Л." },
+    { "id": "alisa_n", "name": "Алиса Н." },
+    { "id": "dmitry_p", "name": "Дмитрий П." }
+  ]
+}

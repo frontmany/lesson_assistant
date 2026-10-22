@@ -1,0 +1,718 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Ассистент Сферум AI: второй этап</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700;800&display=block" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css">
+<style>
+  /* Исходник презентации. Сборка в PDF: docs/presentation/README.md */
+  :root {
+    --bg: #f2efe8;
+    --surface: #fbfaf6;
+    --muted: #e7e2d6;
+    --line: #d9d2c2;
+    --ink: #1f3150;
+    --ink-soft: #545e70;
+    --olive: #5b6b3f;
+    --sage: #a6b58a;
+    --sage-tint: #dfe5d2;
+    --warn-tint: #f1dfc0;
+    --warn-ink: #7a5420;
+
+    /* цвета людей на схемах */
+    --yar: #1f3150;
+    --var: #5b6b3f;
+    --ily: #b7793a;
+    --none: #9a9486;
+  }
+  @page { size: 1280px 720px; margin: 0; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body { font-family: "Onest", system-ui, sans-serif; color: var(--ink); background: #888; }
+
+  .slide {
+    width: 1280px; height: 720px; position: relative; overflow: hidden;
+    background: var(--bg); padding: 56px 64px;
+    page-break-after: always; break-after: page;
+  }
+  .slide:last-child { page-break-after: auto; break-after: auto; }
+  @media screen { .slide { margin: 0 auto 24px; } }
+
+  h1 { font-size: 60px; line-height: 1.04; font-weight: 800; letter-spacing: -0.02em; }
+  h2 { font-size: 40px; line-height: 1.1; font-weight: 700; letter-spacing: -0.015em; }
+  h3 { font-size: 22px; line-height: 1.2; font-weight: 700; }
+  p, li { font-size: 18px; line-height: 1.45; color: var(--ink-soft); }
+  .eyebrow { font-size: 14px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--olive); }
+  .lead { font-size: 21px; line-height: 1.45; color: var(--ink-soft); max-width: 62ch; }
+  .footer { position: absolute; left: 64px; right: 64px; bottom: 26px; display: flex; justify-content: space-between; font-size: 13px; color: #8b8677; }
+  .ph { line-height: 1; }
+
+  .card { background: var(--surface); border-radius: 16px; box-shadow: 0 1px 0 rgba(31,49,80,.04), 0 10px 30px rgba(92,78,40,.07); }
+  .chip { display: inline-flex; align-items: center; gap: 6px; padding: 5px 11px; border-radius: 999px; font-size: 13px; font-weight: 500; white-space: nowrap; }
+  .chip.warn { background: var(--warn-tint); color: var(--warn-ink); }
+  .chip.ok { background: var(--sage-tint); color: var(--olive); }
+  .bars { display: flex; gap: 5px; }
+  .bars i { display: block; width: 30px; height: 8px; border-radius: 4px; background: var(--muted); }
+  .bars i.on { background: var(--olive); }
+
+  /* 1. обложка */
+  .cover { display: grid; grid-template-columns: 1.05fr 0.95fr; padding: 0; }
+  .cover .left { padding: 72px 56px 72px 64px; display: flex; flex-direction: column; justify-content: center; gap: 28px; }
+  .cover .right { background: var(--ink); display: flex; align-items: center; justify-content: center; padding: 56px; }
+  .cover .panel { width: 100%; padding: 22px; }
+  .panel-row { display: grid; grid-template-columns: 110px auto 1fr; align-items: center; gap: 14px; padding: 11px 14px; border-radius: 12px; background: #fff; margin-top: 8px; font-size: 16px; }
+  .panel-head { display: flex; justify-content: space-between; align-items: center; font-size: 15px; font-weight: 700; }
+  .ask { margin-top: 14px; border: 1.5px solid var(--sage); border-radius: 12px; padding: 14px 16px; }
+  .ask .eyebrow { font-size: 12px; }
+  .ask b { display: block; margin-top: 4px; font-size: 18px; }
+  .ask span { font-size: 15px; color: var(--ink-soft); }
+  .team { display: flex; gap: 10px; flex-wrap: wrap; }
+
+  /* 2. что сдаём */
+  .deliver { display: grid; grid-template-columns: 1.25fr 1fr; gap: 24px; margin-top: 52px; }
+  .deliver .card { padding: 28px 30px; }
+  .file { display: grid; grid-template-columns: 44px 1fr; gap: 16px; align-items: start; padding: 16px 0; }
+  .file + .file { border-top: 1px solid var(--line); }
+  .file .ph { font-size: 30px; color: var(--olive); }
+  .file b { font-size: 19px; display: block; margin-bottom: 2px; font-family: ui-monospace, "Cascadia Code", monospace; font-weight: 600; }
+  .file p { font-size: 16px; }
+  .max-card { background: var(--ink) !important; color: #f4f2ec; }
+  .max-card h3 { color: #fff; }
+  .max-card p { color: #c9cfda; font-size: 16px; }
+  .max-item { display: flex; gap: 14px; align-items: flex-start; margin-top: 22px; }
+  .max-item .ph { font-size: 28px; color: var(--sage); }
+  .max-item b { color: #fff; font-size: 18px; display: block; }
+  .note { margin-top: 22px; display: flex; gap: 12px; align-items: center; font-size: 16px; color: var(--ink-soft); }
+  .note .ph { font-size: 22px; color: var(--olive); }
+
+  /* 3. формат показа */
+  .flow { display: grid; grid-template-columns: 1fr 56px 1fr 56px 1.15fr 56px 1fr; align-items: stretch; margin-top: 44px; }
+  .node { padding: 22px 20px; min-height: 170px; display: flex; flex-direction: column; gap: 10px; }
+  .node .ph { font-size: 30px; color: var(--olive); }
+  .node h3 { font-size: 20px; white-space: nowrap; }
+  .node p { font-size: 15.5px; line-height: 1.4; }
+  .node.main { background: var(--ink); }
+  .node.main h3 { color: #fff; }
+  .node.main p { color: #c9cfda; }
+  .node.main .ph { color: var(--sage); }
+  .arrow { display: flex; justify-content: center; align-items: center; color: var(--olive); font-size: 28px; }
+  .modes { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 30px; }
+  .mode { display: flex; gap: 16px; align-items: flex-start; padding: 20px 22px; border-radius: 16px; border: 1.5px solid var(--line); }
+  .mode .ph { font-size: 28px; color: var(--olive); }
+  .mode b { font-size: 18px; display: block; margin-bottom: 4px; }
+  .mode p { font-size: 16px; }
+  .mode.primary { border-color: var(--olive); background: var(--sage-tint); }
+
+  /* 4. демо */
+  .timeline { position: relative; margin-top: 64px; display: grid; grid-template-columns: repeat(6, 1fr); gap: 18px; }
+  .timeline::before { content: ""; position: absolute; left: 10px; right: 10px; top: 46px; height: 2px; background: var(--sage); }
+  .tstep { position: relative; }
+  .tstep .time { font-size: 15px; font-weight: 700; color: var(--olive); height: 28px; }
+  .tstep .dot { width: 20px; height: 20px; border-radius: 50%; background: var(--bg); border: 3px solid var(--olive); position: relative; z-index: 1; margin: 7px 0 22px; }
+  .tstep.key .dot { background: var(--ink); border-color: var(--ink); }
+  .tstep h3 { font-size: 18.5px; margin-bottom: 8px; }
+  .tstep p { font-size: 15px; line-height: 1.42; }
+  .demo-foot { position: absolute; left: 64px; right: 64px; bottom: 74px; display: flex; gap: 14px; align-items: center; padding: 18px 22px; border-radius: 14px; background: var(--surface); font-size: 17px; color: var(--ink-soft); }
+  .demo-foot .ph { font-size: 24px; color: var(--olive); }
+
+  /* 5. экран учителя */
+  .teacher { display: grid; grid-template-columns: 1fr 268px; gap: 32px; margin-top: 26px; }
+  .window { overflow: hidden; }
+  .win-top { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; border-bottom: 1px solid var(--line); font-size: 15px; }
+  .win-top b { font-size: 16px; }
+  .live { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 999px; background: var(--sage-tint); color: var(--olive); font-weight: 600; font-size: 13.5px; }
+  .live .ph { font-size: 16px; }
+  .mic-btn { width: 30px; height: 30px; border-radius: 50%; background: var(--sage-tint); color: var(--olive); display: inline-flex; align-items: center; justify-content: center; font-size: 16px; }
+  .callbar { margin: 10px 16px 0; padding: 9px 12px; border-radius: 12px; background: var(--ink); color: #eef0f3; font-size: 12.5px; display: flex; justify-content: space-between; align-items: center; }
+  .callbar span { display: inline-flex; gap: 6px; align-items: center; }
+  .callbar .mic-on { width: 24px; height: 24px; border-radius: 50%; background: var(--sage); color: var(--ink); justify-content: center; }
+  .btn-end { padding: 7px 14px; border-radius: 999px; background: var(--ink); color: #fff; font-size: 13.5px; font-weight: 600; }
+  .win-body { display: grid; grid-template-columns: 1fr 372px; }
+  .grid-video { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding: 14px; background: #2a3448; }
+  .tile { height: 112px; border-radius: 10px; background: #36425a; position: relative; display: flex; align-items: center; justify-content: center; }
+  .tile .av { width: 46px; height: 46px; border-radius: 50%; background: #4b5873; color: #e8ebf0; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 16px; }
+  .tile .nm { position: absolute; left: 9px; bottom: 7px; font-size: 12px; color: #dfe3ea; }
+  .tile.speaking { box-shadow: inset 0 0 0 2.5px var(--sage); }
+  .tile.teacher-tile { grid-column: span 3; height: 92px; background: #3d4a63; }
+  .class-panel { padding: 14px 16px; }
+  .class-panel .head { display: flex; justify-content: space-between; align-items: center; font-weight: 700; font-size: 15px; margin-bottom: 6px; }
+  .class-panel .head span { font-weight: 500; color: var(--ink-soft); font-size: 13px; }
+  .crow { display: grid; grid-template-columns: 92px auto 1fr; gap: 10px; align-items: center; padding: 8px 0; font-size: 14.5px; border-bottom: 1px solid #ece7dc; }
+  .crow:last-child { border-bottom: 0; }
+  .crow .bars i { width: 20px; height: 7px; }
+  .crow .chip { font-size: 11.5px; padding: 3px 8px; justify-self: start; }
+  .crow.off { opacity: .45; }
+  .notes { display: flex; flex-direction: column; gap: 22px; padding-top: 6px; }
+  .anote { display: grid; grid-template-columns: 34px 1fr; gap: 12px; }
+  .anote .n { width: 30px; height: 30px; border-radius: 50%; background: var(--ink); color: #fff; font-weight: 700; display: flex; align-items: center; justify-content: center; font-size: 15px; }
+  .anote b { display: block; font-size: 17px; margin-bottom: 4px; }
+  .anote p { font-size: 15px; line-height: 1.4; }
+
+  /* 6. телефоны */
+  .phones { display: grid; grid-template-columns: repeat(3, 1fr); gap: 40px; margin-top: 26px; align-items: start; }
+  .phone-wrap { display: flex; flex-direction: column; align-items: center; gap: 14px; }
+  .phone { width: 262px; height: 476px; border-radius: 36px; background: #1d2433; padding: 10px; box-shadow: 0 16px 40px rgba(31,49,80,.18); }
+  .screen { width: 100%; height: 100%; border-radius: 28px; background: var(--surface); overflow: hidden; display: flex; flex-direction: column; }
+  .sbar { height: 30px; display: flex; justify-content: center; align-items: center; }
+  .sbar i { width: 70px; height: 6px; border-radius: 3px; background: #d6d0c2; }
+  .apphead { padding: 8px 16px 12px; border-bottom: 1px solid var(--line); }
+  .apphead b { font-size: 15px; display: block; }
+  .apphead span { font-size: 12px; color: var(--ink-soft); }
+  .steps { padding: 16px; display: flex; flex-direction: column-reverse; gap: 8px; }
+  .stp { padding: 14px 14px; border-radius: 12px; background: var(--muted); font-size: 15px; font-weight: 600; color: #8a8576; display: flex; justify-content: space-between; }
+  .stp.got { background: var(--sage-tint); color: var(--olive); }
+  .stp.now { background: var(--olive); color: #fff; }
+  .phone-hint { padding: 0 16px; font-size: 12.5px; color: var(--ink-soft); line-height: 1.4; }
+  .chat { padding: 14px 12px; display: flex; flex-direction: column; gap: 10px; background: #ece8de; flex: 1; }
+  .bubble { background: #fff; border-radius: 14px 14px 14px 4px; padding: 11px 13px; font-size: 13px; line-height: 1.42; color: var(--ink); }
+  .bubble .t { font-weight: 700; font-size: 13.5px; margin-bottom: 6px; }
+  .bubble .sec { margin-top: 8px; font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--olive); }
+  .bubble ul { padding-left: 16px; }
+  .bubble li { font-size: 13px; line-height: 1.4; color: var(--ink); }
+  .bubble .q { margin-top: 6px; padding: 8px 10px; border-radius: 10px; background: var(--sage-tint); font-size: 12.5px; }
+  .bot-btn { align-self: stretch; text-align: center; padding: 9px; border-radius: 12px; background: #fff; color: var(--ink); font-weight: 600; font-size: 13px; }
+  .caption { text-align: center; }
+  .caption b { font-size: 17px; display: block; }
+  .caption span { font-size: 14.5px; color: var(--ink-soft); }
+
+  /* 7. архитектура */
+  .legend { display: flex; gap: 22px; margin-top: 14px; font-size: 15px; color: var(--ink-soft); }
+  .legend span { display: inline-flex; align-items: center; gap: 8px; }
+  .legend i { width: 14px; height: 14px; border-radius: 4px; display: inline-block; }
+  .lane { margin-top: 26px; }
+  .lane-title { font-size: 15px; font-weight: 700; margin-bottom: 10px; color: var(--ink); }
+  .pipe { display: flex; align-items: stretch; gap: 0; }
+  .pnode { flex: 1; background: var(--surface); border-radius: 14px; padding: 14px 14px 14px 16px; border-left: 6px solid var(--none); min-height: 112px; }
+  .pnode b { font-size: 16.5px; display: block; margin-bottom: 4px; }
+  .pnode p { font-size: 13.5px; line-height: 1.35; }
+  .pnode .who { margin-top: 8px; font-size: 12px; font-weight: 700; letter-spacing: .03em; }
+  .pnode.y { border-color: var(--yar); } .pnode.y .who { color: var(--yar); }
+  .pnode.v { border-color: var(--var); } .pnode.v .who { color: var(--var); }
+  .pnode.i { border-color: var(--ily); } .pnode.i .who { color: var(--ily); }
+  .pnode.n .who { color: var(--none); }
+  .parr { width: 30px; display: flex; align-items: center; justify-content: center; color: var(--ink-soft); font-size: 18px; flex: none; }
+  .target { margin-top: 18px; display: flex; gap: 12px; font-size: 15px; color: var(--ink-soft); }
+  .target b { color: var(--ink); }
+
+  /* 8. матрица */
+  .matrix { margin-top: 26px; display: grid; grid-template-columns: 1fr 150px 150px 150px; }
+  .matrix .mh { font-size: 15px; font-weight: 700; padding: 0 0 12px; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  .matrix .mh i { width: 34px; height: 5px; border-radius: 3px; }
+  .matrix .mh:first-child { text-align: left; align-items: flex-start; color: var(--ink-soft); font-weight: 500; }
+  .matrix .area { font-size: 17px; padding: 11px 0; border-top: 1px solid var(--line); color: var(--ink); }
+  .matrix .cell { border-top: 1px solid var(--line); display: flex; align-items: center; justify-content: center; }
+  .dot-full, .dot-ring { width: 18px; height: 18px; border-radius: 50%; }
+  .dot-ring { border: 2.5px solid currentColor; }
+  .dot-full { background: currentColor; }
+  .cy { color: var(--yar); } .cv { color: var(--var); } .ci { color: var(--ily); }
+  .mlegend { position: absolute; right: 64px; top: 66px; display: flex; gap: 20px; font-size: 14.5px; color: var(--ink-soft); }
+  .mlegend span { display: inline-flex; gap: 8px; align-items: center; }
+  .mlegend .dot-full, .mlegend .dot-ring { width: 14px; height: 14px; color: var(--ink); }
+
+  /* 9-11. люди */
+  .person { display: grid; grid-template-columns: 372px 1fr; padding: 0; }
+  .person .side { padding: 56px 40px 56px 64px; color: #f4f2ec; display: flex; flex-direction: column; gap: 18px; }
+  .person .side .eyebrow { color: rgba(255,255,255,.72); }
+  .person .side h2 { color: #fff; font-size: 46px; }
+  .person .side p { color: rgba(255,255,255,.86); font-size: 17.5px; }
+  .person .side .goal { margin-top: auto; padding-top: 18px; border-top: 1px solid rgba(255,255,255,.25); }
+  .person .side .goal b { display: block; font-size: 13px; letter-spacing: .06em; text-transform: uppercase; color: rgba(255,255,255,.7); margin-bottom: 6px; }
+  .person .side .goal span { font-size: 19px; line-height: 1.35; color: #fff; font-weight: 600; }
+  .person.y .side { background: var(--yar); }
+  .person.v .side { background: var(--var); }
+  .person.i .side { background: #9a6430; }
+  .person .main { padding: 50px 64px 40px 48px; display: flex; flex-direction: column; }
+  .tasks { display: flex; flex-direction: column; }
+  .task { display: grid; grid-template-columns: 74px 1fr; gap: 18px; padding: 11px 0; border-top: 1px solid var(--line); }
+  .task:first-child { border-top: 0; padding-top: 0; }
+  .task .days { font-size: 14px; font-weight: 700; color: var(--pc); padding-top: 3px; }
+  .task b { font-size: 17.5px; display: block; line-height: 1.3; }
+  .task span { font-size: 14.5px; color: var(--ink-soft); line-height: 1.35; display: block; margin-top: 2px; }
+  .person.y { --pc: var(--yar); } .person.v { --pc: var(--var); } .person.i { --pc: #9a6430; }
+  .first { margin-top: auto; padding: 16px 18px; border-radius: 14px; background: var(--surface); }
+  .first b { font-size: 14px; letter-spacing: .05em; text-transform: uppercase; color: var(--pc); display: block; margin-bottom: 8px; }
+  .first ul { list-style: none; display: grid; gap: 4px; }
+  .first li { font-size: 15.5px; color: var(--ink); display: flex; gap: 10px; align-items: flex-start; line-height: 1.35; }
+  .first li .ph { color: var(--pc); font-size: 18px; margin-top: 1px; }
+
+  /* 12. гант */
+  .gantt { margin-top: 14px; display: grid; grid-template-columns: 250px 1fr; }
+  .g-days { display: grid; grid-template-columns: repeat(14, 1fr); font-size: 12.5px; color: var(--ink-soft); text-align: center; padding-bottom: 4px; }
+  .g-label { font-size: 13px; height: 21px; display: flex; align-items: center; color: var(--ink); padding-right: 12px; white-space: nowrap; overflow: hidden; }
+  .g-track { position: relative; height: 21px; background-image: repeating-linear-gradient(90deg, transparent 0, transparent calc(100%/14 - 1px), #e2dccd calc(100%/14 - 1px), #e2dccd calc(100%/14)); }
+  .g-bar { position: absolute; top: 4px; height: 14px; border-radius: 4px; }
+  .g-bar.y { background: var(--yar); } .g-bar.v { background: var(--var); } .g-bar.i { background: var(--ily); }
+  .g-who { font-size: 13px; font-weight: 700; padding: 8px 0 3px; letter-spacing: .03em; }
+  .g-who.y { color: var(--yar); } .g-who.v { color: var(--var); } .g-who.i { color: var(--ily); }
+  .milestones { position: relative; height: 44px; }
+  .ms { position: absolute; top: 0; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 12.5px; font-weight: 600; color: var(--ink); white-space: nowrap; }
+  .ms i { width: 12px; height: 12px; background: var(--ink); transform: rotate(45deg); display: block; }
+
+  /* 13. процесс */
+  .proc { display: grid; grid-template-columns: 1.35fr 1fr; gap: 48px; margin-top: 34px; }
+  .stream-map { position: relative; height: 430px; }
+  .sm-box { position: absolute; border-radius: 14px; padding: 14px 16px; }
+  .sm-box b { display: block; font-size: 16.5px; }
+  .sm-box span { font-size: 13.5px; line-height: 1.35; display: block; margin-top: 3px; }
+  .sm-src { left: 0; top: 160px; width: 190px; background: var(--ink); color: #fff; }
+  .sm-src span { color: #c9cfda; }
+  .sm-st { left: 262px; width: 230px; background: var(--surface); border-left: 6px solid; }
+  .sm-st span { color: var(--ink-soft); }
+  .sm-out { right: 0; top: 160px; width: 150px; background: var(--sage-tint); color: var(--olive); }
+  .sm-out span { color: var(--ink-soft); }
+  .stream-map svg { position: absolute; inset: 0; }
+  .rules { display: flex; flex-direction: column; gap: 20px; }
+  .rule { display: grid; grid-template-columns: 40px 1fr; gap: 14px; }
+  .rule .ph { font-size: 28px; color: var(--olive); }
+  .rule b { display: block; font-size: 18px; margin-bottom: 3px; }
+  .rule p { font-size: 15.5px; line-height: 1.4; }
+
+  /* 14. первые 48 часов */
+  .start48 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 36px; margin-top: 38px; }
+  .col48 { border-top: 5px solid; padding-top: 18px; }
+  .col48 h3 { font-size: 24px; }
+  .col48 .role { font-size: 15px; color: var(--ink-soft); margin: 2px 0 16px; }
+  .col48 ul { list-style: none; display: grid; gap: 12px; }
+  .col48 li { display: grid; grid-template-columns: 26px 1fr; gap: 8px; font-size: 16.5px; line-height: 1.38; color: var(--ink); }
+  .col48 li .ph { font-size: 21px; margin-top: 1px; }
+  .repo { position: absolute; left: 64px; right: 64px; bottom: 64px; display: flex; align-items: center; gap: 16px; padding: 18px 22px; border-radius: 14px; background: var(--ink); color: #fff; font-size: 17px; }
+  .repo .ph { font-size: 26px; color: var(--sage); }
+  .repo code { font-family: ui-monospace, "Cascadia Code", monospace; color: var(--sage); }
+</style>
+</head>
+<body>
+
+<!-- 1. Обложка -->
+<section class="slide cover">
+  <div class="left">
+    <div class="eyebrow">Команда «Пиксель», второй этап</div>
+    <h1>Ассистент Сферум AI: урок-звонок с&nbsp;ассистентом</h1>
+    <p class="lead">Что строим за&nbsp;14 дней, как это работает и&nbsp;кто за&nbsp;что отвечает.</p>
+    <div class="team">
+      <span class="chip ok">Ярослав, разработка</span>
+      <span class="chip ok">Варвара, дизайн</span>
+      <span class="chip ok">Илья, аналитика</span>
+    </div>
+  </div>
+  <div class="right">
+    <div class="card panel">
+      <div class="panel-head"><span>10А, история</span><span class="live"><i class="ph ph-waveform"></i>Аналитика активна</span></div>
+      <div class="panel-row"><span>Иван И.</span><span class="bars"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></span><span></span></div>
+      <div class="panel-row"><span>Мария С.</span><span class="bars"><i class="on"></i><i class="on"></i><i class="on"></i><i></i></span><span></span></div>
+      <div class="panel-row"><span>Артём К.</span><span class="bars"><i class="on"></i><i></i><i></i><i></i></span><span class="chip warn">давно не отвечал</span></div>
+      <div class="panel-row"><span>Алиса Н.</span><span class="bars"><i class="on"></i><i class="on"></i><i></i><i></i></span><span class="chip ok">тихая, но точная</span></div>
+      <div class="ask">
+        <div class="eyebrow">Спросить в следующий раз</div>
+        <b>Артём К., реформы Петра I</b>
+        <span>«Зачем Петру понадобился Табель о рангах?»</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 2. Что сдаём -->
+<section class="slide">
+  <h2>Что сдаём организаторам</h2>
+  <p class="lead" style="margin-top:12px">Отправляем боту «Идея фикс» две ссылки: на&nbsp;репозиторий и&nbsp;на&nbsp;проект в&nbsp;MAX.</p>
+  <div class="deliver">
+    <div class="card">
+      <h3>Репозиторий на GitHub</h3>
+      <div class="file" style="margin-top:8px"><i class="ph ph-package"></i><div><b>Dockerfile</b><p>Образ, который жюри запускает одной командой.</p></div></div>
+      <div class="file"><i class="ph ph-list-checks"></i><div><b>requirements.txt</b><p>Все библиотеки с&nbsp;точными версиями.</p></div></div>
+      <div class="file"><i class="ph ph-book-open-text"></i><div><b>README.md</b><p>Сборка, запуск контейнера и&nbsp;пример запуска из&nbsp;командной строки.</p></div></div>
+    </div>
+    <div class="card max-card" style="padding:28px 30px">
+      <h3>Проект в MAX</h3>
+      <div class="max-item"><i class="ph ph-chat-circle-dots"></i><div><b>Бот</b><p>Открывает урок, после урока присылает сводку и&nbsp;карточки.</p></div></div>
+      <div class="max-item"><i class="ph ph-device-mobile"></i><div><b>Мини-приложение</b><p>Звонок урока с&nbsp;работающим ассистентом. Только HTTPS, открывается только из&nbsp;бота.</p></div></div>
+      <div class="max-item"><i class="ph ph-key"></i><div><b>Токен</b><p>Выдаёт бот «Идея фикс».</p></div></div>
+    </div>
+  </div>
+  <div class="footer"><span>Ассистент Сферум AI, второй этап</span><span>2</span></div>
+</section>
+
+<!-- 3. Формат продукта -->
+<section class="slide">
+  <h2>Настоящий урок-звонок, ассистент внутри</h2>
+  <p class="lead" style="margin-top:12px">Учитель и&nbsp;ученики слышат друг друга, как в&nbsp;обычном звонке. Бот нужен как вход и&nbsp;как доставка результатов.</p>
+  <div class="flow">
+    <div class="card node"><i class="ph ph-chat-circle-dots"></i><h3>Бот MAX</h3><p>Каждый выбирает роль. Учитель нажимает «Начать урок».</p></div>
+    <div class="arrow"><i class="ph ph-arrow-right"></i></div>
+    <div class="card node"><i class="ph ph-device-mobile"></i><h3>Мини-приложение</h3><p>Звонок урока, панель класса у&nbsp;учителя, своя шкала у&nbsp;ученика.</p></div>
+    <div class="arrow"><i class="ph ph-arrows-left-right"></i></div>
+    <div class="card node"><i class="ph ph-broadcast"></i><h3>LiveKit</h3><p>SFU: принимает звук каждого и&nbsp;раздаёт остальным.</p></div>
+    <div class="arrow"><i class="ph ph-arrow-right"></i></div>
+    <div class="card node main"><i class="ph ph-ear"></i><h3>Ассистент</h3><p>Скрытый участник звонка. Слушает, распознаёт, ведёт шкалы и&nbsp;сводку.</p></div>
+  </div>
+  <div class="modes">
+    <div class="mode primary"><i class="ph ph-user-sound"></i><div><b>Один поток на ученика</b><p>Ассистент получает звук каждого отдельно и&nbsp;точно знает, кто говорит. Распознавать людей по&nbsp;голосу не&nbsp;нужно.</p></div></div>
+    <div class="mode"><i class="ph ph-robot"></i><div><b>Виртуальный класс для отладки</b><p>Записанный урок заходит в&nbsp;звонок ботами. Конвейер проверяется без людей.</p></div></div>
+  </div>
+  <div class="footer"><span>Ассистент Сферум AI, второй этап</span><span>3</span></div>
+</section>
+
+<!-- 4. Урок целиком -->
+<section class="slide">
+  <h2>Урок от «Начать» до&nbsp;сводки</h2>
+  <p class="lead" style="margin-top:12px">Так продукт должен работать целиком. Каждую пятницу проходим этот урок всей командой с&nbsp;телефонов.</p>
+  <div class="timeline">
+    <div class="tstep"><div class="time">Вход</div><div class="dot"></div><h3>Через бота</h3><p>Учитель нажимает «Начать урок», ученики заходят из&nbsp;бота.</p></div>
+    <div class="tstep key"><div class="time">Звонок</div><div class="dot"></div><h3>Все слышат всех</h3><p>Горит «Аналитика активна». Ассистент заходит скрытым участником.</p></div>
+    <div class="tstep key"><div class="time">Шкалы</div><div class="dot"></div><h3>Урок идёт</h3><p>Шкалы растут по&nbsp;ходу урока, появляются метки для учителя.</p></div>
+    <div class="tstep"><div class="time">Ученик</div><div class="dot"></div><h3>Только своё</h3><p>Своя шкала, она не&nbsp;падает, рейтинга нет.</p></div>
+    <div class="tstep"><div class="time">Выключатель</div><div class="dot"></div><h3>Один клик</h3><p>Учитель выключает аналитику для одного ученика.</p></div>
+    <div class="tstep key"><div class="time">Сводка</div><div class="dot"></div><h3>В боте</h3><p>Кого и&nbsp;о&nbsp;чём спросить, с&nbsp;готовым вопросом. Ученикам карточки.</p></div>
+  </div>
+  <div class="demo-foot"><i class="ph ph-warning-circle"></i>Главная ошибка, которую ищем на&nbsp;прогонах: реплика, приписанная не&nbsp;тому ученику.</div>
+  <div class="footer"><span>Ассистент Сферум AI, второй этап</span><span>4</span></div>
+</section>
+
+<!-- 5. Экран учителя -->
+<section class="slide">
+  <h2>Учитель: урок и&nbsp;весь класс на&nbsp;одном экране</h2>
+  <div class="teacher">
+    <div class="card window">
+      <div class="win-top"><b>10А, история. Реформы Петра I</b><span style="display:flex;gap:10px;align-items:center"><span class="live"><i class="ph ph-waveform"></i>Аналитика активна</span><span class="mic-btn"><i class="ph ph-microphone"></i></span><span class="btn-end">Завершить урок</span></span></div>
+      <div class="win-body">
+        <div class="grid-video">
+          <div class="tile teacher-tile"><div class="av">ЕВ</div><span class="nm">Елена Викторовна</span></div>
+          <div class="tile speaking"><div class="av">ИИ</div><span class="nm">Иван И.</span></div>
+          <div class="tile"><div class="av">МС</div><span class="nm">Мария С.</span></div>
+          <div class="tile"><div class="av">АК</div><span class="nm">Артём К.</span></div>
+          <div class="tile"><div class="av">СЛ</div><span class="nm">Софья Л.</span></div>
+          <div class="tile"><div class="av">АН</div><span class="nm">Алиса Н.</span></div>
+          <div class="tile"><div class="av">ДП</div><span class="nm">Дмитрий П.</span></div>
+        </div>
+        <div class="class-panel">
+          <div class="head">Класс <span>сейчас 18 минута</span></div>
+          <div class="crow"><span>Иван И.</span><span class="bars"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></span><span></span></div>
+          <div class="crow"><span>Мария С.</span><span class="bars"><i class="on"></i><i class="on"></i><i class="on"></i><i></i></span><span></span></div>
+          <div class="crow"><span>Артём К.</span><span class="bars"><i class="on"></i><i></i><i></i><i></i></span><span class="chip warn">давно не отвечал</span></div>
+          <div class="crow off"><span>Софья Л.</span><span class="bars"><i class="on"></i><i class="on"></i><i></i><i></i></span><span class="chip" style="background:#e7e2d6;color:#545e70">выключено</span></div>
+          <div class="crow"><span>Алиса Н.</span><span class="bars"><i class="on"></i><i class="on"></i><i></i><i></i></span><span class="chip ok">тихая, но точная</span></div>
+          <div class="crow"><span>Дмитрий П.</span><span class="bars"><i></i><i></i><i></i><i></i></span><span class="chip warn">давно не отвечал</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="notes">
+      <div class="anote"><span class="n">1</span><div><b>Звонок и индикатор</b><p>Подсвечен тот, кто говорит. Все видят, что аналитика работает.</p></div></div>
+      <div class="anote"><span class="n">2</span><div><b>Метки вместо цифр</b><p>Подсказка, кого спросить сейчас. Смотреть на&nbsp;панель не&nbsp;обязательно.</p></div></div>
+      <div class="anote"><span class="n">3</span><div><b>Выключатель</b><p>Для всего класса или одного ученика, прямо на&nbsp;уроке.</p></div></div>
+      <div class="anote"><span class="n">4</span><div><b>Сводка после урока</b><p>Кнопка «Завершить урок» запускает сводку в&nbsp;боте.</p></div></div>
+    </div>
+  </div>
+  <div class="footer"><span>Макет для ориентира. Финальный вид рисует Варвара</span><span>5</span></div>
+</section>
+
+<!-- 6. Телефон -->
+<section class="slide">
+  <h2>Ученик и&nbsp;бот на&nbsp;телефоне</h2>
+  <div class="phones">
+    <div class="phone-wrap">
+      <div class="phone"><div class="screen">
+        <div class="sbar"><i></i></div>
+        <div class="apphead"><b>Урок истории, 10А</b><span>Аналитика активна</span></div>
+        <div class="callbar"><span><i class="ph ph-phone"></i>В уроке, 8 участников</span><span class="mic-on"><i class="ph ph-microphone"></i></span></div>
+        <div class="steps">
+          <div class="stp got">Пока тихо</div>
+          <div class="stp now">Есть ответ <i class="ph ph-check"></i></div>
+          <div class="stp">Участвуешь</div>
+          <div class="stp">Активно на уроке</div>
+        </div>
+        <p class="phone-hint">Видна только своя шкала. Она растёт по&nbsp;ходу урока и&nbsp;не&nbsp;падает.</p>
+      </div></div>
+      <div class="caption"><b>Во время урока</b><span>звонок и своя шкала</span></div>
+    </div>
+
+    <div class="phone-wrap">
+      <div class="phone"><div class="screen">
+        <div class="sbar"><i></i></div>
+        <div class="apphead"><b>Ассистент Сферум AI</b><span>бот</span></div>
+        <div class="chat">
+          <div class="bubble">
+            <div class="t">Урок истории, 18 октября</div>
+            <div class="sec">Получилось</div>
+            <ul><li>Ответил про строительство флота, когда к&nbsp;тебе обратились</li></ul>
+            <div class="sec">Стоит повторить</div>
+            <ul><li>Табель о&nbsp;рангах: зачем он&nbsp;понадобился</li></ul>
+          </div>
+          <div class="bot-btn">Открыть материалы урока</div>
+        </div>
+      </div></div>
+      <div class="caption"><b>После урока, ученику</b><span>личная карточка без оценок</span></div>
+    </div>
+
+    <div class="phone-wrap">
+      <div class="phone"><div class="screen">
+        <div class="sbar"><i></i></div>
+        <div class="apphead"><b>Ассистент Сферум AI</b><span>бот</span></div>
+        <div class="chat">
+          <div class="bubble">
+            <div class="t">10А, сводка урока</div>
+            <div class="sec">Вытягивали урок</div>
+            <ul><li>Иван И., Мария С.</li></ul>
+            <div class="sec">Класс не уверен</div>
+            <ul><li>Табель о&nbsp;рангах, коллегии</li></ul>
+            <div class="sec">Спросить в следующий раз</div>
+            <div class="q"><b>Артём К.</b> «Зачем Петру понадобился Табель о&nbsp;рангах?»</div>
+          </div>
+          <div class="bot-btn">Подробнее о&nbsp;классе</div>
+        </div>
+      </div></div>
+      <div class="caption"><b>После урока, учителю</b><span>сводка на один экран</span></div>
+    </div>
+  </div>
+  <div class="footer"><span>Макет для ориентира. Финальный вид рисует Варвара</span><span>6</span></div>
+</section>
+
+<!-- 7. Архитектура -->
+<section class="slide">
+  <h2>Как устроено и&nbsp;кто что строит</h2>
+  <div class="legend">
+    <span><i style="background:var(--yar)"></i>Ярослав</span>
+    <span><i style="background:var(--var)"></i>Варвара</span>
+    <span><i style="background:var(--ily)"></i>Илья</span>
+  </div>
+  <div class="lane">
+    <div class="lane-title">Во время урока: шкала на экране быстрее чем за 1,5 секунды</div>
+    <div class="pipe">
+      <div class="pnode y"><b>Звонок LiveKit</b><p>SFU: звук каждого участника отдельно</p><div class="who">ЯРОСЛАВ</div></div>
+      <div class="parr"><i class="ph ph-caret-right"></i></div>
+      <div class="pnode y"><b>Скрытый участник</b><p>Слушает всех, кадры 16&nbsp;кГц по&nbsp;30&nbsp;мс</p><div class="who">ЯРОСЛАВ</div></div>
+      <div class="parr"><i class="ph ph-caret-right"></i></div>
+      <div class="pnode y"><b>Речь в текст</b><p>Silero VAD и&nbsp;faster-whisper на&nbsp;CPU</p><div class="who">ЯРОСЛАВ</div></div>
+      <div class="parr"><i class="ph ph-caret-right"></i></div>
+      <div class="pnode i"><b>Тип реплики и шкала</b><p>Правила, веса, норма урока</p><div class="who">ИЛЬЯ</div></div>
+      <div class="parr"><i class="ph ph-caret-right"></i></div>
+      <div class="pnode v"><b>Экраны</b><p>Панель учителя и шкала ученика</p><div class="who">ДИЗАЙН: ВАРВАРА</div></div>
+    </div>
+  </div>
+  <div class="lane">
+    <div class="lane-title">После урока: сводка через 30–45 секунд</div>
+    <div class="pipe">
+      <div class="pnode y"><b>Реплики урока</b><p>Только текст, аудио не храним</p><div class="who">ЯРОСЛАВ</div></div>
+      <div class="parr"><i class="ph ph-caret-right"></i></div>
+      <div class="pnode i"><b>Нормировка</b><p>Медиана пяти прошлых уроков</p><div class="who">ИЛЬЯ</div></div>
+      <div class="parr"><i class="ph ph-caret-right"></i></div>
+      <div class="pnode i"><b>Сводка LLM</b><p>Промпты и проверка тона</p><div class="who">ИЛЬЯ</div></div>
+      <div class="parr"><i class="ph ph-caret-right"></i></div>
+      <div class="pnode v"><b>Вид сводки и карточки</b><p>Как это выглядит в боте</p><div class="who">ДИЗАЙН: ВАРВАРА</div></div>
+      <div class="parr"><i class="ph ph-caret-right"></i></div>
+      <div class="pnode n"><b>Бот MAX</b><p>Рассылка учителю и ученикам</p></div>
+    </div>
+  </div>
+  <div class="target"><i class="ph ph-info" style="font-size:20px;color:var(--olive)"></i><span>Всё поднимается одной командой <b>docker compose up</b>: приложение на&nbsp;FastAPI, LiveKit, PostgreSQL и&nbsp;Redis. На&nbsp;сервере звонку нужны UDP и&nbsp;TURN.</span></div>
+  <div class="footer"><span>Ассистент Сферум AI, второй этап</span><span>7</span></div>
+</section>
+
+<!-- 8. Матрица -->
+<section class="slide">
+  <h2>Кто за что отвечает</h2>
+  <div class="mlegend"><span><i class="dot-full"></i>отвечает</span><span><i class="dot-ring"></i>помогает</span></div>
+  <div class="matrix">
+    <div class="mh">Зона</div>
+    <div class="mh"><i style="background:var(--yar)"></i>Ярослав</div>
+    <div class="mh"><i style="background:var(--var)"></i>Варвара</div>
+    <div class="mh"><i style="background:var(--ily)"></i>Илья</div>
+
+    <div class="area">Звонок: LiveKit и скрытый участник</div><div class="cell cy"><i class="dot-full"></i></div><div class="cell"></div><div class="cell"></div>
+    <div class="area">Распознавание и конвейер на всех участниках</div><div class="cell cy"><i class="dot-full"></i></div><div class="cell"></div><div class="cell"></div>
+    <div class="area">Виртуальный класс для отладки</div><div class="cell cy"><i class="dot-full"></i></div><div class="cell"></div><div class="cell ci"><i class="dot-ring"></i></div>
+    <div class="area">Docker, сервер с UDP и TURN</div><div class="cell cy"><i class="dot-full"></i></div><div class="cell"></div><div class="cell"></div>
+    <div class="area">Макеты экранов звонка и дизайн-ревью</div><div class="cell"></div><div class="cell cv"><i class="dot-full"></i></div><div class="cell"></div>
+    <div class="area">Оформление бота и скриншоты</div><div class="cell"></div><div class="cell cv"><i class="dot-full"></i></div><div class="cell"></div>
+    <div class="area">Сценарий и запись урока</div><div class="cell cy"><i class="dot-ring"></i></div><div class="cell cv"><i class="dot-ring"></i></div><div class="cell ci"><i class="dot-full"></i></div>
+    <div class="area">Правила шкалы и нормы урока</div><div class="cell cy"><i class="dot-ring"></i></div><div class="cell"></div><div class="cell ci"><i class="dot-full"></i></div>
+    <div class="area">Промпты сводки и карточки</div><div class="cell"></div><div class="cell cv"><i class="dot-ring"></i></div><div class="cell ci"><i class="dot-full"></i></div>
+    <div class="area">Замеры на записи и в живых звонках</div><div class="cell cy"><i class="dot-ring"></i></div><div class="cell"></div><div class="cell ci"><i class="dot-full"></i></div>
+  </div>
+  <div class="footer"><span>Ассистент Сферум AI, второй этап</span><span>8</span></div>
+</section>
+
+<!-- 9. Ярослав -->
+<section class="slide person y">
+  <div class="side">
+    <div class="eyebrow">Разработчик</div>
+    <h2>Ярослав</h2>
+    <p>Путь от&nbsp;звонка до&nbsp;шкалы: LiveKit, скрытый участник, распознавание и&nbsp;конвейер. Сборка, сервер и&nbsp;ревью кода команды.</p>
+    <div class="goal"><b>Главный результат</b><span>Говорю в&nbsp;звонке, и&nbsp;моя шкала растёт быстрее чем за&nbsp;1,5 секунды</span></div>
+  </div>
+  <div class="main">
+    <div class="tasks">
+      <div class="task"><div class="days">Дни 1–2</div><div><b>Звонок локально</b><span>docker compose up, две вкладки слышат друг друга</span></div></div>
+      <div class="task"><div class="days">Дни 3–5</div><div><b>Ассистент слышит каждого</b><span>Скрытый участник, поиск речи и&nbsp;распознавание: реплика с&nbsp;моим id в&nbsp;панели</span></div></div>
+      <div class="task"><div class="days">Дни 5–8</div><div><b>Конвейер на всех участниках</b><span>Плюс виртуальный класс: запись заходит в&nbsp;звонок ботами</span></div></div>
+      <div class="task"><div class="days">Дни 7–9</div><div><b>Шкала, база и сводка</b><span>Урок от&nbsp;«Начать» до&nbsp;сводки проходит целиком</span></div></div>
+      <div class="task"><div class="days">Дни 9–12</div><div><b>Нагрузка и сервер</b><span>6–10 участников, задержка, LiveKit с&nbsp;TURN на&nbsp;своей машине</span></div></div>
+      <div class="task"><div class="days">Дни 12–14</div><div><b>Сборка с нуля и прогоны</b><span>Урок проходит дважды подряд с&nbsp;телефонов</span></div></div>
+    </div>
+    <div class="first"><b>Первые два дня</b><ul>
+      <li><i class="ph ph-check-square"></i>Поднять docker compose и&nbsp;проверить звонок между двумя вкладками</li>
+      <li><i class="ph ph-check-square"></i>Замерить, сколько CPU распознаёт 10 секунд речи моделями small и&nbsp;base</li>
+    </ul></div>
+  </div>
+</section>
+
+<!-- 10. Варвара -->
+<section class="slide person v">
+  <div class="side">
+    <div class="eyebrow">Дизайнер</div>
+    <h2>Варвара</h2>
+    <p>Как выглядит всё, что видят учитель и&nbsp;ученик: экраны звонка, панель класса, шкала, сообщения бота. Готовые экраны принимает по&nbsp;макетам.</p>
+    <div class="goal"><b>Главный результат</b><span>Экраны выглядят как часть Сферума и&nbsp;понятны с&nbsp;первого взгляда</span></div>
+  </div>
+  <div class="main">
+    <div class="tasks">
+      <div class="task"><div class="days">Дни 1–3</div><div><b>Экран звонка учителя</b><span>Участники, кто говорит, панель класса, индикатор, выключатель</span></div></div>
+      <div class="task"><div class="days">Дни 2–4</div><div><b>Состояния звонка</b><span>Вход, микрофон, подключение, связь пропала, нет доступа к&nbsp;микрофону</span></div></div>
+      <div class="task"><div class="days">Дни 3–5</div><div><b>Экран ученика и выбор роли</b><span>Звонок и&nbsp;своя шкала из&nbsp;четырёх ступеней, для телефона</span></div></div>
+      <div class="task"><div class="days">Дни 5–7</div><div><b>Сводка и карточка в боте</b><span>Вид сообщений, тексты кнопок и&nbsp;приветствия</span></div></div>
+      <div class="task"><div class="days">Дни 6–8</div><div><b>Аватар и обложка бота</b><span>Иконка мини-приложения в&nbsp;том же стиле</span></div></div>
+      <div class="task"><div class="days">Дни 8–14</div><div><b>Дизайн-ревью и скриншоты</b><span>Тёмная тема, длинные имена, 30 учеников, слабая связь</span></div></div>
+    </div>
+    <div class="first"><b>Первые два дня</b><ul>
+      <li><i class="ph ph-check-square"></i>Посмотреть макеты первого этапа и&nbsp;черновой экран звонка</li>
+      <li><i class="ph ph-check-square"></i>Набросать экран звонка учителя: участники и&nbsp;панель класса</li>
+    </ul></div>
+  </div>
+</section>
+
+<!-- 11. Илья -->
+<section class="slide person i">
+  <div class="side">
+    <div class="eyebrow">Аналитик</div>
+    <h2>Илья</h2>
+    <p>Данные и&nbsp;качество: записанный урок, правила шкалы, промпты и&nbsp;цифры, по&nbsp;которым видно, что продукт работает.</p>
+    <div class="goal"><b>Главный результат</b><span>Честные цифры качества на&nbsp;записи и&nbsp;в&nbsp;живых звонках</span></div>
+  </div>
+  <div class="main">
+    <div class="tasks">
+      <div class="task"><div class="days">Дни 1–2</div><div><b>Сценарий урока на 5–7 минут</b><span>Шесть учеников с&nbsp;разными профилями участия</span></div></div>
+      <div class="task"><div class="days">Дни 3–4</div><div><b>Запись урока</b><span>Каждый пишет свой микрофон, отдельные дорожки</span></div></div>
+      <div class="task"><div class="days">Дни 4–6</div><div><b>Ручная разметка реплик</b><span>Эталон: кто, когда, что сказал и&nbsp;какой это тип реплики</span></div></div>
+      <div class="task"><div class="days">Дни 5–8</div><div><b>Правила шкалы и нормы урока</b><span>Веса, пороги ступеней, «давно не&nbsp;отвечал»</span></div></div>
+      <div class="task"><div class="days">Дни 8–10</div><div><b>Прошлые уроки и промпты</b><span>Сводка помещается на&nbsp;один экран, тон нейтральный</span></div></div>
+      <div class="task"><div class="days">Дни 9–14</div><div><b>Замеры на записи и в живых звонках</b><span>Распознавание, реплики не&nbsp;тому ученику, задержка в&nbsp;мобильной сети</span></div></div>
+    </div>
+    <div class="first"><b>Первые два дня</b><ul>
+      <li><i class="ph ph-check-square"></i>Прочитать в&nbsp;концепции, что считается активностью</li>
+      <li><i class="ph ph-check-square"></i>Написать сценарий и&nbsp;договориться, кто и&nbsp;когда записывается</li>
+    </ul></div>
+  </div>
+</section>
+
+<!-- 12. Гант -->
+<section class="slide">
+  <h2>14 дней: кто и&nbsp;когда</h2>
+  <div class="gantt">
+    <div></div>
+    <div class="milestones">
+      <div class="ms" style="left:calc(100%/14*2)"><span>Звонок работает</span><i></i></div>
+      <div class="ms" style="left:calc(100%/14*5)"><span>Ассистент слышит</span><i></i></div>
+      <div class="ms" style="left:calc(100%/14*9)"><span>Урок целиком</span><i></i></div>
+      <div class="ms" style="left:calc(100%/14*12)"><span>Сервер с TURN</span><i></i></div>
+      <div class="ms" style="left:calc(100%/14*14 - 18px)"><span>Сдача</span><i></i></div>
+    </div>
+    <div></div>
+    <div class="g-days"><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><span>8</span><span>9</span><span>10</span><span>11</span><span>12</span><span>13</span><span>14</span></div>
+
+    <div class="g-who y">ЯРОСЛАВ</div><div></div>
+    <div class="g-label">Звонок локально</div><div class="g-track"><div class="g-bar y" style="left:0;width:calc(100%/14*2)"></div></div>
+    <div class="g-label">Ассистент слышит каждого</div><div class="g-track"><div class="g-bar y" style="left:calc(100%/14*2);width:calc(100%/14*3)"></div></div>
+    <div class="g-label">Конвейер и виртуальный класс</div><div class="g-track"><div class="g-bar y" style="left:calc(100%/14*4);width:calc(100%/14*4)"></div></div>
+    <div class="g-label">Шкала, база, сводка</div><div class="g-track"><div class="g-bar y" style="left:calc(100%/14*6);width:calc(100%/14*3)"></div></div>
+    <div class="g-label">Нагрузка и сервер</div><div class="g-track"><div class="g-bar y" style="left:calc(100%/14*8);width:calc(100%/14*4)"></div></div>
+    <div class="g-label">Сборка и прогоны</div><div class="g-track"><div class="g-bar y" style="left:calc(100%/14*11);width:calc(100%/14*3)"></div></div>
+
+    <div class="g-who v">ВАРВАРА</div><div></div>
+    <div class="g-label">Экран звонка учителя</div><div class="g-track"><div class="g-bar v" style="left:0;width:calc(100%/14*3)"></div></div>
+    <div class="g-label">Состояния звонка</div><div class="g-track"><div class="g-bar v" style="left:calc(100%/14*1);width:calc(100%/14*3)"></div></div>
+    <div class="g-label">Экран ученика, выбор роли</div><div class="g-track"><div class="g-bar v" style="left:calc(100%/14*2);width:calc(100%/14*3)"></div></div>
+    <div class="g-label">Сводка и карточка в боте</div><div class="g-track"><div class="g-bar v" style="left:calc(100%/14*4);width:calc(100%/14*3)"></div></div>
+    <div class="g-label">Аватар и обложка бота</div><div class="g-track"><div class="g-bar v" style="left:calc(100%/14*5);width:calc(100%/14*3)"></div></div>
+    <div class="g-label">Дизайн-ревью и скриншоты</div><div class="g-track"><div class="g-bar v" style="left:calc(100%/14*7);width:calc(100%/14*7)"></div></div>
+
+    <div class="g-who i">ИЛЬЯ</div><div></div>
+    <div class="g-label">Сценарий и запись</div><div class="g-track"><div class="g-bar i" style="left:0;width:calc(100%/14*4)"></div></div>
+    <div class="g-label">Разметка эталона</div><div class="g-track"><div class="g-bar i" style="left:calc(100%/14*3);width:calc(100%/14*3)"></div></div>
+    <div class="g-label">Правила шкалы</div><div class="g-track"><div class="g-bar i" style="left:calc(100%/14*4);width:calc(100%/14*4)"></div></div>
+    <div class="g-label">Прошлые уроки и промпты</div><div class="g-track"><div class="g-bar i" style="left:calc(100%/14*7);width:calc(100%/14*3)"></div></div>
+    <div class="g-label">Замеры на записи</div><div class="g-track"><div class="g-bar i" style="left:calc(100%/14*8);width:calc(100%/14*4)"></div></div>
+    <div class="g-label">Замеры в живых звонках</div><div class="g-track"><div class="g-bar i" style="left:calc(100%/14*9);width:calc(100%/14*5)"></div></div>
+  </div>
+  <div class="footer"><span>Если срок другой, этапы растягиваются или сжимаются пропорционально</span><span>12</span></div>
+</section>
+
+<!-- 13. Процесс -->
+<section class="slide">
+  <h2>Работаем параллельно и&nbsp;не&nbsp;ждём друг друга</h2>
+  <div class="proc">
+    <div class="stream-map">
+      <svg viewBox="0 0 650 430" preserveAspectRatio="none" aria-hidden="true">
+        <g fill="none" stroke="#a6b58a" stroke-width="2">
+          <path d="M190 215 C 225 215, 225 52, 262 52"/>
+          <path d="M190 215 L 262 215"/>
+          <path d="M190 215 C 225 215, 225 378, 262 378"/>
+          <path d="M492 52 C 470 52, 470 215, 500 215" transform="translate(0,0)"/>
+          <path d="M492 215 L 500 215"/>
+          <path d="M492 378 C 470 378, 470 215, 500 215"/>
+        </g>
+      </svg>
+      <div class="sm-box sm-src"><b>Контракты и моки</b><span>Форматы событий фиксируем во&nbsp;второй день</span></div>
+      <div class="sm-box sm-st" style="top:12px;border-color:var(--yar)"><b>Ярослав</b><span>Подключает настоящий конвейер вместо моков</span></div>
+      <div class="sm-box sm-st" style="top:175px;border-color:var(--var)"><b>Варвара</b><span>Рисует экраны по&nbsp;контрактам: данные на&nbsp;экране уже известны</span></div>
+      <div class="sm-box sm-st" style="top:338px;border-color:var(--ily)"><b>Илья</b><span>Считает правила шкалы на&nbsp;размеченной записи</span></div>
+      <div class="sm-box sm-out" style="width:150px"><b>Прогон по&nbsp;пятницам</b><span>Настоящий урок в&nbsp;звонке с&nbsp;телефонов</span></div>
+    </div>
+    <div class="rules">
+      <div class="rule"><i class="ph ph-kanban"></i><div><b>Доска задач</b><p>GitHub Projects. Одна задача, один исполнитель, понятный результат.</p></div></div>
+      <div class="rule"><i class="ph ph-git-pull-request"></i><div><b>Ветка на задачу</b><p>В main только через PR. Код с&nbsp;ИИ-ассистентом можно, но перед PR его надо понять.</p></div></div>
+      <div class="rule"><i class="ph ph-phone-call"></i><div><b>Созвон 15 минут</b><p>Три раза в&nbsp;неделю: что сделал, что дальше, где застрял.</p></div></div>
+      <div class="rule"><i class="ph ph-warning-circle"></i><div><b>Застрял на полдня</b><p>Пишешь в&nbsp;чат сразу, а&nbsp;не&nbsp;к&nbsp;созвону.</p></div></div>
+    </div>
+  </div>
+  <div class="footer"><span>Ассистент Сферум AI, второй этап</span><span>13</span></div>
+</section>
+
+<!-- 14. Первые 48 часов -->
+<section class="slide">
+  <h2>Первые 48 часов</h2>
+  <div class="start48">
+    <div class="col48" style="border-color:var(--yar)">
+      <h3>Ярослав</h3><div class="role">разработка</div>
+      <ul>
+        <li><i class="ph ph-check-square" style="color:var(--yar)"></i>Поднять docker compose: приложение и&nbsp;LiveKit</li>
+        <li><i class="ph ph-check-square" style="color:var(--yar)"></i>Проверить звонок между двумя вкладками</li>
+        <li><i class="ph ph-check-square" style="color:var(--yar)"></i>Замерить скорость small и&nbsp;base на&nbsp;CPU</li>
+      </ul>
+    </div>
+    <div class="col48" style="border-color:var(--var)">
+      <h3>Варвара</h3><div class="role">дизайн</div>
+      <ul>
+        <li><i class="ph ph-check-square" style="color:var(--var)"></i>Посмотреть макеты первого этапа и&nbsp;Callifornia</li>
+        <li><i class="ph ph-check-square" style="color:var(--var)"></i>Согласовать с&nbsp;командой список экранов</li>
+        <li><i class="ph ph-check-square" style="color:var(--var)"></i>Первый набросок экрана звонка учителя</li>
+      </ul>
+    </div>
+    <div class="col48" style="border-color:var(--ily)">
+      <h3>Илья</h3><div class="role">аналитика</div>
+      <ul>
+        <li><i class="ph ph-check-square" style="color:var(--ily)"></i>Прочитать, что считается активностью</li>
+        <li><i class="ph ph-check-square" style="color:var(--ily)"></i>Написать сценарий урока</li>
+        <li><i class="ph ph-check-square" style="color:var(--ily)"></i>Назначить время записи с&nbsp;командой</li>
+      </ul>
+    </div>
+  </div>
+  <div class="repo"><i class="ph ph-folder-simple"></i><span>Всё уже лежит в&nbsp;репозитории <code>lesson_assistant</code>: задачи каждого в&nbsp;<code>docs/tasks/</code>, план в&nbsp;<code>docs/PLAN.md</code></span></div>
+</section>
+
+<script>
+  // ?slide=N показывает один слайд: так удобно делать превью
+  const only = new URLSearchParams(location.search).get("slide");
+  if (only) document.querySelectorAll(".slide").forEach((s, i) => { if (i + 1 !== +only) s.remove(); else s.style.margin = "0"; });
+</script>
+</body>
+</html>

@@ -1,0 +1,13 @@
+.git
+.venv
+venv
+__pycache__
+.pytest_cache
+.env
+models
+design
+analytics
+docs
+tests
+*.md
+!README.md

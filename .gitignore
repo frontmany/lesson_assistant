@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+
+# окружение и секреты
+.env
+
+# модели и локальные данные
+models/
+*.sqlite3
+*.db
+
+# аудио: исходные записи урока храним вне репозитория, если они больше 50 МБ
+data/demo_lesson/tracks/*.raw
+
+# IDE и ОС
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# дизайн: исходники Figma не коммитим, только экспорт
+design/**/*.fig

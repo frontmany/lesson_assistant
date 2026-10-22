@@ -1,0 +1,43 @@
+# Полный стек: приложение, звонок (LiveKit), PostgreSQL и Redis.
+#   docker compose up --build
+# Мини-приложение: http://localhost:8000
+services:
+  app:
+    build: .
+    env_file: .env
+    environment:
+      LIVEKIT_URL: ws://livekit:7880
+      DATABASE_URL: postgresql://assistant:assistant@postgres:5432/assistant
+      REDIS_URL: redis://redis:6379/0
+    ports:
+      - "8000:8000"
+    depends_on:
+      - livekit
+      - postgres
+      - redis
+
+  # SFU: принимает звук каждого участника и раздаёт остальным.
+  # --dev: ключи devkey/secret, только для локальной разработки.
+  # Боевой запуск (свой конфиг, внешний IP, TURN) — в docs/deploy.md
+  livekit:
+    image: livekit/livekit-server:v1.13.7
+    command: --dev --bind 0.0.0.0
+    ports:
+      - "7880:7880"       # сигнализация (WebSocket)
+      - "7881:7881"       # медиа по TCP, если UDP закрыт
+      - "7882:7882/udp"   # медиа по UDP
+
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: assistant
+      POSTGRES_PASSWORD: assistant
+      POSTGRES_DB: assistant
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+
+volumes:
+  pgdata:

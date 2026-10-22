@@ -1,0 +1,37 @@
+[
+  { "after": 1.0, "type": "scale", "student_id": "ivan_i", "level": 1, "label": "Пока тихо", "flags": [] },
+  { "after": 0.0, "type": "scale", "student_id": "maria_s", "level": 1, "label": "Пока тихо", "flags": [] },
+  { "after": 0.0, "type": "scale", "student_id": "artem_k", "level": 1, "label": "Пока тихо", "flags": [] },
+  { "after": 0.0, "type": "scale", "student_id": "sofya_l", "level": 1, "label": "Пока тихо", "flags": [] },
+  { "after": 0.0, "type": "scale", "student_id": "alisa_n", "level": 1, "label": "Пока тихо", "flags": [] },
+  { "after": 0.0, "type": "scale", "student_id": "dmitry_p", "level": 1, "label": "Пока тихо", "flags": [] },
+
+  { "after": 2.0, "type": "utterance", "student_id": "ivan_i", "t": 95.4, "text": "Он хотел, чтобы Россия была как европейские страны, поэтому начал с армии и флота", "kind": "answer", "addressed": false },
+  { "after": 0.8, "type": "scale", "student_id": "ivan_i", "level": 2, "label": "Есть ответ", "flags": [] },
+
+  { "after": 2.0, "type": "utterance", "student_id": "maria_s", "t": 140.2, "text": "А почему столицу перенесли именно в Петербург?", "kind": "initiative", "addressed": false },
+  { "after": 0.8, "type": "scale", "student_id": "maria_s", "level": 2, "label": "Есть ответ", "flags": [] },
+
+  { "after": 2.0, "type": "utterance", "student_id": "alisa_n", "t": 212.7, "text": "Табель о рангах позволял продвигаться по службе за заслуги, а не по происхождению", "kind": "response", "addressed": true },
+  { "after": 0.8, "type": "scale", "student_id": "alisa_n", "level": 2, "label": "Есть ответ", "flags": ["quiet_but_precise"] },
+
+  { "after": 2.0, "type": "utterance", "student_id": "ivan_i", "t": 260.1, "text": "Ещё он ввёл рекрутские наборы, и армия стала постоянной", "kind": "answer", "addressed": false },
+  { "after": 0.8, "type": "scale", "student_id": "ivan_i", "level": 3, "label": "Участвуешь", "flags": [] },
+
+  { "after": 2.0, "type": "utterance", "student_id": "sofya_l", "t": 301.5, "text": "Коллегии заменили приказы", "kind": "response", "addressed": true },
+  { "after": 0.8, "type": "scale", "student_id": "sofya_l", "level": 2, "label": "Есть ответ", "flags": [] },
+
+  { "after": 2.0, "type": "utterance", "student_id": "maria_s", "t": 355.0, "text": "Получается, Сенат заменил Боярскую думу?", "kind": "initiative", "addressed": false },
+  { "after": 0.8, "type": "scale", "student_id": "maria_s", "level": 3, "label": "Участвуешь", "flags": [] },
+
+  { "after": 1.5, "type": "scale", "student_id": "artem_k", "level": 1, "label": "Пока тихо", "flags": ["long_silence"] },
+  { "after": 0.0, "type": "scale", "student_id": "dmitry_p", "level": 1, "label": "Пока тихо", "flags": ["long_silence"] },
+
+  { "after": 2.0, "type": "utterance", "student_id": "ivan_i", "t": 420.8, "text": "Северная война дала выход к Балтийскому морю, без неё Петербурга бы не было", "kind": "answer", "addressed": false },
+  { "after": 0.8, "type": "scale", "student_id": "ivan_i", "level": 4, "label": "Активно на уроке", "flags": [] },
+
+  { "after": 2.0, "type": "utterance", "student_id": "artem_k", "t": 470.3, "text": "Ну, там флот строили", "kind": "response", "addressed": true },
+  { "after": 0.8, "type": "scale", "student_id": "artem_k", "level": 2, "label": "Есть ответ", "flags": [] },
+
+  { "after": 1.0, "type": "analytics", "enabled": false, "student_id": "sofya_l" }
+]
