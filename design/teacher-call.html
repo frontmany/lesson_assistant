@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Макет: звонок учителя</title>
+  <!-- Макет экрана звонка учителя (issue #4). Статичная вёрстка без скриптов:
+       один файл, десктоп и телефон 375 px переключаются шириной окна. -->
+  <link rel="stylesheet" href="../webapp/css/tokens.css">
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: var(--font); background: var(--bg); color: var(--ink); }
+    button { font: inherit; color: inherit; cursor: pointer; }
+
+    .screen { min-height: 100vh; display: flex; flex-direction: column; }
+
+    /* Верхняя строка */
+    .top {
+      display: flex; align-items: center; gap: 16px;
+      padding: 16px 24px; border-bottom: 1px solid var(--line);
+    }
+    .top h1 { margin: 0; font-size: 18px; line-height: 1.2; }
+    .top .sub { font-size: 13px; color: var(--ink-soft); }
+    .top .grow { flex: 1; min-width: 0; }
+
+    .indicator {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 6px 12px; border-radius: 999px;
+      background: var(--accent-tint); color: var(--accent);
+      font-size: 14px; font-weight: 600; white-space: nowrap;
+    }
+    .indicator::before {
+      content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--accent);
+    }
+
+    /* Выключатель */
+    .switch { display: inline-flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 600; }
+    .switch .track {
+      width: 40px; height: 24px; border-radius: 999px; background: var(--accent);
+      position: relative; flex: none;
+    }
+    .switch .track::after {
+      content: ""; position: absolute; top: 3px; right: 3px;
+      width: 18px; height: 18px; border-radius: 50%; background: var(--surface);
+    }
+    .switch.off .track { background: var(--surface-muted); }
+    .switch.off .track::after { right: auto; left: 3px; background: var(--ink-soft); }
+
+    /* Основная часть */
+    .main {
+      flex: 1; display: grid; grid-template-columns: 1fr 380px; gap: 24px;
+      padding: 24px; min-height: 0;
+    }
+
+    /* Участники звонка */
+    .tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; align-content: start; }
+    .tile {
+      position: relative; aspect-ratio: 4 / 3; border-radius: var(--radius);
+      background: var(--surface); display: grid; place-items: center;
+      box-shadow: inset 0 0 0 1px var(--line);
+    }
+    .tile .avatar {
+      width: 64px; height: 64px; border-radius: 50%;
+      background: var(--surface-muted); color: var(--ink);
+      display: grid; place-items: center; font-weight: 700; font-size: 20px;
+    }
+    .tile .name {
+      position: absolute; left: 12px; bottom: 10px; right: 12px;
+      font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .tile .muted {
+      position: absolute; top: 10px; right: 12px; font-size: 12px; color: var(--ink-soft);
+    }
+    .tile.speaking { box-shadow: inset 0 0 0 3px var(--accent); }
+    .tile.speaking .avatar { background: var(--accent-tint); color: var(--accent); }
+    .tile.speaking .name::before { content: "● "; color: var(--accent); }
+
+    /* Панель класса */
+    .panel {
+      background: var(--surface); border-radius: var(--radius); padding: 16px;
+      box-shadow: inset 0 0 0 1px var(--line); align-self: start;
+    }
+    .panel-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+    .panel-head h2 { margin: 0; font-size: 16px; }
+    .legend { font-size: 12px; color: var(--ink-soft); margin: 0 0 8px; }
+
+    .stu { padding: 12px 0; border-top: 1px solid var(--line); }
+    .stu-line { display: flex; align-items: center; gap: 12px; }
+    .stu-name { flex: 1; min-width: 0; font-weight: 600; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .stu-label { font-size: 12px; color: var(--ink-soft); white-space: nowrap; }
+    .bars { display: flex; gap: 4px; margin-top: 8px; }
+    .bar { flex: 1; height: 8px; border-radius: 4px; background: var(--surface-muted); }
+    .bar.on { background: var(--accent); }
+    .flag { display: inline-block; margin-top: 8px; font-size: 13px; padding: 4px 10px; border-radius: 999px; }
+    .flag.long_silence { background: var(--warn-tint); color: var(--warn-ink); }
+    .flag.quiet_but_precise { background: var(--accent-tint); color: var(--accent); }
+    .stu.off { opacity: .5; }
+    .stu.off .stu-label::after { content: " · аналитика выключена"; }
+
+    .mini-switch .track { width: 32px; height: 20px; }
+    .mini-switch .track::after { width: 14px; height: 14px; top: 3px; right: 3px; }
+    .mini-switch.off .track::after { left: 3px; }
+
+    /* Нижняя панель */
+    .controls {
+      display: flex; align-items: center; justify-content: center; gap: 12px;
+      padding: 16px 24px; border-top: 1px solid var(--line); background: var(--surface);
+    }
+    .btn {
+      display: inline-flex; align-items: center; gap: 8px; border: 0; border-radius: 999px;
+      padding: 12px 20px; font-weight: 600; background: var(--surface-muted);
+    }
+    .btn.end { background: #b3392f; color: #fff; }
+
+    /* Телефон */
+    @media (max-width: 700px) {
+      .top { flex-wrap: wrap; padding: 12px 16px; gap: 8px 12px; }
+      .top .switch-all { order: 3; width: 100%; }
+      .main { grid-template-columns: 1fr; gap: 16px; padding: 16px; }
+      .tiles { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; }
+      .tile { flex: none; width: 112px; aspect-ratio: 1; }
+      .tile .avatar { width: 44px; height: 44px; font-size: 16px; }
+      .tile .name { left: 8px; right: 8px; bottom: 8px; font-size: 12px; }
+      .tile .muted { display: none; }
+      .panel { padding: 12px; }
+      .controls { padding: 12px 16px; position: sticky; bottom: 0; }
+      .controls .btn { flex: 1; justify-content: center; padding: 14px 12px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="screen">
+    <header class="top">
+      <div class="grow">
+        <h1>10А, история</h1>
+        <div class="sub">Реформы Петра I · 18:42</div>
+      </div>
+      <span class="indicator">Аналитика активна</span>
+      <label class="switch switch-all"><span class="track"></span>Весь класс</label>
+    </header>
+
+    <div class="main">
+      <section class="tiles" aria-label="Участники звонка">
+        <div class="tile"><div class="avatar">ЕВ</div><span class="name">Елена Викторовна (вы)</span></div>
+        <div class="tile speaking"><div class="avatar">ИИ</div><span class="name">Иван И.</span></div>
+        <div class="tile"><div class="avatar">МС</div><span class="name">Мария С.</span></div>
+        <div class="tile"><div class="avatar">АК</div><span class="name">Артём К.</span></div>
+        <div class="tile"><div class="avatar">СЛ</div><span class="name">Софья Л.</span><span class="muted">аналитика выкл.</span></div>
+        <div class="tile"><div class="avatar">АН</div><span class="name">Алиса Н.</span></div>
+        <div class="tile"><div class="avatar">ДП</div><span class="name">Дмитрий П.</span></div>
+      </section>
+
+      <aside class="panel" aria-label="Панель класса">
+        <div class="panel-head">
+          <h2>Класс</h2>
+          <span class="sub" style="font-size:13px;color:var(--ink-soft)">6 из 6 в звонке</span>
+        </div>
+        <p class="legend">Шкала участия: пока тихо · есть ответ · участвует · активно</p>
+
+        <div class="stu">
+          <div class="stu-line"><span class="stu-name">Иван И.</span><span class="stu-label">Участвует</span><span class="switch mini-switch"><span class="track"></span></span></div>
+          <div class="bars"><span class="bar on"></span><span class="bar on"></span><span class="bar on"></span><span class="bar"></span></div>
+        </div>
+        <div class="stu">
+          <div class="stu-line"><span class="stu-name">Мария С.</span><span class="stu-label">Есть ответ</span><span class="switch mini-switch"><span class="track"></span></span></div>
+          <div class="bars"><span class="bar on"></span><span class="bar on"></span><span class="bar"></span><span class="bar"></span></div>
+        </div>
+        <div class="stu">
+          <div class="stu-line"><span class="stu-name">Артём К.</span><span class="stu-label">Пока тихо</span><span class="switch mini-switch"><span class="track"></span></span></div>
+          <div class="bars"><span class="bar on"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span></div>
+          <span class="flag long_silence">давно не отвечал</span>
+        </div>
+        <div class="stu off">
+          <div class="stu-line"><span class="stu-name">Софья Л.</span><span class="stu-label">Пока тихо</span><span class="switch mini-switch off"><span class="track"></span></span></div>
+          <div class="bars"><span class="bar on"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span></div>
+        </div>
+        <div class="stu">
+          <div class="stu-line"><span class="stu-name">Алиса Н.</span><span class="stu-label">Есть ответ</span><span class="switch mini-switch"><span class="track"></span></span></div>
+          <div class="bars"><span class="bar on"></span><span class="bar on"></span><span class="bar"></span><span class="bar"></span></div>
+          <span class="flag quiet_but_precise">тихий, но точный</span>
+        </div>
+        <div class="stu">
+          <div class="stu-line"><span class="stu-name">Дмитрий П.</span><span class="stu-label">Пока тихо</span><span class="switch mini-switch"><span class="track"></span></span></div>
+          <div class="bars"><span class="bar on"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span></div>
+          <span class="flag long_silence">давно не отвечал</span>
+        </div>
+      </aside>
+    </div>
+
+    <footer class="controls">
+      <button class="btn">🎤 Микрофон</button>
+      <button class="btn end">Завершить урок</button>
+    </footer>
+  </div>
+</body>
+</html>
