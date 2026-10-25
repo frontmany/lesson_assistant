@@ -11,6 +11,9 @@
   --warn-tint: #f1dfc0;
   --warn-ink: #7a5420;
   --line: #ddd6c6;
+  --danger: #b3392f;
+  --on-danger: #ffffff;
+  --scrim: rgba(20, 27, 39, 0.62);
 
   --radius: 14px;
   --font: "Onest", system-ui, sans-serif;
@@ -29,5 +32,6 @@
     --warn-tint: #3a2f1f;
     --warn-ink: #e7c58f;
     --line: #2d3749;
+    --danger: #d4574c;
   }
 }
