@@ -24,6 +24,7 @@ COPY app ./app
 COPY webapp ./webapp
 COPY data ./data
 COPY prompts ./prompts
+COPY certs ./certs
 
 EXPOSE 8000
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
