@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Проверка звонка в MAX</title>
+  <!-- Задача #6: работает ли звонок во встроенном браузере MAX.
+       Страница проверяет мост MAX, доступ к микрофону (через PermissionsManager
+       и getUserMedia), WebRTC и воспроизведение звука. Без сервера и LiveKit. -->
+  <script src="https://st.max.ru/js/max-web-app.js"></script>
+  <link rel="stylesheet" href="css/tokens.css">
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: var(--font); background: var(--bg); color: var(--ink); }
+    main { max-width: 560px; margin: 0 auto; padding: 16px; }
+    h1 { font-size: 20px; margin: 0 0 4px; }
+    .hint { font-size: 14px; color: var(--ink-soft); margin: 0 0 16px; }
+    button {
+      width: 100%; padding: 14px; margin-bottom: 12px; border: 0; border-radius: var(--radius);
+      background: var(--ink); color: var(--surface); font: inherit; font-weight: 600;
+    }
+    button.secondary { background: var(--surface-muted); color: var(--ink); }
+    .row { display: grid; grid-template-columns: 24px 1fr; gap: 8px; padding: 10px 0; border-top: 1px solid var(--line); font-size: 14px; }
+    .row b { display: block; }
+    .row span { color: var(--ink-soft); word-break: break-word; }
+    .meter { height: 10px; border-radius: 5px; background: var(--surface-muted); overflow: hidden; margin: 4px 0 12px; }
+    .meter i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .1s; }
+    #log { font-size: 12px; color: var(--ink-soft); white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Проверка звонка в MAX</h1>
+    <p class="hint">Нажми «Начать проверку», разреши микрофон и скажи пару слов. В конце нажми «Скопировать отчёт».</p>
+
+    <button id="start">Начать проверку</button>
+    <div class="meter"><i id="level"></i></div>
+    <section id="rows"></section>
+    <button id="copy" class="secondary">Скопировать отчёт</button>
+    <div id="log"></div>
+  </main>
+
+  <script>
+    const results = {};
+    const rows = document.getElementById("rows");
+    const logEl = document.getElementById("log");
+
+    function show(key, title, ok, details = "") {
+      results[key] = { title, ok, details };
+      let row = document.getElementById("row-" + key);
+      if (!row) {
+        row = document.createElement("div");
+        row.className = "row";
+        row.id = "row-" + key;
+        rows.append(row);
+      }
+      const mark = ok === true ? "✅" : ok === false ? "❌" : "⏳";
+      row.innerHTML = `<div>${mark}</div><div><b>${title}</b><span>${details}</span></div>`;
+    }
+
+    function log(text) {
+      logEl.textContent += `[${new Date().toLocaleTimeString()}] ${text}\n`;
+    }
+
+    // Значение свойства или результат метода: в документации MAX часть проверок
+    // описана как методы, часть как свойства
+    async function read(obj, name) {
+      const v = obj?.[name];
+      return typeof v === "function" ? await v.call(obj) : v;
+    }
+
+    function describeError(e) {
+      if (!e) return "неизвестная ошибка";
+      return [e.name, e.code, e.message, e.error, typeof e === "string" ? e : ""]
+        .filter(Boolean).join(" · ") || JSON.stringify(e);
+    }
+
+    function checkBridge() {
+      const app = window.WebApp;
+      if (!app) {
+        show("bridge", "Мост MAX (window.WebApp)", false, "не найден: страница открыта не из MAX или скрипт моста не загрузился");
+        return null;
+      }
+      const user = app.initDataUnsafe?.user;
+      show("bridge", "Мост MAX (window.WebApp)", true,
+        `платформа: ${app.platform ?? "?"}, версия: ${app.version ?? "?"}, устройство: ${app.deviceName ?? "?"}`);
+      show("initData", "Данные запуска (initData)", Boolean(app.initData),
+        app.initData ? `длина ${app.initData.length}, пользователь: ${user ? `${user.first_name ?? ""} (id ${user.id})` : "нет в initDataUnsafe"}` : "пусто");
+      return app;
+    }
+
+    async function requestMaxPermission(app) {
+      const pm = app?.PermissionsManager;
+      if (!pm) {
+        show("maxPerm", "Доступ к микрофону в MAX (PermissionsManager)", null, "объекта нет — пропускаем, пробуем сразу getUserMedia");
+        return;
+      }
+      try {
+        if (!(await read(pm, "isInited"))) await pm.init();
+        const state = {
+          микрофон_есть: await read(pm, "isMicAvailable"),
+          доступ_приложению: await read(pm, "isMicAppAccessGranted"),
+          системный_доступ: await read(pm, "isMicSystemAccessGranted"),
+        };
+        log("PermissionsManager до запроса: " + JSON.stringify(state));
+        // В документации: «укажите в permissions хотя бы один из параметров: camera, mic»
+        let answer;
+        try {
+          answer = await pm.requestAccess({ permissions: ["mic"] });
+        } catch (first) {
+          log("requestAccess({permissions:['mic']}) → " + describeError(first) + ", пробую requestAccess(['mic'])");
+          answer = await pm.requestAccess(["mic"]);
+        }
+        log("requestAccess → " + JSON.stringify(answer));
+        show("maxPerm", "Доступ к микрофону в MAX (PermissionsManager)", true, "выдан или уже был выдан");
+      } catch (e) {
+        show("maxPerm", "Доступ к микрофону в MAX (PermissionsManager)", false, describeError(e));
+        log("PermissionsManager: " + describeError(e));
+      }
+    }
+
+    async function checkMic() {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        show("mic", "Микрофон (getUserMedia)", false, "getUserMedia недоступен" + (window.isSecureContext ? "" : ": страница открыта не по https"));
+        return null;
+      }
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+        const track = stream.getAudioTracks()[0];
+        show("mic", "Микрофон (getUserMedia)", true, `устройство: ${track.label || "без названия"}`);
+        track.addEventListener("ended", () => log("дорожка микрофона остановлена системой"));
+        return stream;
+      } catch (e) {
+        show("mic", "Микрофон (getUserMedia)", false, describeError(e));
+        return null;
+      }
+    }
+
+    function meter(stream) {
+      const ctx = new AudioContext();
+      const analyser = ctx.createAnalyser();
+      ctx.createMediaStreamSource(stream).connect(analyser);
+      const data = new Uint8Array(analyser.fftSize);
+      let peak = 0;
+      const tick = () => {
+        analyser.getByteTimeDomainData(data);
+        const level = Math.max(...data.map((v) => Math.abs(v - 128))) / 128;
+        peak = Math.max(peak, level);
+        document.getElementById("level").style.width = Math.round(level * 100) + "%";
+        if (peak > 0.05) show("voice", "Голос слышен", true, `пиковая громкость ${Math.round(peak * 100)}%`);
+        requestAnimationFrame(tick);
+      };
+      show("voice", "Голос слышен", null, "скажи что-нибудь в микрофон");
+      tick();
+    }
+
+    // Два соединения внутри страницы: звук идёт через настоящий WebRTC
+    // и возвращается обратно. Проверяет и стек WebRTC, и воспроизведение
+    async function checkWebRtc(stream) {
+      if (!window.RTCPeerConnection) {
+        show("webrtc", "WebRTC (RTCPeerConnection)", false, "не поддерживается");
+        return;
+      }
+      try {
+        const a = new RTCPeerConnection();
+        const b = new RTCPeerConnection();
+        a.onicecandidate = (e) => e.candidate && b.addIceCandidate(e.candidate);
+        b.onicecandidate = (e) => e.candidate && a.addIceCandidate(e.candidate);
+        const connected = new Promise((resolve, reject) => {
+          b.onconnectionstatechange = () => {
+            log("WebRTC: " + b.connectionState);
+            if (b.connectionState === "connected") resolve();
+            if (b.connectionState === "failed") reject(new Error("соединение не установилось"));
+          };
+          setTimeout(() => reject(new Error("нет соединения за 10 секунд")), 10000);
+        });
+        b.ontrack = (e) => {
+          const audio = new Audio();
+          audio.srcObject = e.streams[0];
+          audio.play()
+            .then(() => show("playback", "Звук собеседника играет", true, "голос возвращается через WebRTC, должно быть слышно эхо себя"))
+            .catch((err) => show("playback", "Звук собеседника играет", false, describeError(err)));
+        };
+        stream.getTracks().forEach((t) => a.addTrack(t, stream));
+        await a.setLocalDescription(await a.createOffer());
+        await b.setRemoteDescription(a.localDescription);
+        await b.setLocalDescription(await b.createAnswer());
+        await a.setRemoteDescription(b.localDescription);
+        await connected;
+        show("webrtc", "WebRTC (RTCPeerConnection)", true, "соединение установлено");
+      } catch (e) {
+        show("webrtc", "WebRTC (RTCPeerConnection)", false, describeError(e));
+      }
+    }
+
+    document.addEventListener("visibilitychange", () => {
+      log(document.hidden ? "приложение свёрнуто" : "приложение снова на экране");
+    });
+
+    document.getElementById("start").addEventListener("click", async () => {
+      document.getElementById("start").disabled = true;
+      show("env", "Окружение", window.isSecureContext, `${window.isSecureContext ? "https" : "НЕ https"} · ${navigator.userAgent}`);
+      const app = checkBridge();
+      await requestMaxPermission(app);
+      const stream = await checkMic();
+      if (stream) {
+        meter(stream);
+        await checkWebRtc(stream);
+      }
+      log("проверка завершена; сверни MAX на 10 секунд и вернись, чтобы проверить работу в фоне");
+    });
+
+    document.getElementById("copy").addEventListener("click", async () => {
+      const text = Object.values(results)
+        .map((r) => `${r.ok === true ? "OK" : r.ok === false ? "FAIL" : "?"} ${r.title}: ${r.details}`)
+        .join("\n") + "\n\n" + logEl.textContent;
+      try {
+        await navigator.clipboard.writeText(text);
+        log("отчёт скопирован");
+      } catch {
+        log("скопировать не удалось, выдели текст вручную:\n" + text);
+      }
+    });
+  </script>
+</body>
+</html>
