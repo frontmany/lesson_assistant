@@ -1,0 +1,310 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Макет: звонок учителя</title>
+  <!-- Макет экрана звонка учителя (issue #4). Состояния задаются в адресе, список в design/README.md:
+       ?n=6 — сколько человек в звонке (1–30), ?share=1 — демонстрация экрана, ?panel=0|1 — панель класса,
+       ?mode=start — начало урока без шкал, ?menu=artem_k — открытое меню ученика, ?page=2 — страница плиток.
+       Телефон — окно уже 700 px. -->
+  <link rel="stylesheet" href="../webapp/css/tokens.css">
+  <style>
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body { margin: 0; font-family: var(--font); background: var(--bg); color: var(--ink); }
+    button { font: inherit; color: inherit; cursor: pointer; border: 0; background: none; padding: 0; }
+
+    .i { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+    .i.sm { width: 18px; height: 18px; }
+
+    .app { height: 100vh; display: flex; flex-direction: column; }
+    .body { flex: 1; min-height: 0; display: flex; gap: 16px; padding: 16px; }
+
+    /* Сцена с плитками */
+    .stage { position: relative; flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+    .tiles { flex: 1; min-height: 0; display: grid; gap: 8px; }
+
+    .tile {
+      position: relative; min-width: 0; min-height: 0; overflow: hidden; container-type: size;
+      border-radius: 12px; background: var(--surface-muted); box-shadow: inset 0 0 0 1px var(--line);
+      display: grid; place-items: center;
+    }
+    .tile.cam { background: linear-gradient(135deg, hsl(var(--h) 22% 80%), hsl(var(--h) 22% 62%)); }
+    .person { position: absolute; inset: 0; }
+    .person::before {
+      content: ""; position: absolute; left: 50%; top: 22%; width: 24%; aspect-ratio: 1;
+      transform: translateX(-50%); border-radius: 50%; background: rgba(255, 255, 255, .42);
+    }
+    .person::after {
+      content: ""; position: absolute; left: 50%; bottom: -18%; width: 58%; height: 52%;
+      transform: translateX(-50%); border-radius: 50% 50% 0 0; background: rgba(255, 255, 255, .42);
+    }
+    .avatar {
+      width: clamp(32px, 30cqmin, 84px); aspect-ratio: 1; border-radius: 50%;
+      background: var(--accent-tint); color: var(--accent);
+      display: grid; place-items: center; font-weight: 700; font-size: clamp(12px, 11cqmin, 28px);
+    }
+    .tile .name {
+      position: absolute; left: 8px; bottom: 8px; max-width: calc(100% - 16px);
+      padding: 3px 9px; border-radius: 8px; background: var(--scrim); color: #fff;
+      font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .micoff {
+      position: absolute; top: 8px; right: 8px; width: 26px; height: 26px; border-radius: 50%;
+      background: var(--scrim); color: #fff; display: grid; place-items: center;
+    }
+    .micoff .i { width: 16px; height: 16px; }
+    .tile.speaking { box-shadow: inset 0 0 0 3px var(--accent); }
+    .tile.speaking .name::before { content: "● "; color: var(--accent-soft); }
+
+    .more-tile { background: var(--surface); color: var(--ink-soft); font-weight: 700; font-size: 20px; }
+    .more-tile small { display: block; font-size: 12px; font-weight: 500; margin-top: 2px; }
+
+    /* Значок аналитики: маленький, в углу */
+    .ana {
+      position: absolute; top: 8px; left: 8px; z-index: 2; width: 26px; height: 26px; border-radius: 50%;
+      background: var(--scrim); color: var(--accent-soft); display: grid; place-items: center;
+    }
+    .ana .i { width: 16px; height: 16px; }
+
+    /* Страницы плиток */
+    .pager { align-self: center; display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--ink-soft); }
+    .pager .pb { width: 28px; height: 28px; border-radius: 50%; background: var(--surface-muted); display: grid; place-items: center; }
+    .pager .pb.dis { opacity: .4; }
+
+    /* Демонстрация экрана */
+    .share { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 200px; gap: 8px; }
+    .shared {
+      position: relative; border-radius: 12px; background: #1f3150; color: #fff; padding: 6% 7%;
+      display: flex; flex-direction: column; gap: 14px; min-height: 0; overflow: hidden;
+    }
+    .shared h3 { margin: 0; font-size: clamp(18px, 3.4cqw, 34px); }
+    .shared i { display: block; height: 10px; border-radius: 5px; background: rgba(255, 255, 255, .22); }
+    .shared .you {
+      position: absolute; left: 8px; bottom: 8px; padding: 3px 9px; border-radius: 8px;
+      background: var(--scrim); font-size: 13px; font-weight: 600;
+    }
+    .strip { display: grid; grid-template-rows: repeat(4, minmax(0, 1fr)); gap: 8px; min-height: 0; }
+
+    /* Панель класса */
+    .panel {
+      width: 360px; flex: none; min-height: 0; display: flex; flex-direction: column;
+      background: var(--surface); border-radius: var(--radius); box-shadow: inset 0 0 0 1px var(--line);
+    }
+    .panel-head { display: flex; align-items: center; gap: 8px; padding: 14px 12px 8px 16px; }
+    .panel-head h2 { margin: 0; font-size: 16px; }
+    .panel-head .count { flex: 1; font-size: 13px; color: var(--ink-soft); }
+    .iconbtn { width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; color: var(--ink-soft); }
+    .iconbtn:hover, .iconbtn.open { background: var(--surface-muted); }
+    .legend, .hint { margin: 0; padding: 0 16px 8px; font-size: 12px; color: var(--ink-soft); }
+    .chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 16px 8px; }
+    .chip { padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; background: var(--surface-muted); color: var(--ink-soft); }
+    .chip.on { background: var(--ink); color: var(--surface); }
+    .plist { flex: 1; min-height: 0; overflow-y: auto; padding: 0 16px 8px; }
+
+    .stu { position: relative; padding: 11px 0; border-top: 1px solid var(--line); }
+    .stu-line { display: flex; align-items: center; gap: 8px; }
+    .stu-name { flex: 1; min-width: 0; font-weight: 600; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .stu-label { font-size: 12px; color: var(--ink-soft); white-space: nowrap; }
+    .stu .iconbtn { margin-right: -8px; }
+    .bars { display: flex; gap: 4px; margin-top: 8px; }
+    .bar { flex: 1; height: 8px; border-radius: 4px; background: var(--surface-muted); }
+    .bar.on { background: var(--accent); }
+    .flag { display: inline-block; margin-top: 8px; font-size: 13px; padding: 4px 10px; border-radius: 999px; white-space: nowrap; }
+    .flag.long_silence { background: var(--warn-tint); color: var(--warn-ink); }
+    .flag.quiet_but_precise { background: var(--accent-tint); color: var(--accent); }
+    .stu.off .stu-name, .stu.off .bars, .stu.off .stu-label { opacity: .5; }
+
+    .stu.compact { padding: 4px 0; }
+    .stu.compact .flag { margin: 0; font-size: 11px; padding: 2px 8px; }
+    .stu.compact .bars { margin: 0; width: 56px; flex: none; gap: 2px; }
+    .stu.compact .bar { height: 6px; }
+    .stu.compact .stu-name { font-size: 14px; }
+
+    /* Меню за троеточием */
+    .menu {
+      position: absolute; right: 0; top: calc(100% - 4px); z-index: 5; width: 280px; padding: 10px;
+      background: var(--surface); border-radius: 12px;
+      box-shadow: 0 8px 28px rgba(20, 27, 39, .22), inset 0 0 0 1px var(--line);
+    }
+    .menu-title { font-size: 12px; color: var(--ink-soft); padding: 2px 4px 8px; }
+    .menu-item { display: flex; align-items: center; gap: 12px; padding: 6px 4px; font-size: 14px; font-weight: 600; }
+    .menu-item span:first-child { flex: 1; }
+    .menu-item small { display: block; margin-top: 2px; font-size: 12px; font-weight: 400; color: var(--ink-soft); }
+
+    .switch .track { display: block; width: 40px; height: 24px; border-radius: 999px; background: var(--accent); position: relative; flex: none; }
+    .switch .track::after { content: ""; position: absolute; top: 3px; right: 3px; width: 18px; height: 18px; border-radius: 50%; background: var(--surface); }
+    .switch.off .track { background: var(--surface-muted); }
+    .switch.off .track::after { right: auto; left: 3px; background: var(--ink-soft); }
+
+    /* Панель управления */
+    .controls {
+      display: flex; align-items: center; justify-content: center; gap: 12px;
+      padding: 12px 16px; border-top: 1px solid var(--line); background: var(--surface);
+    }
+    .cbtn {
+      position: relative; width: 48px; height: 48px; border-radius: 50%; flex: none;
+      background: var(--surface-muted); color: var(--ink); display: grid; place-items: center;
+    }
+    .cbtn.off { background: var(--danger); color: var(--on-danger); }
+    .cbtn.active { background: var(--accent-tint); color: var(--accent); }
+    .cbtn.leave { width: 72px; border-radius: 24px; background: var(--danger); color: var(--on-danger); }
+    .badge {
+      position: absolute; top: -2px; right: -2px; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 10px;
+      background: var(--ink); color: var(--surface); font-size: 11px; font-weight: 700; display: grid; place-items: center;
+    }
+
+    /* Телефон */
+    @media (max-width: 700px) {
+      .body { flex-direction: column; gap: 8px; padding: 8px; }
+      .panel { width: auto; height: 50%; flex: none; }
+      .legend { display: none; }
+      .tile .name { font-size: 12px; padding: 2px 7px; }
+      .share { grid-template-columns: 1fr; grid-template-rows: minmax(0, 1fr) auto; }
+      .shared { padding: 44px 6% 5%; gap: 8px; }
+      .shared h3 { font-size: 18px; }
+      .shared i { height: 7px; }
+      .strip { grid-template-rows: none; grid-template-columns: repeat(3, 1fr); grid-auto-rows: 92px; max-height: 192px; overflow-y: auto; align-content: start; }
+      .controls { gap: 8px; padding: 10px 10px 14px; justify-content: space-between; }
+      .cbtn { width: 44px; height: 44px; }
+      .cbtn.leave { width: auto; flex: 1; max-width: 72px; border-radius: 22px; }
+    }
+  </style>
+</head>
+<body>
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <symbol id="mic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></symbol>
+    <symbol id="mic-off" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3M4 4l16 16"/></symbol>
+    <symbol id="cam" viewBox="0 0 24 24"><rect x="3" y="6" width="12" height="12" rx="2"/><path d="M15 10l6-3v10l-6-3"/></symbol>
+    <symbol id="cam-off" viewBox="0 0 24 24"><rect x="3" y="6" width="12" height="12" rx="2"/><path d="M15 10l6-3v10l-6-3M4 4l16 16"/></symbol>
+    <symbol id="screen" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4M12 14V8M9 11l3-3 3 3"/></symbol>
+    <symbol id="chat" viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/></symbol>
+    <symbol id="people" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 20c0-3.5 3-6 6-6s6 2.5 6 6"/><circle cx="17" cy="9" r="2.5"/><path d="M16 14c3 0 5 2 5 5"/></symbol>
+    <symbol id="leave" viewBox="0 0 24 24"><path d="M3 14c5-5 13-5 18 0l-2.5 3-3.5-1.5v-3c-2-.7-4-.7-6 0v3L5.500 17z"/></symbol>
+    <symbol id="more" viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.8" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.8" fill="currentColor" stroke="none"/><circle cx="12" cy="19" r="1.8" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="pulse" viewBox="0 0 24 24"><path d="M3 12h4l3-8 4 16 3-8h4"/></symbol>
+    <symbol id="chev-r" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></symbol>
+    <symbol id="chev-l" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></symbol>
+    <symbol id="chev-d" viewBox="0 0 24 24"><path d="M5 9l7 7 7-7"/></symbol>
+  </svg>
+
+  <div class="app" id="app"></div>
+
+  <script>
+    const P = new URLSearchParams(location.search);
+    const mobile = innerWidth <= 700;
+    const N = Math.max(1, Math.min(30, +P.get("n") || 6));
+    const start = P.get("mode") === "start";
+    const share = P.get("share") === "1";
+    const menuId = P.get("menu");
+    const micOn = P.get("mic") !== "0";
+    const camOn = P.get("cam") !== "0";
+    const panelWanted = P.get("panel") === null ? !mobile : P.get("panel") === "1";
+
+    const LABELS = ["Пока тихо", "Есть ответ", "Участвует", "Активно на уроке"];
+    const base = [
+      { id: "ivan_i", name: "Иван И.", level: 3, cam: 1, mic: 1, speaking: 1 },
+      { id: "maria_s", name: "Мария С.", level: 2, cam: 1, mic: 1 },
+      { id: "artem_k", name: "Артём К.", level: 1, flag: "long_silence", cam: 0, mic: 0 },
+      { id: "sofya_l", name: "Софья Л.", level: 1, off: 1, cam: 1, mic: 0 },
+      { id: "alisa_n", name: "Алиса Н.", level: 2, flag: "quiet_but_precise", cam: 0, mic: 1 },
+      { id: "dmitry_p", name: "Дмитрий П.", level: 1, flag: "long_silence", cam: 1, mic: 1 },
+    ];
+    const more = ["Александра Кузнецова-Соколовская", "Богдан Т.", "Вера К.", "Глеб М.", "Дарья Ш.", "Егор Р.", "Ева Б.", "Жанна О.",
+      "Захар Л.", "Илья Г.", "Кира Д.", "Лев Ф.", "Милана Ч.", "Никита Я.", "Оля З.", "Платон С.", "Рита Е.", "Тимур Х.",
+      "Ульяна А.", "Фёдор Ц.", "Эмма Ю.", "Юра Н.", "Яна П."].map((name, i) => {
+      const level = 1 + ((i * 7) % 4);
+      const flag = level === 1 && i % 3 === 0 ? "long_silence" : level === 2 && i % 4 === 1 ? "quiet_but_precise" : undefined;
+      return { id: "s" + i, name, level, flag, cam: i % 3 !== 1 ? 1 : 0, mic: i % 4 !== 2 ? 1 : 0 };
+    });
+    const students = base.concat(more).slice(0, N - 1);
+    const teacher = { id: "teacher", name: "Вы", ini: "ЕВ", cam: camOn, mic: micOn };
+    const people = [teacher, ...students];
+
+    const icon = (id, cls = "") => `<svg class="i ${cls}"><use href="#${id}"/></svg>`;
+    const initials = (p) => p.ini || p.name.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase();
+
+    function tile(p, i) {
+      const body = p.cam ? `<span class="person"></span>` : `<span class="avatar">${initials(p)}</span>`;
+      return `<div class="tile ${p.cam ? "cam" : ""} ${p.speaking ? "speaking" : ""}" style="--h:${(i * 47 + 200) % 360}">
+        ${body}${p.mic ? "" : `<span class="micoff">${icon("mic-off")}</span>`}<span class="name">${p.name}</span></div>`;
+    }
+
+    function stageHTML() {
+      const ana = `<span class="ana" title="Аналитика активна" aria-label="Аналитика активна">${icon("pulse")}</span>`;
+      if (share) {
+        const rest = people.slice(0, mobile ? people.length : 4);
+        let strip;
+        if (mobile || people.length <= 4) strip = rest.map(tile).join("");
+        else strip = people.slice(0, 3).map(tile).join("") +
+          `<div class="tile more-tile"><div>+${people.length - 3}<small>ещё в звонке</small></div></div>`;
+        return `${ana}<div class="share"><div class="shared"><h3>Реформы Петра I</h3><i style="width:70%"></i><i style="width:55%"></i><i style="width:62%"></i>
+          <span class="you">Вы показываете экран</span></div><div class="strip">${strip}</div></div>`;
+      }
+      const size = mobile ? 6 : 16;
+      const pages = Math.ceil(people.length / size);
+      const pg = Math.min(+P.get("page") || 1, pages);
+      const vis = people.slice((pg - 1) * size, pg * size);
+      const c = vis.length;
+      const cols = mobile ? (c === 1 ? 1 : 2) : c === 1 ? 1 : c <= 4 ? 2 : c <= 9 ? 3 : 4;
+      const rows = Math.ceil(c / cols);
+      const pager = pages > 1
+        ? `<div class="pager"><span class="pb ${pg === 1 ? "dis" : ""}">${icon("chev-l", "sm")}</span>${pg} / ${pages}<span class="pb ${pg === pages ? "dis" : ""}">${icon("chev-r", "sm")}</span>
+           <span>· показаны ${vis.length} из ${people.length}</span></div>` : "";
+      return `${ana}<div class="tiles" style="grid-template-columns:repeat(${cols},minmax(0,1fr));grid-template-rows:repeat(${rows},minmax(0,1fr))">${vis.map((p, i) => tile(p, (pg - 1) * size + i)).join("")}</div>${pager}`;
+    }
+
+    const rank = (s) => (s.flag === "long_silence" ? 0 : s.flag === "quiet_but_precise" ? 1 : 2);
+
+    function menuHTML(s) {
+      return `<div class="menu" role="menu"><div class="menu-title">${s.name}</div>
+        <div class="menu-item"><span>Аналитика для ученика<small>Когда выключена, ученик не попадает в шкалу</small></span>
+        <span class="switch ${s.off ? "off" : ""}"><span class="track"></span></span></div></div>`;
+    }
+
+    function rowHTML(s, compact) {
+      const dots = `<button class="iconbtn ${menuId === s.id ? "open" : ""}" aria-label="Меню ученика ${s.name}">${icon("more")}</button>`;
+      const menu = menuId === s.id ? menuHTML(s) : "";
+      const flag = !start && s.flag ? `<span class="flag ${s.flag}">${s.flag === "long_silence" ? "давно не отвечал" : "тихий, но точный"}</span>` : "";
+      const bars = `<span class="bars">${[1, 2, 3, 4].map((n) => `<span class="bar ${n <= s.level ? "on" : ""}"></span>`).join("")}</span>`;
+      const off = s.off ? "off" : "";
+      if (start) return `<div class="stu ${compact ? "compact" : ""}"><div class="stu-line"><span class="stu-name">${s.name}</span>${dots}</div>${menu}</div>`;
+      if (compact) return `<div class="stu compact ${off}"><div class="stu-line"><span class="stu-name">${s.name}</span>${flag}${bars}${dots}</div>${menu}</div>`;
+      return `<div class="stu ${off}"><div class="stu-line"><span class="stu-name">${s.name}</span><span class="stu-label">${s.off ? "аналитика выключена" : LABELS[s.level - 1]}</span>${dots}</div>${bars}${flag}${menu}</div>`;
+    }
+
+    function panelHTML() {
+      const compact = students.length > 8;
+      const list = start ? students : students.slice().sort((a, b) => rank(a) - rank(b));
+      const ls = students.filter((s) => s.flag === "long_silence").length;
+      const qp = students.filter((s) => s.flag === "quiet_but_precise").length;
+      const chips = compact && !start
+        ? `<div class="chips"><span class="chip on">Все ${students.length}</span><span class="chip">Давно не отвечали ${ls}</span><span class="chip">Тихий, но точный ${qp}</span></div>` : "";
+      const note = start
+        ? `<p class="hint">Шкалы появятся, когда ученики заговорят.</p>`
+        : compact ? "" : `<p class="legend">Шкала участия: пока тихо · есть ответ · участвует · активно</p>`;
+      return `<aside class="panel" aria-label="Панель класса">
+        <div class="panel-head"><h2>Класс</h2><span class="count">Учеников: ${students.length}</span>
+          <button class="iconbtn" aria-label="Свернуть панель" title="Свернуть">${icon(mobile ? "chev-d" : "chev-r")}</button></div>
+        ${note}${chips}<div class="plist">${list.map((s) => rowHTML(s, compact)).join("")}</div></aside>`;
+    }
+
+    function controlsHTML(panelOpen) {
+      const b = (id, label, cls = "", extra = "") => `<button class="cbtn ${cls}" aria-label="${label}" title="${label}">${icon(id)}${extra}</button>`;
+      return `<footer class="controls">
+        ${b(micOn ? "mic" : "mic-off", micOn ? "Выключить микрофон" : "Включить микрофон", micOn ? "" : "off")}
+        ${b(camOn ? "cam" : "cam-off", camOn ? "Выключить камеру" : "Включить камеру", camOn ? "" : "off")}
+        ${b("screen", share ? "Остановить показ экрана" : "Показать экран", share ? "active" : "")}
+        ${b("chat", "Чат", "", `<span class="badge">2</span>`)}
+        ${b("people", "Участники и шкала класса", panelOpen ? "active" : "", students.length ? `<span class="badge">${people.length}</span>` : "")}
+        ${b("leave", "Выйти из звонка", "leave")}
+      </footer>`;
+    }
+
+    const panelOpen = panelWanted && students.length > 0;
+    document.getElementById("app").innerHTML =
+      `<div class="body"><section class="stage" aria-label="Участники звонка">${stageHTML()}</section>${panelOpen ? panelHTML() : ""}</div>${controlsHTML(panelOpen)}`;
+  </script>
+</body>
+</html>
