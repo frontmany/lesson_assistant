@@ -6,7 +6,8 @@
   <title>Макет: звонок учителя</title>
   <!-- Макет экрана звонка учителя (issue #4). Состояния задаются в адресе, список в design/README.md:
        ?n=6 — сколько человек в звонке (1–30), ?share=1 — демонстрация экрана, ?panel=0|1 — панель класса,
-       ?mode=start — начало урока без шкал, ?menu=artem_k — открытое меню ученика, ?page=2 — страница плиток.
+       ?mode=start — начало урока без шкал, ?menu=artem_k — открытое меню ученика, ?page=2 — страница плиток,
+       ?state=lobby|connecting|nomic|muted|reconnecting|ended — состояния звонка (issue #7), без него — «в уроке».
        Телефон — окно уже 700 px. -->
   <link rel="stylesheet" href="../webapp/css/tokens.css">
   <style>
@@ -155,8 +156,67 @@
       background: var(--ink); color: var(--surface); font-size: 11px; font-weight: 700; display: grid; place-items: center;
     }
 
+    /* Состояния звонка */
+    .app { position: relative; }
+    .spin {
+      width: 16px; height: 16px; border-radius: 50%; flex: none;
+      border: 2px solid currentColor; border-right-color: transparent; animation: spin 1s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .banner {
+      position: absolute; top: 12px; left: 50%; transform: translateX(-50%); z-index: 4;
+      display: flex; align-items: center; gap: 10px; padding: 10px 16px; border-radius: 12px;
+      background: var(--warn-tint); color: var(--warn-ink); font-size: 14px; font-weight: 600; white-space: nowrap;
+      box-shadow: 0 6px 20px rgba(20, 27, 39, .16);
+    }
+    .stage.dim .tiles, .stage.dim .share { filter: grayscale(.8); opacity: .5; }
+    .toast {
+      position: absolute; left: 50%; bottom: 88px; transform: translateX(-50%); z-index: 4;
+      display: flex; align-items: center; gap: 10px; padding: 10px 16px; border-radius: 12px;
+      background: var(--ink); color: var(--surface); font-size: 14px; font-weight: 600; white-space: nowrap;
+    }
+    .toast .i { width: 18px; height: 18px; }
+
+    .lobby { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; gap: 48px; padding: 32px; }
+    .preview { width: min(640px, 55vw); aspect-ratio: 16 / 9; flex: none; }
+    .pv-ctrl { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); display: flex; gap: 12px; }
+    .level {
+      position: absolute; top: 12px; left: 12px; display: flex; align-items: center; gap: 3px;
+      padding: 5px 10px; border-radius: 8px; background: var(--scrim); color: #fff; font-size: 12px; font-weight: 600;
+    }
+    .level i { width: 3px; border-radius: 2px; background: var(--accent-soft); }
+    .level span { margin-left: 6px; }
+    .lobby-text { max-width: 360px; }
+    .lobby h1 { margin: 0 0 8px; font-size: 26px; line-height: 1.2; }
+    .lobby p { margin: 0 0 16px; color: var(--ink-soft); font-size: 15px; line-height: 1.45; }
+    .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px; }
+    .primary, .secondary {
+      display: inline-flex; align-items: center; justify-content: center; gap: 10px;
+      padding: 12px 24px; border-radius: 999px; font-weight: 600;
+    }
+    .primary { background: var(--accent); color: var(--surface); }
+    .primary[disabled] { opacity: .75; cursor: default; }
+    .secondary { background: var(--surface-muted); }
+    .badge.warn { background: var(--warn-tint); color: var(--warn-ink); }
+    .done {
+      width: 56px; height: 56px; border-radius: 50%; margin-bottom: 16px;
+      background: var(--accent-tint); color: var(--accent); display: grid; place-items: center;
+    }
+    .done .i { width: 28px; height: 28px; }
+    .facts { display: flex; gap: 8px; flex-wrap: wrap; margin: 0 0 16px; }
+    .facts span { padding: 4px 10px; border-radius: 999px; background: var(--surface-muted); font-size: 13px; color: var(--ink-soft); }
+
     /* Телефон */
     @media (max-width: 700px) {
+      .lobby { flex-direction: column; justify-content: flex-start; gap: 20px; padding: 16px; }
+      .lobby.ended { justify-content: center; }
+      .preview { width: 100%; aspect-ratio: 4 / 5; }
+      .lobby-text { max-width: none; width: 100%; }
+      .lobby h1 { font-size: 22px; }
+      .actions { flex-direction: column; }
+      .lobby .primary, .lobby .secondary { width: 100%; }
+      .banner { top: 8px; font-size: 13px; padding: 8px 12px; }
+      .toast { bottom: 80px; font-size: 13px; }
       .body { flex-direction: column; gap: 8px; padding: 8px; }
       .panel { width: auto; height: 50%; flex: none; }
       .legend { display: none; }
@@ -187,7 +247,7 @@
     <symbol id="chev-r" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></symbol>
     <symbol id="chev-l" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></symbol>
     <symbol id="chev-d" viewBox="0 0 24 24"><path d="M5 9l7 7 7-7"/></symbol>
-  </svg>
+    <symbol id="check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>  </svg>
 
   <div class="app" id="app"></div>
 
@@ -198,7 +258,8 @@
     const start = P.get("mode") === "start";
     const share = P.get("share") === "1";
     const menuId = P.get("menu");
-    const micOn = P.get("mic") !== "0";
+    const state = P.get("state") || "live";
+    const micOn = P.get("mic") !== "0" && state !== "muted";
     const camOn = P.get("cam") !== "0";
     const panelWanted = P.get("panel") === null ? !mobile : P.get("panel") === "1";
 
@@ -281,7 +342,9 @@
       const qp = students.filter((s) => s.flag === "quiet_but_precise").length;
       const chips = compact && !start
         ? `<div class="chips"><span class="chip on">Все ${students.length}</span><span class="chip">Давно не отвечали ${ls}</span><span class="chip">Тихий, но точный ${qp}</span></div>` : "";
-      const note = start
+      const note = state === "reconnecting"
+        ? `<p class="hint">Шкалы обновятся, когда связь вернётся.</p>`
+        : start
         ? `<p class="hint">Шкалы появятся, когда ученики заговорят.</p>`
         : compact ? "" : `<p class="legend">Шкала участия: пока тихо · есть ответ · участвует · активно</p>`;
       return `<aside class="panel" aria-label="Панель класса">
@@ -302,9 +365,45 @@
       </footer>`;
     }
 
+    // До входа, подключение и нет доступа к микрофону — один экран проверки перед звонком
+    function lobbyHTML() {
+      const nomic = state === "nomic";
+      const mic = nomic
+        ? `<button class="cbtn off" aria-label="Нет доступа к микрофону">${icon("mic-off")}<span class="badge warn">!</span></button>`
+        : `<button class="cbtn" aria-label="Выключить микрофон">${icon("mic")}</button>`;
+      const level = nomic ? "" : `<span class="level"><i style="height:6px"></i><i style="height:12px"></i><i style="height:8px"></i><span>Микрофон работает</span></span>`;
+      let text;
+      if (state === "connecting") {
+        text = `<h1>Подключаемся к уроку</h1><p>Обычно это занимает несколько секунд.</p>
+          <button class="primary" disabled><span class="spin"></span>Подключаемся…</button>`;
+      } else if (nomic) {
+        text = `<h1>Нет доступа к микрофону</h1><p>Разрешите микрофон в настройках браузера или MAX и попробуйте снова. Без микрофона ученики вас не услышат.</p>
+          <div class="actions"><button class="primary">Попробовать снова</button><button class="secondary">Войти без микрофона</button></div>`;
+      } else {
+        text = `<h1>Готовы войти?</h1><p>Проверьте микрофон и камеру. Аналитика включится, когда вы войдёте в урок.</p>
+          <button class="primary">Войти в урок</button>`;
+      }
+      return `<div class="lobby"><div class="preview tile cam" style="--h:200"><span class="person"></span>${level}
+        <div class="pv-ctrl">${mic}<button class="cbtn" aria-label="Выключить камеру">${icon("cam")}</button></div></div>
+        <div class="lobby-text">${text}</div></div>`;
+    }
+
+    function endedHTML() {
+      return `<div class="lobby ended"><div class="lobby-text"><span class="done">${icon("check")}</span>
+        <h1>Урок завершён</h1><div class="facts"><span>42 минуты</span><span>Учеников: ${students.length}</span></div>
+        <p>Сводка по уроку придёт в чат с ботом примерно через минуту.</p>
+        <button class="primary">Вернуться в чат</button></div></div>`;
+    }
+
     const panelOpen = panelWanted && students.length > 0;
+    const banner = state === "reconnecting"
+      ? `<div class="banner"><span class="spin"></span>Связь пропала. Переподключаемся…</div>` : "";
+    const toast = state === "muted"
+      ? `<div class="toast">${icon("mic-off")}Микрофон выключен. Ученики вас не слышат</div>` : "";
     document.getElementById("app").innerHTML =
-      `<div class="body"><section class="stage" aria-label="Участники звонка">${stageHTML()}</section>${panelOpen ? panelHTML() : ""}</div>${controlsHTML(panelOpen)}`;
+      ["lobby", "connecting", "nomic"].includes(state) ? lobbyHTML()
+      : state === "ended" ? endedHTML()
+      : `<div class="body"><section class="stage ${state === "reconnecting" ? "dim" : ""}" aria-label="Участники звонка">${banner}${stageHTML()}</section>${panelOpen ? panelHTML() : ""}</div>${toast}${controlsHTML(panelOpen)}`;
   </script>
 </body>
 </html>
