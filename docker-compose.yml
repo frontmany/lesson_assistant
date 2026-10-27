@@ -11,6 +11,8 @@ services:
       REDIS_URL: redis://redis:6379/0
     ports:
       - "8000:8000"
+    volumes:
+      - models:/srv/models  # модель распознавания скачивается один раз, а не при каждом запуске
     depends_on:
       - livekit
       - postgres
@@ -41,3 +43,4 @@ services:
 
 volumes:
   pgdata:
+  models:

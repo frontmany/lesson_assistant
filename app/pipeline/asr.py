@@ -7,16 +7,45 @@ small точнее на шумных записях, но вдвое-втрое 
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+import functools
+import logging
 
-if TYPE_CHECKING:
-    import numpy as np
+import numpy as np
+from faster_whisper import WhisperModel
+
+from app.config import settings
+from app.pipeline.vad import to_float
+
+log = logging.getLogger(__name__)
 
 
-def transcribe(pcm: np.ndarray) -> str:
+@functools.cache
+def model() -> WhisperModel:
+    """Модель загружается один раз на процесс: первый вызов долгий, остальные мгновенные."""
+    log.info("загружаю модель распознавания %s (%s)", settings.whisper_model, settings.whisper_compute_type)
+    return WhisperModel(
+        settings.whisper_model,
+        device="cpu",
+        compute_type=settings.whisper_compute_type,
+        download_root=settings.whisper_download_root,
+    )
+
+
+def transcribe(pcm: bytes | np.ndarray) -> str:
     """Распознать один отрезок речи на русском.
 
-    TODO(Ярослав): загрузить WhisperModel один раз при старте
-    (settings.whisper_model, settings.whisper_download_root), language="ru".
+    Отрезок уже найден VAD, поэтому свой VAD Whisper не включаем, а контекст
+    прошлых фраз не передаём: реплики разных людей не связаны. Повторы с
+    другой температурой выключены: на неуверенной фразе они растягивали
+    распознавание до 2–3 секунд, а это весь бюджет задержки.
     """
-    raise NotImplementedError("pipeline/asr.py: transcribe")
+    segments, _ = model().transcribe(
+        to_float(pcm),
+        language="ru",
+        beam_size=1,
+        temperature=0,
+        vad_filter=False,
+        condition_on_previous_text=False,
+        without_timestamps=True,
+    )
+    return " ".join(s.text.strip() for s in segments).strip()
