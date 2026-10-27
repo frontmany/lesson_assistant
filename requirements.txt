@@ -18,3 +18,7 @@ httpx==0.28.1
 # распознавание речи: faster-whisper тянет ctranslate2, onnxruntime и av,
 # а Silero VAD входит в него как ONNX-модель (без PyTorch)
 faster-whisper==1.1.1
+# faster-whisper 1.1.1 не тянет их сам (проверено в python:3.12-slim): без requests
+# падает импорт, av новее 14.x не принимает вызов decode_audio
+requests==2.34.2
+av==14.2.0

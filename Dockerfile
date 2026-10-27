@@ -12,7 +12,7 @@ RUN pip install -r requirements.txt
 # Модель распознавания. С PRELOAD_MODEL=1 она скачивается при сборке,
 # и запуск контейнера не зависит от сети.
 # TODO(Ярослав): включить по умолчанию, когда появится pipeline/asr.py
-ARG WHISPER_MODEL=small
+ARG WHISPER_MODEL=base
 ARG PRELOAD_MODEL=0
 ENV WHISPER_MODEL=${WHISPER_MODEL} \
     WHISPER_DOWNLOAD_ROOT=/srv/models

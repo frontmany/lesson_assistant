@@ -26,7 +26,7 @@ class Settings:
     max_api_url: str = os.getenv("MAX_API_URL", "https://platform-api2.max.ru")
     max_bot_mode: str = os.getenv("MAX_BOT_MODE", "polling")
 
-    whisper_model: str = os.getenv("WHISPER_MODEL", "small")
+    whisper_model: str = os.getenv("WHISPER_MODEL", "base")
     whisper_compute_type: str = os.getenv("WHISPER_COMPUTE_TYPE", "int8")
     whisper_download_root: str = os.getenv("WHISPER_DOWNLOAD_ROOT", str(ROOT / "models"))
 
