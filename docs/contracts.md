@@ -6,6 +6,8 @@
 
 Сервер шлёт события урока. Клиент различает их по полю `type`.
 
+Пока урок не начат (`POST /api/lessons/{id}/start`), сервер проигрывает события из `webapp/mock/events.json`. С первого настоящего события мок останавливается.
+
 ### `utterance` — реплика ученика
 
 Видит только учитель.
@@ -51,7 +53,7 @@
 | `GET` | `/api/health` | состояние сервера |
 | `GET` | `/api/lessons/{id}/roster` | состав класса (`Roster`) |
 | `GET` | `/api/lessons/{id}/join?participant_id=...` | вход в звонок (`JoinInfo`) |
-| `POST` | `/api/lessons/{id}/start` | ассистент заходит в звонок и начинает слушать |
+| `POST` | `/api/lessons/{id}/start` | ассистент заходит в звонок и начинает слушать: `{"lesson_id": ..., "started": true}`, `false` — уже слушает |
 | `GET` | `/api/lessons/{id}/summary` | сводка учителю (`Summary`) |
 | `GET` | `/api/lessons/{id}/cards/{student_id}` | карточка ученика (`StudentCard`) |
 | `POST` | `/api/lessons/{id}/analytics` | включить или выключить аналитику (`AnalyticsState`) |
