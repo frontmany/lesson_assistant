@@ -2,4 +2,4 @@
 * text=auto eol=lf
 *.pdf binary
 *.png binary
-*.wav binary
+*.wav filter=lfs diff=lfs merge=lfs -text
