@@ -5,10 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Макет: звонок учителя</title>
   <!-- Макет экрана звонка учителя (issue #4). Состояния задаются в адресе, список в design/README.md:
-       ?n=6 — сколько человек в звонке (1–30), ?share=1 — демонстрация экрана, ?panel=0|1 — панель класса,
-       ?mode=start — начало урока без шкал, ?menu=artem_k — открытое меню ученика, ?page=2 — страница плиток,
-       ?state=lobby|connecting|nomic|muted|reconnecting|ended — состояния звонка (issue #7), без него — «в уроке».
-       Телефон — окно уже 700 px. -->
+       ?n=6 (сколько человек в звонке, 1–30), ?share=1 (демонстрация экрана), ?panel=0|1 (панель класса),
+       ?mode=start (начало урока без шкал), ?menu=artem_k (открытое меню ученика), ?page=2 (страница плиток),
+       ?state=lobby|connecting|nomic|muted|reconnecting|ended (состояния звонка, issue #7), без него «в уроке».
+       Телефон: окно уже 700 px. Цвета и тени берём из токенов, своих значений здесь нет. -->
   <link rel="stylesheet" href="../webapp/css/tokens.css">
   <style>
     * { box-sizing: border-box; }
@@ -25,21 +25,24 @@
     /* Сцена с плитками */
     .stage { position: relative; flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
     .tiles { flex: 1; min-height: 0; display: grid; gap: 8px; }
+    .tiles.few { justify-content: center; align-content: center; grid-template-rows: none !important; }
+    .tiles.few .tile { aspect-ratio: 4 / 3; max-height: 100%; }
+    .tiles.few.one .tile { aspect-ratio: 16 / 9; }
 
     .tile {
       position: relative; min-width: 0; min-height: 0; overflow: hidden; container-type: size;
-      border-radius: 12px; background: var(--surface-muted); box-shadow: inset 0 0 0 1px var(--line);
+      border-radius: 12px; background: var(--surface-muted); border: 1px solid var(--line);
       display: grid; place-items: center;
     }
-    .tile.cam { background: linear-gradient(135deg, hsl(var(--h) 22% 80%), hsl(var(--h) 22% 62%)); }
+    .tile.cam { background: hsl(var(--h) 22% 72%); border-color: transparent; }
     .person { position: absolute; inset: 0; }
     .person::before {
       content: ""; position: absolute; left: 50%; top: 22%; width: 24%; aspect-ratio: 1;
-      transform: translateX(-50%); border-radius: 50%; background: rgba(255, 255, 255, .42);
+      transform: translateX(-50%); border-radius: 50%; background: var(--figure);
     }
     .person::after {
       content: ""; position: absolute; left: 50%; bottom: -18%; width: 58%; height: 52%;
-      transform: translateX(-50%); border-radius: 50% 50% 0 0; background: rgba(255, 255, 255, .42);
+      transform: translateX(-50%); border-radius: 50% 50% 0 0; background: var(--figure);
     }
     .avatar {
       width: clamp(32px, 30cqmin, 84px); aspect-ratio: 1; border-radius: 50%;
@@ -48,66 +51,66 @@
     }
     .tile .name {
       position: absolute; left: 8px; bottom: 8px; max-width: calc(100% - 16px);
-      padding: 3px 9px; border-radius: 8px; background: var(--scrim); color: #fff;
+      padding: 3px 9px; border-radius: 8px; background: var(--scrim); color: var(--on-scrim);
       font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
     .micoff {
       position: absolute; top: 8px; right: 8px; width: 26px; height: 26px; border-radius: 50%;
-      background: var(--scrim); color: #fff; display: grid; place-items: center;
+      background: var(--scrim); color: var(--on-scrim); display: grid; place-items: center;
     }
     .micoff .i { width: 16px; height: 16px; }
-    .tile.speaking { box-shadow: inset 0 0 0 3px var(--accent); }
-    .tile.speaking .name::before { content: "● "; color: var(--accent-soft); }
+    .tile.speaking { outline: 3px solid var(--accent); outline-offset: -3px; }
+    .tile.speaking .name::before { content: "● "; color: var(--accent-on-scrim); }
 
     .more-tile { background: var(--surface); color: var(--ink-soft); font-weight: 700; font-size: 20px; }
-    .more-tile small { display: block; font-size: 12px; font-weight: 500; margin-top: 2px; }
+    .more-tile small { display: block; font-size: 13px; font-weight: 500; margin-top: 2px; }
 
     /* Значок аналитики: маленький, в углу */
     .ana {
       position: absolute; top: 8px; left: 8px; z-index: 2; width: 26px; height: 26px; border-radius: 50%;
-      background: var(--scrim); color: var(--accent-soft); display: grid; place-items: center;
+      background: var(--scrim); color: var(--on-scrim); display: grid; place-items: center;
     }
     .ana .i { width: 16px; height: 16px; }
 
     /* Страницы плиток */
     .pager { align-self: center; display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--ink-soft); }
-    .pager .pb { width: 28px; height: 28px; border-radius: 50%; background: var(--surface-muted); display: grid; place-items: center; }
+    .pager .pb { width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--line-strong); display: grid; place-items: center; }
     .pager .pb.dis { opacity: .4; }
 
     /* Демонстрация экрана */
     .share { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 200px; gap: 8px; }
     .shared {
-      position: relative; border-radius: 12px; background: #1f3150; color: #fff; padding: 6% 7%;
+      position: relative; border-radius: 12px; background: var(--slide); color: var(--on-slide); padding: 6% 7%;
       display: flex; flex-direction: column; gap: 14px; min-height: 0; overflow: hidden;
     }
     .shared h3 { margin: 0; font-size: clamp(18px, 3.4cqw, 34px); }
-    .shared i { display: block; height: 10px; border-radius: 5px; background: rgba(255, 255, 255, .22); }
+    .shared p { margin: 0; padding-top: 10px; border-top: 1px solid var(--on-slide-soft); font-size: clamp(14px, 1.7vw, 22px); }
     .shared .you {
       position: absolute; left: 8px; bottom: 8px; padding: 3px 9px; border-radius: 8px;
-      background: var(--scrim); font-size: 13px; font-weight: 600;
+      background: var(--scrim); color: var(--on-scrim); font-size: 13px; font-weight: 600;
     }
     .strip { display: grid; grid-template-rows: repeat(4, minmax(0, 1fr)); gap: 8px; min-height: 0; }
 
     /* Панель класса */
     .panel {
       width: 360px; flex: none; min-height: 0; display: flex; flex-direction: column;
-      background: var(--surface); border-radius: var(--radius); box-shadow: inset 0 0 0 1px var(--line);
+      background: var(--surface); border-radius: var(--radius); border: 1px solid var(--line);
     }
     .panel-head { display: flex; align-items: center; gap: 8px; padding: 14px 12px 8px 16px; }
     .panel-head h2 { margin: 0; font-size: 16px; }
     .panel-head .count { flex: 1; font-size: 13px; color: var(--ink-soft); }
-    .iconbtn { width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; color: var(--ink-soft); }
+    .iconbtn { position: relative; width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; color: var(--ink-soft); }
     .iconbtn:hover, .iconbtn.open { background: var(--surface-muted); }
-    .legend, .hint { margin: 0; padding: 0 16px 8px; font-size: 12px; color: var(--ink-soft); }
+    .legend, .hint { margin: 0; padding: 0 16px 8px; font-size: 13px; color: var(--ink-soft); }
     .chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 16px 8px; }
-    .chip { padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; background: var(--surface-muted); color: var(--ink-soft); }
+    .chip { position: relative; padding: 4px 10px; border-radius: 999px; font-size: 13px; font-weight: 600; background: var(--surface-muted); color: var(--ink-soft); }
     .chip.on { background: var(--ink); color: var(--surface); }
     .plist { flex: 1; min-height: 0; overflow-y: auto; padding: 0 16px 8px; }
 
     .stu { position: relative; padding: 11px 0; border-top: 1px solid var(--line); }
     .stu-line { display: flex; align-items: center; gap: 8px; }
     .stu-name { flex: 1; min-width: 0; font-weight: 600; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .stu-label { font-size: 12px; color: var(--ink-soft); white-space: nowrap; }
+    .stu-label { font-size: 13px; color: var(--ink-soft); white-space: nowrap; }
     .stu .iconbtn { margin-right: -8px; }
     .bars { display: flex; gap: 4px; margin-top: 8px; }
     .bar { flex: 1; height: 8px; border-radius: 4px; background: var(--surface-muted); }
@@ -118,7 +121,7 @@
     .stu.off .stu-name, .stu.off .bars, .stu.off .stu-label { opacity: .5; }
 
     .stu.compact { padding: 4px 0; }
-    .stu.compact .flag { margin: 0; font-size: 11px; padding: 2px 8px; }
+    .stu.compact .flag { margin: 0; font-size: 12px; padding: 2px 8px; }
     .stu.compact .bars { margin: 0; width: 56px; flex: none; gap: 2px; }
     .stu.compact .bar { height: 6px; }
     .stu.compact .stu-name { font-size: 14px; }
@@ -126,13 +129,13 @@
     /* Меню за троеточием */
     .menu {
       position: absolute; right: 0; top: calc(100% - 4px); z-index: 5; width: 280px; padding: 10px;
-      background: var(--surface); border-radius: 12px;
-      box-shadow: 0 8px 28px rgba(20, 27, 39, .22), inset 0 0 0 1px var(--line);
+      background: var(--surface); border-radius: 12px; border: 1px solid var(--line);
+      box-shadow: var(--shadow-float); /* taste-skill-ignore: меню поверх панели */
     }
-    .menu-title { font-size: 12px; color: var(--ink-soft); padding: 2px 4px 8px; }
+    .menu-title { font-size: 13px; color: var(--ink-soft); padding: 2px 4px 8px; }
     .menu-item { display: flex; align-items: center; gap: 12px; padding: 6px 4px; font-size: 14px; font-weight: 600; }
     .menu-item span:first-child { flex: 1; }
-    .menu-item small { display: block; margin-top: 2px; font-size: 12px; font-weight: 400; color: var(--ink-soft); }
+    .menu-item small { display: block; margin-top: 2px; font-size: 13px; font-weight: 400; color: var(--ink-soft); }
 
     .switch .track { display: block; width: 40px; height: 24px; border-radius: 999px; background: var(--accent); position: relative; flex: none; }
     .switch .track::after { content: ""; position: absolute; top: 3px; right: 3px; width: 18px; height: 18px; border-radius: 50%; background: var(--surface); }
@@ -146,14 +149,15 @@
     }
     .cbtn {
       position: relative; width: 48px; height: 48px; border-radius: 50%; flex: none;
-      background: var(--surface-muted); color: var(--ink); display: grid; place-items: center;
+      background: transparent; border: 1px solid var(--line-strong); color: var(--ink); display: grid; place-items: center;
     }
-    .cbtn.off { background: var(--danger); color: var(--on-danger); }
-    .cbtn.active { background: var(--accent-tint); color: var(--accent); }
-    .cbtn.leave { width: 72px; border-radius: 24px; background: var(--danger); color: var(--on-danger); }
+    .pv-ctrl .cbtn { background: var(--surface); }
+    .cbtn.off { background: var(--danger); border-color: var(--danger); color: var(--on-danger); }
+    .cbtn.active { background: var(--accent-tint); border-color: var(--accent); color: var(--accent); }
+    .cbtn.leave { width: 72px; border-radius: 24px; background: var(--danger); border-color: var(--danger); color: var(--on-danger); }
     .badge {
       position: absolute; top: -2px; right: -2px; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 10px;
-      background: var(--ink); color: var(--surface); font-size: 11px; font-weight: 700; display: grid; place-items: center;
+      background: var(--ink); color: var(--surface); font-size: 12px; font-weight: 700; display: grid; place-items: center;
     }
 
     /* Состояния звонка */
@@ -167,7 +171,7 @@
       position: absolute; top: 12px; left: 50%; transform: translateX(-50%); z-index: 4;
       display: flex; align-items: center; gap: 10px; padding: 10px 16px; border-radius: 12px;
       background: var(--warn-tint); color: var(--warn-ink); font-size: 14px; font-weight: 600; white-space: nowrap;
-      box-shadow: 0 6px 20px rgba(20, 27, 39, .16);
+      box-shadow: var(--shadow-float); /* taste-skill-ignore: плашка поверх плиток */
     }
     .stage.dim .tiles, .stage.dim .share { filter: grayscale(.8); opacity: .5; }
     .toast {
@@ -182,9 +186,9 @@
     .pv-ctrl { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); display: flex; gap: 12px; }
     .level {
       position: absolute; top: 12px; left: 12px; display: flex; align-items: center; gap: 3px;
-      padding: 5px 10px; border-radius: 8px; background: var(--scrim); color: #fff; font-size: 12px; font-weight: 600;
+      padding: 5px 10px; border-radius: 8px; background: var(--scrim); color: var(--on-scrim); font-size: 13px; font-weight: 600;
     }
-    .level i { width: 3px; border-radius: 2px; background: var(--accent-soft); }
+    .level i { width: 3px; border-radius: 2px; background: var(--accent-on-scrim); }
     .level span { margin-left: 6px; }
     .lobby-text { max-width: 360px; }
     .lobby h1 { margin: 0 0 8px; font-size: 26px; line-height: 1.2; }
@@ -196,7 +200,8 @@
     }
     .primary { background: var(--accent); color: var(--surface); }
     .primary[disabled] { opacity: .75; cursor: default; }
-    .secondary { background: var(--surface-muted); }
+    .secondary { background: var(--surface-muted); border: 1px solid var(--line-strong); }
+    .link { min-height: 44px; padding: 0 12px; font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
     .badge.warn { background: var(--warn-tint); color: var(--warn-ink); }
     .done {
       width: 56px; height: 56px; border-radius: 50%; margin-bottom: 16px;
@@ -214,18 +219,21 @@
       .lobby-text { max-width: none; width: 100%; }
       .lobby h1 { font-size: 22px; }
       .actions { flex-direction: column; }
-      .lobby .primary, .lobby .secondary { width: 100%; }
+      .lobby .primary, .lobby .secondary, .lobby .link { width: 100%; }
+      /* видимый размер кнопок прежний, область нажатия не меньше 44 px */
+      .iconbtn::after { content: ""; position: absolute; inset: -6px; }
+      .chip::after { content: ""; position: absolute; inset: -9px -3px; }
       .banner { top: 8px; font-size: 13px; padding: 8px 12px; }
       .toast { bottom: 80px; font-size: 13px; }
       .body { flex-direction: column; gap: 8px; padding: 8px; }
       .panel { width: auto; height: 50%; flex: none; }
       .legend { display: none; }
-      .tile .name { font-size: 12px; padding: 2px 7px; }
-      .share { grid-template-columns: 1fr; grid-template-rows: minmax(0, 1fr) auto; }
-      .shared { padding: 44px 6% 5%; gap: 8px; }
+      .tile .name { font-size: 13px; padding: 2px 7px; }
+      .share { grid-template-columns: 1fr; grid-template-rows: auto auto; align-content: start; }
+      .shared { aspect-ratio: 1 / 1; padding: 44px 6% 5%; gap: 8px; }
       .shared h3 { font-size: 18px; }
-      .shared i { height: 7px; }
-      .strip { grid-template-rows: none; grid-template-columns: repeat(3, 1fr); grid-auto-rows: 92px; max-height: 192px; overflow-y: auto; align-content: start; }
+      .shared p { font-size: 14px; }
+      .strip { grid-template-rows: none; grid-template-columns: repeat(3, 1fr); grid-auto-rows: 110px; max-height: 228px; overflow-y: auto; align-content: start; }
       .controls { gap: 8px; padding: 10px 10px 14px; justify-content: space-between; }
       .cbtn { width: 44px; height: 44px; }
       .cbtn.leave { width: auto; flex: 1; max-width: 72px; border-radius: 22px; }
@@ -293,14 +301,14 @@
     }
 
     function stageHTML() {
-      const ana = `<span class="ana" title="Аналитика активна" aria-label="Аналитика активна">${icon("pulse")}</span>`;
+      const ana = `<span class="ana" title="Аналитика включена" aria-label="Аналитика включена">${icon("pulse")}</span>`;
       if (share) {
         const rest = people.slice(0, mobile ? people.length : 4);
         let strip;
         if (mobile || people.length <= 4) strip = rest.map(tile).join("");
         else strip = people.slice(0, 3).map(tile).join("") +
-          `<div class="tile more-tile"><div>+${people.length - 3}<small>ещё в звонке</small></div></div>`;
-        return `${ana}<div class="share"><div class="shared"><h3>Реформы Петра I</h3><i style="width:70%"></i><i style="width:55%"></i><i style="width:62%"></i>
+          `<div class="tile more-tile"><div>+${people.length - 3}<small>ещё в&nbsp;звонке</small></div></div>`;
+        return `${ana}<div class="share"><div class="shared"><h3>Реформы Петра I</h3><p>Армия и&nbsp;флот</p><p>Сенат и&nbsp;коллегии</p><p>Подушная подать</p>
           <span class="you">Вы показываете экран</span></div><div class="strip">${strip}</div></div>`;
       }
       const size = mobile ? 6 : 16;
@@ -309,18 +317,20 @@
       const vis = people.slice((pg - 1) * size, pg * size);
       const c = vis.length;
       const cols = mobile ? (c === 1 ? 1 : 2) : c === 1 ? 1 : c <= 4 ? 2 : c <= 9 ? 3 : 4;
+      const few = !mobile && c <= 2;
+      const colW = few ? (c === 1 ? "960px" : "420px") : "1fr";
       const rows = Math.ceil(c / cols);
       const pager = pages > 1
         ? `<div class="pager"><span class="pb ${pg === 1 ? "dis" : ""}">${icon("chev-l", "sm")}</span>${pg} / ${pages}<span class="pb ${pg === pages ? "dis" : ""}">${icon("chev-r", "sm")}</span>
            <span>· показаны ${vis.length} из ${people.length}</span></div>` : "";
-      return `${ana}<div class="tiles" style="grid-template-columns:repeat(${cols},minmax(0,1fr));grid-template-rows:repeat(${rows},minmax(0,1fr))">${vis.map((p, i) => tile(p, (pg - 1) * size + i)).join("")}</div>${pager}`;
+      return `${ana}<div class="tiles ${few ? "few" : ""} ${few && c === 1 ? "one" : ""}" style="grid-template-columns:repeat(${cols},minmax(0,${colW}));grid-template-rows:repeat(${rows},minmax(0,1fr))">${vis.map((p, i) => tile(p, (pg - 1) * size + i)).join("")}</div>${pager}`;
     }
 
     const rank = (s) => (s.flag === "long_silence" ? 0 : s.flag === "quiet_but_precise" ? 1 : 2);
 
     function menuHTML(s) {
       return `<div class="menu" role="menu"><div class="menu-title">${s.name}</div>
-        <div class="menu-item"><span>Аналитика для ученика<small>Когда выключена, ученик не попадает в шкалу</small></span>
+        <div class="menu-item"><span>Аналитика для ученика<small>Когда выключена, ученик не попадает в&nbsp;шкалу</small></span>
         <span class="switch ${s.off ? "off" : ""}"><span class="track"></span></span></div></div>`;
     }
 
@@ -343,9 +353,9 @@
       const chips = compact && !start
         ? `<div class="chips"><span class="chip on">Все ${students.length}</span><span class="chip">Давно не отвечали ${ls}</span><span class="chip">Тихий, но точный ${qp}</span></div>` : "";
       const note = state === "reconnecting"
-        ? `<p class="hint">Шкалы обновятся, когда связь вернётся.</p>`
+        ? `<p class="hint">Шкалы участия обновятся, когда вернётся связь</p>`
         : start
-        ? `<p class="hint">Шкалы появятся, когда ученики заговорят.</p>`
+        ? `<p class="hint">Шкалы участия появятся, когда ученики заговорят</p>`
         : compact ? "" : `<p class="legend">Шкала участия: пока тихо · есть ответ · участвует · активно</p>`;
       return `<aside class="panel" aria-label="Панель класса">
         <div class="panel-head"><h2>Класс</h2><span class="count">Учеников: ${students.length}</span>
@@ -360,28 +370,28 @@
         ${b(camOn ? "cam" : "cam-off", camOn ? "Выключить камеру" : "Включить камеру", camOn ? "" : "off")}
         ${b("screen", share ? "Остановить показ экрана" : "Показать экран", share ? "active" : "")}
         ${b("chat", "Чат", "", `<span class="badge">2</span>`)}
-        ${b("people", "Участники и шкала класса", panelOpen ? "active" : "", students.length ? `<span class="badge">${people.length}</span>` : "")}
+        ${b("people", "Участники и&nbsp;шкала класса", panelOpen ? "active" : "", students.length ? `<span class="badge">${people.length}</span>` : "")}
         ${b("leave", "Выйти из звонка", "leave")}
       </footer>`;
     }
 
-    // До входа, подключение и нет доступа к микрофону — один экран проверки перед звонком
+    // До входа, подключение и нет доступа к микрофону: один экран проверки перед звонком
     function lobbyHTML() {
       const nomic = state === "nomic";
       const mic = nomic
-        ? `<button class="cbtn off" aria-label="Нет доступа к микрофону">${icon("mic-off")}<span class="badge warn">!</span></button>`
+        ? `<button class="cbtn off" aria-label="Нет доступа к&nbsp;микрофону">${icon("mic-off")}<span class="badge warn">!</span></button>`
         : `<button class="cbtn" aria-label="Выключить микрофон">${icon("mic")}</button>`;
       const level = nomic ? "" : `<span class="level"><i style="height:6px"></i><i style="height:12px"></i><i style="height:8px"></i><span>Микрофон работает</span></span>`;
       let text;
       if (state === "connecting") {
-        text = `<h1>Подключаемся к уроку</h1><p>Обычно это занимает несколько секунд.</p>
+        text = `<h1>Подключаемся к&nbsp;уроку</h1><p>Обычно это занимает 3–5 секунд</p>
           <button class="primary" disabled><span class="spin"></span>Подключаемся…</button>`;
       } else if (nomic) {
-        text = `<h1>Нет доступа к микрофону</h1><p>Разрешите микрофон в настройках браузера или MAX и попробуйте снова. Без микрофона ученики вас не услышат.</p>
-          <div class="actions"><button class="primary">Попробовать снова</button><button class="secondary">Войти без микрофона</button></div>`;
+        text = `<h1>Нет доступа к&nbsp;микрофону</h1><p>Разрешите доступ к&nbsp;микрофону в&nbsp;настройках браузера или MAX и&nbsp;попробуйте снова. Без микрофона ученики вас не услышат</p>
+          <div class="actions"><button class="primary">Открыть настройки MAX</button><button class="secondary">Попробовать снова</button><button class="link">Войти без микрофона</button></div>`;
       } else {
-        text = `<h1>Готовы войти?</h1><p>Проверьте микрофон и камеру. Аналитика включится, когда вы войдёте в урок.</p>
-          <button class="primary">Войти в урок</button>`;
+        text = `<h1>Готовы войти?</h1><p>Проверьте микрофон и&nbsp;камеру. Аналитика будет включена, когда вы войдёте в&nbsp;урок</p>
+          <button class="primary">Войти в&nbsp;урок</button>`;
       }
       return `<div class="lobby"><div class="preview tile cam" style="--h:200"><span class="person"></span>${level}
         <div class="pv-ctrl">${mic}<button class="cbtn" aria-label="Выключить камеру">${icon("cam")}</button></div></div>
@@ -390,9 +400,9 @@
 
     function endedHTML() {
       return `<div class="lobby ended"><div class="lobby-text"><span class="done">${icon("check")}</span>
-        <h1>Урок завершён</h1><div class="facts"><span>42 минуты</span><span>Учеников: ${students.length}</span></div>
-        <p>Сводка по уроку придёт в чат с ботом примерно через минуту.</p>
-        <button class="primary">Вернуться в чат</button></div></div>`;
+        <h1>Урок завершён</h1><div class="facts"><span>42&nbsp;минуты</span><span>Учеников: ${students.length}</span></div>
+        <p>Сводка по уроку придёт в&nbsp;чат с&nbsp;ботом примерно через минуту</p>
+        <button class="primary">Вернуться в&nbsp;чат</button></div></div>`;
     }
 
     const panelOpen = panelWanted && students.length > 0;
