@@ -25,6 +25,8 @@ class Settings:
     max_bot_token: str = os.getenv("MAX_BOT_TOKEN", "")
     max_api_url: str = os.getenv("MAX_API_URL", "https://platform-api2.max.ru")
     max_bot_mode: str = os.getenv("MAX_BOT_MODE", "polling")
+    # имя бота нужно кнопке, которая открывает его мини-приложение
+    max_bot_name: str = os.getenv("MAX_BOT_NAME", "")
 
     whisper_model: str = os.getenv("WHISPER_MODEL", "base")
     whisper_compute_type: str = os.getenv("WHISPER_COMPUTE_TYPE", "int8")

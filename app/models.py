@@ -23,6 +23,10 @@ Flag = Literal["long_silence", "quiet_but_precise"]
 class Student(BaseModel):
     id: str
     name: str
+    # аккаунт MAX: по нему бот и мини-приложение узнают человека. В настоящем
+    # Сферуме приходит из школьной системы вместе с составом класса. Наружу
+    # через API не отдаётся
+    max_user_id: int | None = Field(default=None, exclude=True)
 
 
 class Roster(BaseModel):
