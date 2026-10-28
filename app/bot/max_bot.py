@@ -16,9 +16,23 @@ API: https://platform-api2.max.ru, токен в заголовке Authorizatio
 Запуск: python -m app.bot.max_bot
 """
 
+import ssl
+
+import certifi
 import httpx
 
-from app.config import settings
+from app.config import ROOT, settings
+
+# Сертификат API MAX выпущен удостоверяющим центром Минцифры, которому
+# по умолчанию не доверяют ни Python, ни Windows. Добавляем его корневой
+# сертификат (официальный, с gu-st.ru) только для запросов бота.
+MINCIFRY_ROOT_CA = ROOT / "certs" / "russian_trusted_root_ca.pem"
+
+
+def ssl_context() -> ssl.SSLContext:
+    context = ssl.create_default_context(cafile=certifi.where())
+    context.load_verify_locations(cafile=MINCIFRY_ROOT_CA)
+    return context
 
 
 def client() -> httpx.Client:
@@ -26,6 +40,7 @@ def client() -> httpx.Client:
         base_url=settings.max_api_url,
         headers={"Authorization": settings.max_bot_token},
         timeout=30,
+        verify=ssl_context(),
     )
 
 
