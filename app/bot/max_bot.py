@@ -6,11 +6,14 @@ API: https://platform-api2.max.ru, токен в заголовке Authorizatio
 схема API — в репозитории max-messenger/api-schema.
 
 Что делает бот:
-- /start → кнопки «Я учитель» и «Я ученик»; ученик выбирает себя из roster.json,
-  и пользователь MAX запоминается за этим участником (app/bot/store.py);
+- узнаёт человека по аккаунту MAX: id участников лежат в составе класса
+  (roster.json, в Сферуме они приходят из школьной системы), роль сам человек
+  не выбирает;
 - учителю — кнопка «Начать урок», ученику — «Войти в урок»: обе открывают
   мини-приложение бота и передают ему номер урока. Кто открыл, мини-приложение
-  узнаёт по данным запуска MAX и этой привязке (#24);
+  узнаёт по данным запуска MAX и тому же составу класса (#24);
+- того, кого нет в составе класса, не пускает и называет его id MAX, чтобы
+  его можно было добавить;
 - после урока: учителю — сводка, каждому ученику — его карточка (#21).
 
 Для разработки — long polling (GET /updates), для боевого режима — webhook
@@ -26,7 +29,6 @@ import time
 import certifi
 import httpx
 
-from app.bot.store import Bindings
 from app.config import ROOT, settings
 from app.models import Roster
 
@@ -82,93 +84,51 @@ class MaxApi:
         self.http.post("/answers", params={"callback_id": callback_id}, json={"notification": notification}).raise_for_status()
 
 
-def callback(text: str, payload: str) -> dict:
-    return {"type": "callback", "text": text, "payload": payload}
-
-
 class Bot:
     """Логика бота без сети: обновление MAX на входе, вызовы MaxApi на выходе."""
 
-    def __init__(self, api: MaxApi, roster: Roster, bindings: Bindings, bot_name: str) -> None:
+    def __init__(self, api: MaxApi, roster: Roster, bot_name: str) -> None:
         self.api = api
         self.roster = roster
-        self.bindings = bindings
         self.bot_name = bot_name
-        self.students = {s.id: s.name for s in roster.students}
+        everyone = [roster.teacher, *roster.students]
+        self.people = {p.max_user_id: p for p in everyone if p.max_user_id is not None}
 
     def handle(self, update: dict) -> None:
         kind = update.get("update_type")
         if kind == "bot_started":
-            self.start(update["user"]["user_id"])
+            self.greet(update["user"]["user_id"])
         elif kind == "message_created":
-            message = update["message"]
-            sender = message.get("sender") or {}
-            if not sender or sender.get("is_bot"):
-                return
-            text = (message.get("body") or {}).get("text") or ""
-            if text.strip().startswith("/start"):
-                self.start(sender["user_id"])
-            else:
-                self.api.send(sender["user_id"], "Чтобы выбрать роль или войти в урок, отправьте /start.")
+            sender = update["message"].get("sender") or {}
+            if sender and not sender.get("is_bot"):
+                self.greet(sender["user_id"])
         elif kind == "message_callback":
-            self.on_button(update["callback"])
+            # кнопки выбора роли из прошлой версии бота остались в старых сообщениях
+            cb = update["callback"]
+            self.api.answer(cb["callback_id"], "Эта кнопка больше не нужна")
+            self.greet(cb["user"]["user_id"])
 
-    def start(self, user_id: int) -> None:
-        participant = self.bindings.participant(user_id)
-        if participant is None:
-            self.ask_role(user_id)
-        else:
-            self.greet(user_id, participant)
-
-    def ask_role(self, user_id: int) -> None:
-        self.api.send(
-            user_id,
-            "Здравствуйте! Это ассистент урока в Сферуме. Кто вы на уроке?",
-            [[callback("Я учитель", "role:teacher")], [callback("Я ученик", "role:student")]],
-        )
-
-    def ask_student(self, user_id: int) -> None:
-        rows = []
-        for sid, name in self.students.items():
-            owner = self.bindings.owner(sid)
-            taken = owner is not None and owner != user_id
-            rows.append([callback(f"{name} (занято)" if taken else name, f"student:{sid}")])
-        self.api.send(user_id, f"Выберите себя в списке класса {self.roster.class_name}.", rows)
-
-    def on_button(self, cb: dict) -> None:
-        callback_id = cb["callback_id"]
-        user_id = cb["user"]["user_id"]
-        payload = cb.get("payload") or ""
-        if payload == "role:teacher":
-            self.choose(callback_id, user_id, self.roster.teacher.id)
-        elif payload == "role:student":
-            self.api.answer(callback_id, "Выберите себя в списке")
-            self.ask_student(user_id)
-        elif payload.startswith("student:") and payload.removeprefix("student:") in self.students:
-            self.choose(callback_id, user_id, payload.removeprefix("student:"))
-        elif payload == "role:change":
-            self.bindings.unbind(user_id)
-            self.api.answer(callback_id, "Выберите роль заново")
-            self.ask_role(user_id)
-        else:
-            self.api.answer(callback_id, "Эта кнопка больше не работает, отправьте /start")
-
-    def choose(self, callback_id: str, user_id: int, participant_id: str) -> None:
-        if not self.bindings.bind(user_id, participant_id):
-            self.api.answer(callback_id, "Это место уже занято другим пользователем")
-            return
-        self.api.answer(callback_id, "Готово")
-        self.greet(user_id, participant_id)
-
-    def greet(self, user_id: int, participant_id: str) -> None:
+    def greet(self, user_id: int) -> None:
         roster = self.roster
-        if participant_id == roster.teacher.id:
-            text = f"Вы учитель {roster.class_name}, {roster.subject.lower()}. Когда будете готовы, нажмите «Начать урок»."
-            button = "Начать урок"
+        person = self.people.get(user_id)
+        if person is None:
+            self.api.send(
+                user_id,
+                f"Вас нет в списке класса {roster.class_name}. Если это ошибка, "
+                f"напишите учителю и назовите ваш id в MAX: {user_id}.",
+            )
+        elif person.id == roster.teacher.id:
+            self.api.send(
+                user_id,
+                f"Вы учитель {roster.class_name}, {roster.subject.lower()}. Когда будете готовы, нажмите «Начать урок».",
+                [[self.open_app("Начать урок")]],
+            )
         else:
-            text = f"Вы {self.students[participant_id]}, {roster.class_name}. Когда учитель начнёт урок, нажмите «Войти в урок»."
-            button = "Войти в урок"
-        self.api.send(user_id, text, [[self.open_app(button)], [callback("Сменить роль", "role:change")]])
+            self.api.send(
+                user_id,
+                f"Вы {person.name}, {roster.class_name}. Когда учитель начнёт урок, нажмите «Войти в урок».",
+                [[self.open_app("Войти в урок")]],
+            )
 
     def open_app(self, text: str) -> dict:
         """Кнопка, которая открывает мини-приложение бота; payload приходит в start_param."""
@@ -181,7 +141,7 @@ def run_polling() -> None:
         me = http.get("/me").json()
         log.info("бот %s (%s) слушает обновления", me.get("name"), me.get("username"))
         api = MaxApi(http)
-        bot = Bot(api, roster, Bindings(settings.bot_store_path), settings.max_bot_name or me["username"])
+        bot = Bot(api, roster, settings.max_bot_name or me["username"])
         marker = None
         while True:
             try:
