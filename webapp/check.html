@@ -95,6 +95,8 @@
         `платформа: ${app.platform ?? "?"}, версия: ${app.version ?? "?"}, устройство: ${app.deviceName ?? "?"}`);
       show("initData", "Данные запуска (initData)", Boolean(app.initData),
         app.initData ? `длина ${app.initData.length}, пользователь: ${user ? `${user.first_name ?? ""} (id ${user.id})` : "нет в initDataUnsafe"}` : "пусто");
+      // Мост MAX подписывает привилегированные запросы query_id из данных запуска
+      log(`адрес страницы: ${location.origin}${location.pathname}, query_id ${app.initDataUnsafe?.query_id ? "есть" : "НЕТ"}`);
       return app;
     }
 
@@ -142,11 +144,9 @@
         show("maxPerm", title, true, "доступ уже выдан");
         return;
       }
+      // Форма вызова из исходника моста MAX: requestAccess(["mic"], причина до 128 символов)
       const variants = [
-        ["requestAccess({permissions:['mic']})", () => pm.requestAccess({ permissions: ["mic"] })],
-        ["requestAccess(['mic'])", () => pm.requestAccess(["mic"])],
-        ["requestAccess({mic:true})", () => pm.requestAccess({ mic: true })],
-        ["requestAccess('mic')", () => pm.requestAccess("mic")],
+        ["requestAccess(['mic'], причина)", () => pm.requestAccess(["mic"], "Ассистенту урока нужно слышать ваш голос")],
       ];
       for (const [name, call] of variants) {
         const r = await step(name, call);
