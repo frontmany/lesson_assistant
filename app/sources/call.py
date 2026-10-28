@@ -22,6 +22,10 @@ log = logging.getLogger(__name__)
 SAMPLE_RATE = 16_000
 FRAME_MS = 30
 STATS_EVERY_S = 5
+# Сколько кадров ждёт конвейер: около секунды звука от 30 участников. Если
+# распознавание не успевает, старые кадры сбрасываются, чтобы не росли
+# память и задержка шкалы.
+QUEUE_FRAMES = 1000
 
 
 async def listen(lesson_id: str) -> AsyncIterator[tuple[str, bytes]]:
@@ -32,16 +36,23 @@ async def listen(lesson_id: str) -> AsyncIterator[tuple[str, bytes]]:
     дорожка и новая задача, так что кадры идут снова. В лог раз в несколько
     секунд пишется, от кого сколько кадров пришло.
     """
-    queue: asyncio.Queue[tuple[str, bytes]] = asyncio.Queue()
+    queue: asyncio.Queue[tuple[str, bytes]] = asyncio.Queue(maxsize=QUEUE_FRAMES)
     room = rtc.Room()
     pumps: dict[str, asyncio.Task] = {}  # sid дорожки -> задача чтения
     frames: Counter[str] = Counter()  # id участника -> кадров с прошлой записи в лог
+    dropped: Counter[str] = Counter()  # id участника -> сброшенных кадров
+
+    def put(identity: str, data: bytes) -> None:
+        if queue.full():
+            old, _ = queue.get_nowait()
+            dropped[old] += 1
+        queue.put_nowait((identity, data))
 
     async def pump(stream: rtc.AudioStream, identity: str) -> None:
         try:
             async for event in stream:
                 frames[identity] += 1
-                await queue.put((identity, bytes(event.frame.data)))
+                put(identity, bytes(event.frame.data))
         finally:
             await stream.aclose()
 
@@ -54,6 +65,10 @@ async def listen(lesson_id: str) -> AsyncIterator[tuple[str, bytes]]:
                 parts = ", ".join(f"{who}: {n}" for who, n in sorted(frames.items()))
                 log.info("кадры за %.1f с — %s", now - last, parts)
                 frames.clear()
+            if dropped:
+                parts = ", ".join(f"{who}: {n}" for who, n in sorted(dropped.items()))
+                log.warning("конвейер не успевает, сброшены старые кадры — %s", parts)
+                dropped.clear()
             last = now
 
     @room.on("track_subscribed")
@@ -79,12 +94,15 @@ async def listen(lesson_id: str) -> AsyncIterator[tuple[str, bytes]]:
         log.info("участник вышел: %s", participant.identity)
 
     await room.connect(settings.livekit_url, assistant_token(lesson_id))
+    log.info("ассистент слушает комнату %s", room.name)
     reporter = asyncio.create_task(report())
     try:
         while True:
             yield await queue.get()
     finally:
-        reporter.cancel()
-        for task in pumps.values():
+        tasks = [reporter, *pumps.values()]
+        for task in tasks:
             task.cancel()
+        # дождаться задач, чтобы aclose() потоков успел до disconnect()
+        await asyncio.gather(*tasks, return_exceptions=True)
         await room.disconnect()

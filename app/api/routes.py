@@ -6,6 +6,7 @@ from app import mocks
 from app.call import participant_token
 from app.config import settings
 from app.models import AnalyticsState, JoinInfo, Roster, StudentCard, Summary
+from app.pipeline import runner
 
 router = APIRouter()
 
@@ -44,12 +45,10 @@ def join(lesson_id: str, participant_id: str):
 
 
 @router.post("/lessons/{lesson_id}/start")
-def start(lesson_id: str):
-    """Учитель начал урок: ассистент заходит в звонок и начинает слушать.
-
-    TODO(Ярослав): запустить фоновую задачу pipeline.runner.run_call(lesson_id).
-    """
-    raise HTTPException(501, "Ассистент пока не умеет заходить в звонок")
+async def start(lesson_id: str):
+    """Учитель начал урок: ассистент заходит в звонок и начинает слушать."""
+    started = runner.start(lesson_id, _roster(lesson_id))
+    return {"lesson_id": lesson_id, "started": started}
 
 
 @router.get("/lessons/{lesson_id}/summary", response_model=Summary)

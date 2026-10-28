@@ -18,7 +18,8 @@ for (const student of roster.students) {
   row.innerHTML = `
     <span>${student.name}</span>
     <span class="bars">${'<span class="bar"></span>'.repeat(4)}</span>
-    <span class="flags"></span>`;
+    <span class="flags"></span>
+    <span class="last"></span>`;
   container.append(row);
   rows[student.id] = row;
 }
@@ -39,6 +40,10 @@ subscribe((event) => {
     row.querySelector(".flags").innerHTML = event.flags
       .map((f) => `<span class="flag ${f}">${FLAG_TEXT[f]}</span>`)
       .join("");
+  }
+  // TODO(Фёдор): лента реплик по макету Варвары; пока — последняя реплика в строке ученика
+  if (event.type === "utterance") {
+    row.querySelector(".last").textContent = event.text;
   }
   if (event.type === "analytics") {
     row.classList.toggle("off", !event.enabled);
