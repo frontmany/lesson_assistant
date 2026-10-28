@@ -1,19 +1,41 @@
 /* Токены из презентации первого этапа. Значения сверяем с макетами Варвары. */
+
+/* Onest лежит в репозитории (OFL, лицензия рядом), по сети шрифт не грузим. */
+@font-face {
+  font-family: "Onest";
+  src: url("../fonts/Onest.ttf") format("truetype");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
   --bg: #f2efe8;
   --surface: #fbfaf6;
   --surface-muted: #e9e4d8;
-  --ink: #1f3150;
+  --navy: #1f3150;
+  --ink: var(--navy);
   --ink-soft: #4a5468;
   --accent: #5b6b3f;
   --accent-soft: #a6b58a;
-  --accent-tint: #dfe5d2;
+  --accent-tint: #e2e8d6; /* был #dfe5d2: олива на нём давала 4,497:1, а нужно 4,5 */
   --warn-tint: #f1dfc0;
   --warn-ink: #7a5420;
   --line: #ddd6c6;
+  /* граница нажимаемого элемента: не меньше 3:1 к фону, в отличие от --line */
+  --line-strong: #857f6e;
   --danger: #b3392f;
   --on-danger: #ffffff;
-  --scrim: rgba(20, 27, 39, 0.62);
+
+  /* поверх камеры и слайда */
+  --scrim: rgba(16, 16, 16, 0.62);
+  --on-scrim: #ffffff;
+  --accent-on-scrim: #a6b58a;
+  --figure: rgba(255, 255, 255, 0.42);
+  --slide: var(--navy);
+  --on-slide: #ffffff;
+  --on-slide-soft: rgba(255, 255, 255, 0.22);
+  --shadow-float: 0 2px 8px rgba(20, 27, 39, 0.08);
 
   --radius: 14px;
   --font: "Onest", system-ui, sans-serif;
@@ -32,6 +54,12 @@
     --warn-tint: #3a2f1f;
     --warn-ink: #e7c58f;
     --line: #2d3749;
-    --danger: #d4574c;
+    --line-strong: #738098;
+    /* белый на #d4574c давал 3,99:1; на этом красном 5,09:1 */
+    --danger: #c0443a;
+    --on-danger: #ffffff;
+
+    --scrim: rgba(0, 0, 0, 0.7);
+    --shadow-float: 0 2px 8px rgba(0, 0, 0, 0.35);
   }
 }
