@@ -3,7 +3,7 @@
   "class_name": "10А",
   "subject": "История",
   "topic": "Реформы Петра I",
-  "teacher": { "id": "teacher", "name": "Елена Викторовна" },
+  "teacher": { "id": "teacher", "name": "Елена Викторовна", "max_user_id": 215228189 },
   "students": [
     { "id": "ivan_i", "name": "Иван И." },
     { "id": "maria_s", "name": "Мария С." },
