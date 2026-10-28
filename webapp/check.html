@@ -123,8 +123,6 @@
       return state;
     }
 
-    // В документации: «укажите в permissions хотя бы один из параметров: camera, mic».
-    // Точная форма вызова там не видна, поэтому пробуем несколько по очереди
     async function requestMaxPermission(app) {
       const title = "Доступ к микрофону в MAX (PermissionsManager)";
       const pm = app?.PermissionsManager;
