@@ -36,6 +36,8 @@
     <button id="start">Начать проверку</button>
     <div class="meter"><i id="level"></i></div>
     <section id="rows"></section>
+    <button id="askMic" class="secondary">Запросить микрофон у MAX</button>
+    <button id="maxSettings" class="secondary">Открыть настройки MAX</button>
     <button id="copy" class="secondary">Скопировать отчёт</button>
     <div id="log"></div>
   </main>
@@ -69,10 +71,17 @@
       return typeof v === "function" ? await v.call(obj) : v;
     }
 
+    // Ошибки MAX приходят обычными объектами, а не Error: печатаем все поля
     function describeError(e) {
       if (!e) return "неизвестная ошибка";
-      return [e.name, e.code, e.message, e.error, typeof e === "string" ? e : ""]
-        .filter(Boolean).join(" · ") || JSON.stringify(e);
+      if (typeof e === "string") return e;
+      try {
+        const fields = {};
+        for (const key of Object.getOwnPropertyNames(e)) fields[key] = e[key];
+        return JSON.stringify(fields);
+      } catch {
+        return String(e);
+      }
     }
 
     function checkBridge() {
@@ -89,34 +98,65 @@
       return app;
     }
 
+    // Каждый шаг PermissionsManager пишем в журнал отдельно, чтобы было видно, где он падает
+    async function step(title, fn) {
+      try {
+        const result = await fn();
+        log(`${title} → ${JSON.stringify(result) ?? "без ответа"}`);
+        return { ok: true, result };
+      } catch (e) {
+        log(`${title} → ошибка ${describeError(e)}`);
+        return { ok: false, error: e };
+      }
+    }
+
+    async function micState(pm) {
+      const names = ["isInited", "isMicAvailable", "isMicAppAccessRequested", "isMicAppAccessGranted",
+        "isMicSystemAccessRequested", "isMicSystemAccessGranted"];
+      const state = {};
+      for (const name of names) {
+        try { state[name] = await read(pm, name); } catch (e) { state[name] = "ошибка " + describeError(e); }
+      }
+      log("состояние PermissionsManager: " + JSON.stringify(state));
+      return state;
+    }
+
+    // В документации: «укажите в permissions хотя бы один из параметров: camera, mic».
+    // Точная форма вызова там не видна, поэтому пробуем несколько по очереди
     async function requestMaxPermission(app) {
+      const title = "Доступ к микрофону в MAX (PermissionsManager)";
       const pm = app?.PermissionsManager;
       if (!pm) {
-        show("maxPerm", "Доступ к микрофону в MAX (PermissionsManager)", null, "объекта нет — пропускаем, пробуем сразу getUserMedia");
+        show("maxPerm", title, null, "объекта нет: пропускаем, пробуем сразу getUserMedia");
         return;
       }
-      try {
-        if (!(await read(pm, "isInited"))) await pm.init();
-        const state = {
-          микрофон_есть: await read(pm, "isMicAvailable"),
-          доступ_приложению: await read(pm, "isMicAppAccessGranted"),
-          системный_доступ: await read(pm, "isMicSystemAccessGranted"),
-        };
-        log("PermissionsManager до запроса: " + JSON.stringify(state));
-        // В документации: «укажите в permissions хотя бы один из параметров: camera, mic»
-        let answer;
-        try {
-          answer = await pm.requestAccess({ permissions: ["mic"] });
-        } catch (first) {
-          log("requestAccess({permissions:['mic']}) → " + describeError(first) + ", пробую requestAccess(['mic'])");
-          answer = await pm.requestAccess(["mic"]);
-        }
-        log("requestAccess → " + JSON.stringify(answer));
-        show("maxPerm", "Доступ к микрофону в MAX (PermissionsManager)", true, "выдан или уже был выдан");
-      } catch (e) {
-        show("maxPerm", "Доступ к микрофону в MAX (PermissionsManager)", false, describeError(e));
-        log("PermissionsManager: " + describeError(e));
+      const proto = Object.getPrototypeOf(pm) ?? {};
+      const names = new Set([...Object.keys(pm), ...Object.getOwnPropertyNames(proto)].filter((n) => n !== "constructor"));
+      log("методы и свойства PermissionsManager: " + [...names].join(", "));
+      let state = await micState(pm);
+      if (!state.isInited) {
+        await step("init()", () => pm.init());
+        state = await micState(pm);
       }
+      if (state.isMicAppAccessGranted === true && state.isMicSystemAccessGranted === true) {
+        show("maxPerm", title, true, "доступ уже выдан");
+        return;
+      }
+      const variants = [
+        ["requestAccess({permissions:['mic']})", () => pm.requestAccess({ permissions: ["mic"] })],
+        ["requestAccess(['mic'])", () => pm.requestAccess(["mic"])],
+        ["requestAccess({mic:true})", () => pm.requestAccess({ mic: true })],
+        ["requestAccess('mic')", () => pm.requestAccess("mic")],
+      ];
+      for (const [name, call] of variants) {
+        const r = await step(name, call);
+        if (r.ok) {
+          await micState(pm);
+          show("maxPerm", title, true, `сработал вызов ${name}`);
+          return;
+        }
+      }
+      show("maxPerm", title, false, "ни один вызов не прошёл, подробности в журнале. Нажми «Открыть настройки MAX» и включи микрофон для мини-приложения");
     }
 
     async function checkMic() {
@@ -197,17 +237,40 @@
       log(document.hidden ? "приложение свёрнуто" : "приложение снова на экране");
     });
 
+    // Синтетический звук для проверки WebRTC, когда микрофона нет
+    function toneStream() {
+      const ctx = new AudioContext();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      gain.gain.value = 0.05;
+      const out = ctx.createMediaStreamDestination();
+      osc.connect(gain).connect(out);
+      osc.start();
+      return out.stream;
+    }
+
     document.getElementById("start").addEventListener("click", async () => {
       document.getElementById("start").disabled = true;
       show("env", "Окружение", window.isSecureContext, `${window.isSecureContext ? "https" : "НЕ https"} · ${navigator.userAgent}`);
       const app = checkBridge();
       await requestMaxPermission(app);
       const stream = await checkMic();
-      if (stream) {
-        meter(stream);
-        await checkWebRtc(stream);
-      }
+      if (stream) meter(stream);
+      else log("микрофона нет, WebRTC проверяю на синтетическом тоне");
+      await checkWebRtc(stream ?? toneStream());
       log("проверка завершена; сверни MAX на 10 секунд и вернись, чтобы проверить работу в фоне");
+    });
+
+    document.getElementById("askMic").addEventListener("click", async () => {
+      await requestMaxPermission(window.WebApp);
+      const stream = await checkMic();
+      if (stream) meter(stream);
+    });
+
+    document.getElementById("maxSettings").addEventListener("click", async () => {
+      const pm = window.WebApp?.PermissionsManager;
+      if (!pm) return log("PermissionsManager нет, настройки MAX открыть нельзя");
+      await step("openMaxSettings()", () => pm.openMaxSettings());
     });
 
     document.getElementById("copy").addEventListener("click", async () => {
