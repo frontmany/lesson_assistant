@@ -27,7 +27,6 @@ class Settings:
     max_bot_mode: str = os.getenv("MAX_BOT_MODE", "polling")
     # имя бота нужно кнопке, которая открывает его мини-приложение
     max_bot_name: str = os.getenv("MAX_BOT_NAME", "")
-    bot_store_path: Path = ROOT / os.getenv("BOT_STORE", "bot_users.json")
 
     whisper_model: str = os.getenv("WHISPER_MODEL", "base")
     whisper_compute_type: str = os.getenv("WHISPER_COMPUTE_TYPE", "int8")
