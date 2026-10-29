@@ -77,6 +77,9 @@
       if (typeof e === "string") return e;
       try {
         const fields = {};
+        // у DOMException name и message лежат в прототипе: getOwnPropertyNames их не видит
+        if (e.name) fields.name = e.name;
+        if (e.message) fields.message = e.message;
         for (const key of Object.getOwnPropertyNames(e)) fields[key] = e[key];
         return JSON.stringify(fields);
       } catch {
