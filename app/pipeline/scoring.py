@@ -142,6 +142,23 @@ class Scoreboard:
         self.tick(end)
         return self.level(student_id)
 
+    def extend(self, student_id: str, text: str, t: float, end: float) -> int:
+        """Продолжение прошлой реплики: ученик договорил после паузы.
+
+        Длинный ответ приходит из конвейера несколькими фразами. Это одна
+        реплика: прибавляется время речи и текст, а баллы за тип — нет.
+        Иначе ответ из пяти фраз весил бы как пять ответов.
+        """
+        s = self._students[student_id]
+        if not s.kinds:
+            return self.add(student_id, "other", text, t, end)
+        s.texts[-1] = f"{s.texts[-1]} {text}"
+        s.speech_s += max(0.0, end - t)
+        if s.kinds[-1] in COUNTED:
+            s.last_reply_end = end
+        self.tick(end)
+        return self.level(student_id)
+
     def tick(self, now: float) -> None:
         """Подстроить норму под темп урока. Ступени при этом только растут."""
         self.norm = softened_norm(self.base_norm, self.norm, self.activity(), now / self.lesson_s)
