@@ -54,6 +54,7 @@
 | `GET` | `/api/lessons/{id}/roster` | состав класса (`Roster`) |
 | `GET` | `/api/lessons/{id}/join?participant_id=...` | вход в звонок (`JoinInfo`) |
 | `POST` | `/api/lessons/{id}/start` | ассистент заходит в звонок и начинает слушать: `{"lesson_id": ..., "started": true}`, `false` — уже слушает |
+| `POST` | `/api/lessons/{id}/end` | ассистент выходит из звонка, очередь дораспознаётся, урок завершается: `{"lesson_id": ..., "ended": true}`, `false` — урок не идёт. Ответ приходит, когда всё распознано. Комната пуста 5 минут — урок завершается сам |
 | `GET` | `/api/lessons/{id}/summary` | сводка учителю (`Summary`) |
 | `GET` | `/api/lessons/{id}/cards/{student_id}` | карточка ученика (`StudentCard`) |
 | `POST` | `/api/lessons/{id}/analytics` | включить или выключить аналитику (`AnalyticsState`) |
