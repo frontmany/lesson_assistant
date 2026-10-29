@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Макет: регистрация в боте</title>
+  <!-- Макет переписки с ботом (issue #46). Все шаги на одной странице, один шаг: ?step=1…11.
+       Тексты прошли ru-text. Неразрывные пробелы (&nbsp;) расставлены в тексте, их нужно сохранить в боте.
+       Цвета и тени берём из токенов, своих значений здесь нет. Тёмная тема включается системной. -->
+  <link rel="stylesheet" href="../webapp/css/tokens.css">
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: var(--font); background: var(--bg); color: var(--ink); line-height: 1.4; }
+    button { font: inherit; color: inherit; cursor: pointer; }
+
+    .page { max-width: 1240px; margin: 0 auto; padding: 32px 16px 64px; }
+    .page > h1 { margin: 0 0 4px; font-size: 24px; }
+    .lead { margin: 0 0 32px; color: var(--ink-soft); max-width: 62ch; }
+
+    .scenes { display: grid; gap: 40px 32px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 375px), 1fr)); align-items: start; }
+    .scene.wide { grid-column: 1 / -1; }
+    .scene h2 { display: flex; align-items: center; gap: 10px; margin: 0 0 12px; font-size: 17px; }
+    .num { flex: none; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center;
+           background: var(--accent); color: var(--surface); font-size: 14px; font-weight: 700; }
+    .phones { display: flex; flex-wrap: wrap; gap: 24px; }
+    .who { margin: 0 0 6px; font-size: 13px; font-weight: 600; color: var(--ink-soft); }
+
+    /* Окно чата */
+    .chat { width: 100%; max-width: 375px; border: 1px solid var(--line); border-radius: 24px; overflow: hidden;
+            background: var(--bg); box-shadow: var(--shadow-float); }
+    .bar { display: flex; align-items: center; gap: 10px; padding: 12px 16px; background: var(--surface); border-bottom: 1px solid var(--line); }
+    .ava { width: 36px; height: 36px; border-radius: 50%; background: var(--navy); color: #fff; display: grid; place-items: center; font-weight: 700; }
+    .bar b { display: block; font-size: 15px; line-height: 1.2; }
+    .bar span { font-size: 12px; color: var(--ink-soft); }
+    .feed { display: flex; flex-direction: column; gap: 8px; padding: 16px 12px 20px; }
+
+    .msg { max-width: 86%; padding: 10px 14px; border-radius: 16px; font-size: 15px; background: var(--surface); border: 1px solid var(--line); border-bottom-left-radius: 4px; }
+    .msg.me { align-self: flex-end; background: var(--accent-tint); border-color: transparent; border-bottom-left-radius: 16px; border-bottom-right-radius: 4px; }
+    .msg a { color: var(--accent); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; word-break: break-all; }
+    .msg .url { display: block; margin: 4px 0; }
+
+    .keys { display: flex; flex-direction: column; gap: 6px; max-width: 86%; margin-top: -2px; }
+    .keys .row { display: flex; gap: 6px; }
+    .kb { flex: 1; min-height: 44px; padding: 0 12px; border-radius: 12px; border: 1px solid var(--line-strong); background: var(--surface);
+          font-weight: 600; font-size: 15px; text-align: center; }
+    .kb.danger { color: var(--danger); }
+    .tap { align-self: center; margin: 4px 0; padding: 2px 10px; font-size: 12px; color: var(--ink-soft); border-radius: 999px; background: var(--surface-muted); }
+
+    /* Заметка для разработчика */
+    .note { max-width: 375px; margin: 12px 0 0; font-size: 13px; color: var(--ink-soft); }
+    .note p { margin: 0 0 4px; }
+    .note b { color: var(--ink); }
+
+    /* Один шаг */
+    body.single .scene { display: none; }
+    body.single .scene.on { display: block; grid-column: 1 / -1; }
+    body.single .scenes { display: block; }
+    body.single .page > .lead { display: none; }
+  </style>
+</head>
+<body>
+<div class="page">
+  <h1>Регистрация в боте</h1>
+  <p class="lead">Переписка по шагам. Кнопки под сообщением — встроенная клавиатура MAX. Подпись «Нажато» показывает, какая кнопка вызвала следующее сообщение. Ссылка в примерах условная.</p>
+
+  <div class="scenes">
+
+    <section class="scene" id="s1" data-step="1">
+      <h2><span class="num">1</span>Незнакомый человек</h2>
+      <div class="phones"><div>
+        <div class="chat" role="group" aria-label="Чат с ботом">
+          <div class="bar"><div class="ava" aria-hidden="true">И</div><div><b>Идея фикс</b><span>бот</span></div></div>
+          <div class="feed">
+            <div class="msg">Здравствуйте! Я&nbsp;помогаю вести уроки в&nbsp;MAX. Кто вы?</div>
+            <div class="keys"><div class="row"><button class="kb" type="button">Я&nbsp;учитель</button><button class="kb" type="button">Я&nbsp;ученик</button></div></div>
+          </div>
+        </div>
+        <div class="note"><p><b>Когда:</b> человека нет в составах классов.</p><p><b>«Я ученик»:</b> шаг 5. <b>«Я учитель»:</b> шаг 2.</p></div>
+      </div></div>
+    </section>
+
+    <section class="scene" id="s2" data-step="2">
+      <h2><span class="num">2</span>Создание класса</h2>
+      <div class="phones"><div>
+        <div class="chat" role="group" aria-label="Чат с ботом">
+          <div class="bar"><div class="ava" aria-hidden="true">И</div><div><b>Идея фикс</b><span>бот</span></div></div>
+          <div class="feed">
+            <div class="tap">Нажато: «Я&nbsp;учитель»</div>
+            <div class="msg">Создадим первый класс. Как его назвать? Например, 10А.</div>
+            <div class="msg me">10А</div>
+            <div class="msg">Класс 10А создан.</div>
+          </div>
+        </div>
+        <div class="note"><p><b>Когда:</b> после «Я учитель» или когда учитель хочет добавить класс.</p><p>Название — любой текст. Следом приходит шаг 3.</p></div>
+      </div></div>
+    </section>
+
+    <section class="scene" id="s3" data-step="3">
+      <h2><span class="num">3</span>Ссылка-приглашение</h2>
+      <div class="phones"><div>
+        <div class="chat" role="group" aria-label="Чат с ботом">
+          <div class="bar"><div class="ava" aria-hidden="true">И</div><div><b>Идея фикс</b><span>бот</span></div></div>
+          <div class="feed">
+            <div class="msg">Ссылка для учеников:<a class="url" href="#">max.ru/lesson_bot?start=10a-k7x2</a>Отправьте её&nbsp;классу. Ссылка работает, пока вы&nbsp;не&nbsp;создадите новую.</div>
+            <div class="keys">
+              <div class="row"><button class="kb" type="button">Поделиться</button><button class="kb" type="button">Ученики</button></div>
+              <div class="row"><button class="kb" type="button">Новая ссылка</button></div>
+            </div>
+          </div>
+        </div>
+        <div class="note"><p><b>«Поделиться»:</b> окно отправки MAX со ссылкой. <b>«Ученики»:</b> открывает экран «Ученики» в мини-приложении. <b>«Новая ссылка»:</b> шаг 8.</p></div>
+      </div></div>
+    </section>
+
+    <section class="scene" id="s4" data-step="4">
+      <h2><span class="num">4</span>Ученик входит по ссылке</h2>
+      <div class="phones"><div>
+        <p class="who">Ученик</p>
+        <div class="chat" role="group" aria-label="Чат с ботом">
+          <div class="bar"><div class="ava" aria-hidden="true">И</div><div><b>Идея фикс</b><span>бот</span></div></div>
+          <div class="feed">
+            <div class="msg">Вы входите в&nbsp;класс&nbsp;10А. Вас зовут Иван&nbsp;Иванов?</div>
+            <div class="keys"><div class="row"><button class="kb" type="button">Это я</button><button class="kb" type="button">Изменить имя</button></div></div>
+            <div class="tap">Нажато: «Это я»</div>
+            <div class="msg">Готово, вы&nbsp;в&nbsp;классе&nbsp;10А. Когда начнётся урок, я&nbsp;напишу.</div>
+          </div>
+        </div>
+        <div class="note"><p><b>Имя:</b> из аккаунта MAX.</p><p><b>После «Изменить имя»:</b> «Напишите имя и&nbsp;фамилию.» Ответ ученика становится именем в классе.</p><p>Учителю уходит шаг 6.</p></div>
+      </div></div>
+    </section>
+
+    <section class="scene" id="s5" data-step="5">
+      <h2><span class="num">5</span>«Я ученик» без ссылки</h2>
+      <div class="phones"><div>
+        <div class="chat" role="group" aria-label="Чат с ботом">
+          <div class="bar"><div class="ava" aria-hidden="true">И</div><div><b>Идея фикс</b><span>бот</span></div></div>
+          <div class="feed">
+            <div class="tap">Нажато: «Я&nbsp;ученик»</div>
+            <div class="msg">Чтобы войти в&nbsp;класс, нужна ссылка. Попросите её&nbsp;у&nbsp;учителя и&nbsp;откройте.</div>
+          </div>
+        </div>
+        <div class="note"><p>Кнопок нет: дальше человек откроет ссылку, и&nbsp;бот покажет шаг 4.</p></div>
+      </div></div>
+    </section>
+
+    <section class="scene" id="s6" data-step="6">
+      <h2><span class="num">6</span>Учителю: ученик вошёл</h2>
+      <div class="phones"><div>
+        <p class="who">Учитель</p>
+        <div class="chat" role="group" aria-label="Чат с ботом">
+          <div class="bar"><div class="ava" aria-hidden="true">И</div><div><b>Идея фикс</b><span>бот</span></div></div>
+          <div class="feed">
+            <div class="msg">Иван&nbsp;И. теперь в&nbsp;классе&nbsp;10А.</div>
+            <div class="keys"><div class="row"><button class="kb" type="button">Убрать из&nbsp;класса</button></div></div>
+            <div class="tap">Нажато: «Убрать из&nbsp;класса»</div>
+            <div class="msg">Убрано из&nbsp;класса&nbsp;10А: Иван&nbsp;И.</div>
+            <div class="keys"><div class="row"><button class="kb" type="button">Вернуть</button></div></div>
+          </div>
+        </div>
+        <div class="note"><p><b>Когда:</b> ученик подтвердил имя на шаге 4.</p><p>Убирает сразу, без вопроса. «Вернуть» возвращает ученика в&nbsp;класс.</p></div>
+      </div></div>
+    </section>
+
+    <section class="scene wide" id="s7" data-step="7">
+      <h2><span class="num">7</span>Выход ученика</h2>
+      <div class="phones">
+        <div>
+          <p class="who">Ученик</p>
+          <div class="chat" role="group" aria-label="Чат ученика с ботом">
+            <div class="bar"><div class="ava" aria-hidden="true">И</div><div><b>Идея фикс</b><span>бот</span></div></div>
+            <div class="feed">
+              <div class="msg">Выйти из&nbsp;класса&nbsp;10А?</div>
+              <div class="keys"><div class="row"><button class="kb danger" type="button">Выйти</button><button class="kb" type="button">Остаться</button></div></div>
+              <div class="tap">Нажато: «Выйти»</div>
+              <div class="msg">Вы вышли из&nbsp;10А. Чтобы вернуться, попросите у&nbsp;учителя ссылку.</div>
+            </div>
+          </div>
+        </div>
+        <div>
+          <p class="who">Учитель</p>
+          <div class="chat" role="group" aria-label="Чат учителя с ботом">
+            <div class="bar"><div class="ava" aria-hidden="true">И</div><div><b>Идея фикс</b><span>бот</span></div></div>
+            <div class="feed">
+              <div class="msg">Иван&nbsp;И. теперь не&nbsp;в&nbsp;классе&nbsp;10А.</div>
+            </div>
+          </div>
+          <div class="note"><p><b>Когда:</b> ученик выбрал «Выйти из класса» в меню бота. Учителю приходит уведомление без кнопок.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="scene" id="s8" data-step="8">
+      <h2><span class="num">8</span>Новая ссылка</h2>
+      <div class="phones"><div>
+        <div class="chat" role="group" aria-label="Чат с ботом">
+          <div class="bar"><div class="ava" aria-hidden="true">И</div><div><b>Идея фикс</b><span>бот</span></div></div>
+          <div class="feed">
+            <div class="msg">Создать новую ссылку? Старая перестанет работать.</div>
+            <div class="keys"><div class="row"><button class="kb" type="button">Создать ссылку</button><button class="kb" type="button">Отмена</button></div></div>
+            <div class="tap">Нажато: «Создать ссылку»</div>
+            <div class="msg">Новая ссылка для&nbsp;10А:<a class="url" href="#">max.ru/lesson_bot?start=10a-q4m8</a></div>
+            <div class="keys"><div class="row"><button class="kb" type="button">Поделиться</button></div></div>
+          </div>
+        </div>
+        <div class="note"><p>Ученики, уже вошедшие в&nbsp;класс, остаются. Старая ссылка перестаёт принимать новых.</p></div>
+      </div></div>
+    </section>
+
+    <section class="scene" id="s9" data-step="9">
+      <h2><span class="num">9</span>Удаление класса</h2>
+      <div class="phones"><div>
+        <div class="chat" role="group" aria-label="Чат с ботом">
+          <div class="bar"><div class="ava" aria-hidden="true">И</div><div><b>Идея фикс</b><span>бот</span></div></div>
+          <div class="feed">
+            <div class="msg">Удалить класс&nbsp;10А? Ученики потеряют доступ.</div>
+            <div class="keys"><div class="row"><button class="kb danger" type="button">Удалить класс</button><button class="kb" type="button">Отмена</button></div></div>
+            <div class="tap">Нажато: «Удалить класс»</div>
+            <div class="msg">Класс&nbsp;10А удалён. Вернуть можно в&nbsp;течение 30&nbsp;дней.</div>
+            <div class="keys"><div class="row"><button class="kb" type="button">Вернуть</button></div></div>
+          </div>
+        </div>
+        <div class="note"><p>Класс 30&nbsp;дней лежит в&nbsp;корзине. «Вернуть» восстанавливает класс с&nbsp;учениками и&nbsp;ссылкой.</p></div>
+      </div></div>
+    </section>
+
+    <section class="scene" id="s10" data-step="10">
+      <h2><span class="num">10</span>«Урок начался»</h2>
+      <div class="phones"><div>
+        <p class="who">Ученик</p>
+        <div class="chat" role="group" aria-label="Чат с ботом">
+          <div class="bar"><div class="ava" aria-hidden="true">И</div><div><b>Идея фикс</b><span>бот</span></div></div>
+          <div class="feed">
+            <div class="msg">Урок начался: 10А, история.</div>
+            <div class="keys"><div class="row"><button class="kb" type="button">Войти в&nbsp;урок</button></div></div>
+          </div>
+        </div>
+        <div class="note"><p><b>Когда:</b> учитель вошёл в&nbsp;урок. «Войти в&nbsp;урок» открывает мини-приложение.</p></div>
+      </div></div>
+    </section>
+
+    <section class="scene" id="s11" data-step="11">
+      <h2><span class="num">11</span>Несколько классов</h2>
+      <div class="phones"><div>
+        <div class="chat" role="group" aria-label="Чат с ботом">
+          <div class="bar"><div class="ava" aria-hidden="true">И</div><div><b>Идея фикс</b><span>бот</span></div></div>
+          <div class="feed">
+            <div class="msg">Вы в&nbsp;нескольких классах. Выберите класс.</div>
+            <div class="keys"><div class="row"><button class="kb" type="button">10А</button><button class="kb" type="button">9Б</button></div></div>
+          </div>
+        </div>
+        <div class="note"><p><b>Когда:</b> человек в&nbsp;двух классах и&nbsp;нажимает «Войти в&nbsp;урок» или «Начать урок». Кнопка на&nbsp;каждый класс, название класса — подпись.</p></div>
+      </div></div>
+    </section>
+
+  </div>
+</div>
+<script>
+  (function () {
+    var step = new URLSearchParams(location.search).get("step");
+    var scene = step && document.querySelector('.scene[data-step="' + step + '"]');
+    if (scene) { document.body.classList.add("single"); scene.classList.add("on"); }
+  })();
+</script>
+</body>
+</html>
