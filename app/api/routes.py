@@ -51,6 +51,13 @@ async def start(lesson_id: str):
     return {"lesson_id": lesson_id, "started": started}
 
 
+@router.post("/lessons/{lesson_id}/end")
+async def end(lesson_id: str):
+    """Учитель нажал «Завершить урок»: ответ приходит, когда очередь дораспознана и ассистент вышел."""
+    ended = await runner.end(lesson_id)
+    return {"lesson_id": lesson_id, "ended": ended}
+
+
 @router.get("/lessons/{lesson_id}/summary", response_model=Summary)
 def summary(lesson_id: str):
     # TODO(Ярослав, Фёдор): заменить мок на pipeline.summary.build_summary
