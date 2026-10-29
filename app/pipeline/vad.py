@@ -103,6 +103,12 @@ class PhraseDetector:
                 done.append(phrase)
         return done
 
+    def flush(self) -> Phrase | None:
+        """Урок кончился посреди фразы: отдать то, что успели сказать."""
+        if not self._phrase:
+            return None
+        return self._finish(trailing=self._silence)
+
     def _step(self, window: np.ndarray, p: float) -> Phrase | None:
         self._windows += 1
         if not self._phrase:

@@ -118,3 +118,43 @@ def test_people_do_not_see_assistant():
             return seen
 
     assert asyncio.run(scenario()) == set()
+
+
+def test_assistant_leaves_on_stop():
+    async def scenario():
+        stop = asyncio.Event()
+        async with speaker("artem_k"):
+            frames = 0
+
+            async def run():
+                nonlocal frames
+                async for _ in listen(LESSON, stop):
+                    frames += 1
+
+            listener = asyncio.create_task(run())
+            await asyncio.sleep(2)
+            stop.set()
+            await asyncio.wait_for(listener, 5)
+            return frames
+
+    assert asyncio.run(scenario()) > 30
+
+
+def test_assistant_leaves_empty_room():
+    async def scenario():
+        started = asyncio.get_running_loop().time()
+        async with speaker("artem_k"):
+            listener = asyncio.create_task(collect_until_end(empty_room_s=2))
+            await asyncio.sleep(1)
+        # ученик вышел: через 2 секунды пустой комнаты ассистент выходит сам
+        await asyncio.wait_for(listener, 10)
+        return asyncio.get_running_loop().time() - started
+
+    assert asyncio.run(scenario()) < 8
+
+
+async def collect_until_end(**kwargs) -> int:
+    count = 0
+    async for _ in listen(LESSON, **kwargs):
+        count += 1
+    return count

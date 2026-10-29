@@ -30,17 +30,35 @@ _asr = ThreadPoolExecutor(max_workers=1, thread_name_prefix="asr")
 # Сколько кадров ждёт поиска речи: около секунды звука от 30 участников.
 # Если поток не успевает, старые кадры сбрасываются, как и в sources/call.py
 BACKLOG_FRAMES = 1000
-_running: dict[str, asyncio.Task] = {}
+_running: dict[str, tuple[asyncio.Task, asyncio.Event]] = {}  # урок -> конвейер и сигнал «завершить»
 
 
 def start(lesson_id: str, roster: Roster) -> bool:
     """Запустить конвейер урока в фоне. False — он уже работает."""
-    task = _running.get(lesson_id)
-    if task and not task.done():
+    if is_running(lesson_id):
         return False
-    task = asyncio.create_task(run_call(lesson_id, roster))
+    stop = asyncio.Event()
+    task = asyncio.create_task(run_call(lesson_id, roster, stop))
     task.add_done_callback(lambda t: _log_end(lesson_id, t))
-    _running[lesson_id] = task
+    _running[lesson_id] = (task, stop)
+    return True
+
+
+def is_running(lesson_id: str) -> bool:
+    return lesson_id in _running and not _running[lesson_id][0].done()
+
+
+async def end(lesson_id: str) -> bool:
+    """Учитель завершил урок: ассистент выходит из комнаты, очередь дораспознаётся.
+
+    Возвращает, когда конвейер закончил и урок завершён (finish_lesson).
+    False — урок не идёт: не начат или уже завершён, повторный вызов безопасен.
+    """
+    if not is_running(lesson_id):
+        return False
+    task, stop = _running[lesson_id]
+    stop.set()
+    await asyncio.gather(task, return_exceptions=True)
     return True
 
 
@@ -49,8 +67,12 @@ def _log_end(lesson_id: str, task: asyncio.Task) -> None:
         log.error("конвейер урока %s упал", lesson_id, exc_info=task.exception())
 
 
-async def run_call(lesson_id: str, roster: Roster) -> None:
+async def run_call(lesson_id: str, roster: Roster, stop: asyncio.Event) -> None:
     """Слушать звонок урока до его конца и рассылать события по WebSocket.
+
+    Урок кончается, когда выставлен stop (POST /end) или комната пуста
+    5 минут (sources.call.EMPTY_ROOM_S). Тогда ассистент выходит из комнаты,
+    конвейер дораспознаёт очередь и вызывает finish_lesson.
 
     TODO(Ярослав): classify.classify и scoring — события ScaleUpdate.
     """
@@ -59,9 +81,22 @@ async def run_call(lesson_id: str, roster: Roster) -> None:
 
     ws.set_live(lesson_id, True)
     try:
-        await transcribe_stream(listen(lesson_id), roster, lambda event: ws.publish(lesson_id, event))
+        utterances = await transcribe_stream(
+            listen(lesson_id, stop), roster, lambda event: ws.publish(lesson_id, event)
+        )
     finally:
         ws.set_live(lesson_id, False)
+    await finish_lesson(lesson_id, roster, utterances)
+
+
+async def finish_lesson(lesson_id: str, roster: Roster, utterances: list[dict]) -> None:
+    """Урок закончен, ассистент вышел, все реплики распознаны.
+
+    Единственная точка конца урока: отсюда #23 строит сводку и пишет урок
+    в БД, а бот рассылает сводку учителю и карточки ученикам (#21).
+    utterances — реплики урока по порядку: {"student_id", "t", "text"}.
+    """
+    log.info("урок %s завершён, реплик: %d", lesson_id, len(utterances))
 
 
 async def transcribe_stream(
@@ -69,8 +104,11 @@ async def transcribe_stream(
     roster: Roster,
     emit: Callable[[Utterance], None],
     transcribe: Callable[[np.ndarray], str] | None = None,
-) -> None:
+) -> list[dict]:
     """Кадры участников → фразы → текст → события Utterance.
+
+    Когда кадры кончились, недоговорённые фразы дораспознаются, и функция
+    возвращает все реплики урока по порядку распознавания.
 
     Три задачи: приём кадров, поиск фраз и распознавание. Поиск фраз идёт
     в своём потоке пачками: на 30 учеников это около тысячи прогонов Silero
@@ -108,6 +146,15 @@ async def transcribe_stream(
             found += [(who, phrase) for phrase in detectors[who].feed(pcm)]
         return found
 
+    def flush() -> list[tuple[str, Phrase]]:
+        return [(who, phrase) for who, d in detectors.items() if (phrase := d.flush()) is not None]
+
+    def queue_phrase(who: str, phrase: Phrase) -> None:
+        now = time.monotonic()
+        t = max(round(now - started - phrase.duration, 1), 0.0)
+        priority = 0 if who in students else 1
+        phrases.put_nowait((priority, next(order), who, phrase.pcm, t, now))
+
     async def read() -> None:
         nonlocal reading
         dropped = 0
@@ -135,10 +182,10 @@ async def transcribe_stream(
             if not batch:
                 continue
             for who, phrase in await loop.run_in_executor(_vad, find_phrases, batch):
-                now = time.monotonic()
-                t = max(round(now - started - phrase.duration, 1), 0.0)
-                priority = 0 if who in students else 1
-                phrases.put_nowait((priority, next(order), who, phrase.pcm, t, now))
+                queue_phrase(who, phrase)
+        # кадров больше не будет: кто говорил до последнего, тоже попадёт в урок
+        for who, phrase in await loop.run_in_executor(_vad, flush):
+            queue_phrase(who, phrase)
 
     async def recognize() -> None:
         while True:
@@ -176,6 +223,7 @@ async def transcribe_stream(
         for task in tasks:
             task.cancel()
         await asyncio.gather(*tasks, return_exceptions=True)
+    return context
 
 
 def run_lesson(roster: Roster, tracks: list[Path]) -> None:
