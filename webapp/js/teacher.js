@@ -16,7 +16,7 @@ for (const student of roster.students) {
   const row = document.createElement("div");
   row.className = "row";
   row.innerHTML = `
-    <span>${student.name}</span>
+    <span>${student.name}${student.virtual ? " · запись" : ""}</span>
     <span class="bars">${'<span class="bar"></span>'.repeat(4)}</span>
     <span class="flags"></span>
     <span class="last"></span>`;

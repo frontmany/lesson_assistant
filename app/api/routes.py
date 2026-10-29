@@ -7,6 +7,7 @@ from app.call import participant_token
 from app.config import settings
 from app.models import AnalyticsState, JoinInfo, Roster, StudentCard, Summary
 from app.pipeline import runner
+from app.sources import virtual_class
 
 router = APIRouter()
 
@@ -16,9 +17,26 @@ def _roster(lesson_id: str) -> Roster:
     return Roster.model_validate(mocks.load("roster.json"))
 
 
+def _lesson_roster(lesson_id: str, virtual: bool) -> Roster:
+    """Состав урока: класс или, если урок с виртуальным классом, ученики из записи."""
+    roster = _roster(lesson_id)
+    if not virtual:
+        return roster
+    demo, _ = _demo()
+    return virtual_class.lesson_roster(roster, demo)
+
+
+def _demo() -> tuple[Roster, list]:
+    try:
+        return virtual_class.load_tracks(settings.demo_lesson_dir)
+    except FileNotFoundError as exc:
+        raise HTTPException(503, f"Записи урока нет: {exc}") from exc
+
+
 @router.get("/lessons/{lesson_id}/roster", response_model=Roster)
 def roster(lesson_id: str):
-    return _roster(lesson_id)
+    """Состав идущего урока, с виртуальными учениками, если они есть; иначе состав класса."""
+    return runner.roster_of(lesson_id) or _roster(lesson_id)
 
 
 @router.get("/lessons/{lesson_id}/join", response_model=JoinInfo)
@@ -45,10 +63,36 @@ def join(lesson_id: str, participant_id: str):
 
 
 @router.post("/lessons/{lesson_id}/start")
-async def start(lesson_id: str):
-    """Учитель начал урок: ассистент заходит в звонок и начинает слушать."""
-    started = runner.start(lesson_id, _roster(lesson_id))
+async def start(lesson_id: str, virtual: bool = False):
+    """Учитель начал урок: ассистент заходит в звонок и начинает слушать.
+
+    virtual=true — в составе урока ученики из записи: так ассистент засчитает
+    ботов, которых заводит `python -m app.cli virtual-class`.
+    """
+    started = runner.start(lesson_id, _lesson_roster(lesson_id, virtual))
     return {"lesson_id": lesson_id, "started": started}
+
+
+@router.post("/lessons/{lesson_id}/virtual-class")
+async def start_virtual_class(lesson_id: str):
+    """Записанный урок заходит в звонок ботами вместо учеников (#18, демо для #45).
+
+    Урок начинается, если ещё не идёт, и сразу с учениками из записи. Если урок
+    уже идёт без них, ассистент не засчитал бы ботов, поэтому ответ 409.
+    """
+    demo, tracks = _demo()
+    if runner.is_running(lesson_id) and runner.roster_of(lesson_id).virtual_teacher is None:
+        raise HTTPException(409, "Урок уже идёт без виртуального класса: завершите его и начните заново")
+    runner.start(lesson_id, virtual_class.lesson_roster(_roster(lesson_id), demo))
+    playing = runner.play_virtual(lesson_id, demo, tracks)
+    return {"lesson_id": lesson_id, "playing": playing}
+
+
+@router.delete("/lessons/{lesson_id}/virtual-class")
+async def stop_virtual_class(lesson_id: str):
+    """Боты виртуального класса выходят из звонка, урок идёт дальше."""
+    stopped = await runner.stop_virtual(lesson_id)
+    return {"lesson_id": lesson_id, "stopped": stopped}
 
 
 @router.post("/lessons/{lesson_id}/end")

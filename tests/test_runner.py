@@ -121,7 +121,7 @@ def test_end_finishes_queue_and_closes_lesson(monkeypatch):
     talk = as_int16(np.concatenate([silence(0.5), vowel(1.5), silence(0.5), vowel(1)]))
     finished = []
 
-    async def fake_listen(lesson_id, stop):
+    async def fake_listen(lesson_id, stop, **kwargs):
         # звонок: ученик сказал две фразы и молчит, пока учитель не завершит урок
         for i in range(0, len(talk), FRAME):
             yield "artem_k", talk[i : i + FRAME].tobytes()
@@ -324,3 +324,7 @@ def test_end_does_not_hang_after_failure(monkeypatch):
 
     asyncio.run(scenario())
     assert [[u["text"] for u in lesson] for lesson in finished] == [["вторая фраза"]]
+
+
+def test_no_history_means_default_norm(tmp_path):
+    assert load_history(tmp_path / "нет.json") == []
