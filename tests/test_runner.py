@@ -95,3 +95,53 @@ def test_students_are_recognized_before_teacher():
     teacher_second = min(range(3), key=lambda i: abs(order[i] - (1.5 + 2 * PAD_MS / 1000)))
     student_phrase = min(range(3), key=lambda i: abs(order[i] - (2 + 2 * PAD_MS / 1000)))
     assert student_phrase < teacher_second
+
+
+def test_unfinished_phrase_is_recognized_when_frames_end():
+    # урок завершили, пока ученик ещё говорил: паузы после фразы нет
+    events = run({"artem_k": np.concatenate([silence(0.5), vowel(1.5), silence(1), vowel(1)])})
+    assert [e.student_id for e in events] == ["artem_k", "artem_k"]
+
+
+def test_end_finishes_queue_and_closes_lesson(monkeypatch):
+    from app.pipeline import asr, runner
+    from app.sources import call
+    from app.ws import lesson as ws
+
+    talk = as_int16(np.concatenate([silence(0.5), vowel(1.5), silence(0.5), vowel(1)]))
+    finished = []
+
+    async def fake_listen(lesson_id, stop):
+        # звонок: ученик сказал две фразы и молчит, пока учитель не завершит урок
+        for i in range(0, len(talk), FRAME):
+            yield "artem_k", talk[i : i + FRAME].tobytes()
+        await stop.wait()
+
+    def slow_transcribe(pcm):
+        time.sleep(0.3)
+        return "текст"
+
+    async def fake_finish(lesson_id, roster, utterances):
+        finished.append((lesson_id, utterances))
+
+    monkeypatch.setattr(call, "listen", fake_listen)
+    monkeypatch.setattr(asr, "model", lambda: None)
+    monkeypatch.setattr(asr, "transcribe", slow_transcribe)
+    monkeypatch.setattr(runner, "finish_lesson", fake_finish)
+
+    async def scenario():
+        assert runner.start("end-test", ROSTER)
+        assert not runner.start("end-test", ROSTER)  # второй раз не запускается
+        await asyncio.sleep(0.5)
+        assert "end-test" in ws._live
+        assert await runner.end("end-test")
+        assert not runner.is_running("end-test")
+        assert "end-test" not in ws._live
+        assert not await runner.end("end-test")  # повторный вызов ничего не ломает
+
+    asyncio.run(scenario())
+    assert len(finished) == 1
+    lesson_id, utterances = finished[0]
+    assert lesson_id == "end-test"
+    # вторая фраза кончилась без паузы, но тоже дораспознана
+    assert [u["student_id"] for u in utterances] == ["artem_k", "artem_k"]
