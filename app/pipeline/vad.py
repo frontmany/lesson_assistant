@@ -52,8 +52,10 @@ def speech_segments(pcm: bytes | np.ndarray, sample_rate: int = SAMPLE_RATE) -> 
 @dataclass
 class Phrase:
     pcm: np.ndarray  # float32, 16 кГц
-    start: float  # секунды от первого кадра участника
+    start: float  # секунды от первого кадра участника, с запасом тишины по краям
     end: float
+    speech_start: float  # сама речь, без запаса: отсюда время реплики на уроке
+    speech_end: float
 
     @property
     def duration(self) -> float:
@@ -80,6 +82,8 @@ class PhraseDetector:
         self._before: deque[np.ndarray] = deque(maxlen=pad)  # тишина перед фразой
         self._phrase: list[np.ndarray] = []
         self._phrase_start = 0
+        self._speech_from = 0  # первое и последнее (не включая) окно речи во фразе
+        self._speech_to = 0
         self._speech = 0  # окон речи во фразе
         self._silence = 0  # окон тишины подряд в конце фразы
 
@@ -103,6 +107,11 @@ class PhraseDetector:
                 done.append(phrase)
         return done
 
+    @property
+    def position(self) -> float:
+        """Сколько секунд звука принято с начала: так время фразы переводится во время урока."""
+        return (self._windows * WINDOW + len(self._rest)) / SAMPLE_RATE
+
     def flush(self) -> Phrase | None:
         """Урок кончился посреди фразы: отдать то, что успели сказать."""
         if not self._phrase:
@@ -115,6 +124,7 @@ class PhraseDetector:
             if p >= THRESHOLD:
                 self._phrase = [*self._before, window]
                 self._phrase_start = self._windows - len(self._phrase)
+                self._speech_from, self._speech_to = self._windows - 1, self._windows
                 self._speech, self._silence = 1, 0
             else:
                 self._before.append(window)
@@ -123,6 +133,7 @@ class PhraseDetector:
         self._phrase.append(window)
         if p >= THRESHOLD:
             self._speech += 1
+            self._speech_to = self._windows
             self._silence = 0
         elif p < NEG_THRESHOLD:
             self._silence += 1
@@ -145,4 +156,10 @@ class PhraseDetector:
         if speech * WINDOW_MS < MIN_SPEECH_MS:
             return None
         to_s = WINDOW / SAMPLE_RATE
-        return Phrase(np.concatenate(windows), start * to_s, (start + len(windows)) * to_s)
+        return Phrase(
+            np.concatenate(windows),
+            start * to_s,
+            (start + len(windows)) * to_s,
+            self._speech_from * to_s,
+            self._speech_to * to_s,
+        )
