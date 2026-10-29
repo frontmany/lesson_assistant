@@ -72,6 +72,9 @@
     /* Ссылка */
     .link-card { margin: 4px 0 0; padding: 14px; border-radius: var(--radius); background: var(--surface); border: 1px solid var(--line); }
     .link-card code { display: block; font-family: var(--font); font-size: 15px; font-weight: 600; color: var(--accent); word-break: break-all; }
+    .code-card { margin-top: 8px; }
+    .code-card .cap { display: block; font-size: 13px; color: var(--ink-soft); }
+    .code-card code.big { font-family: ui-monospace, Consolas, monospace; font-size: 28px; font-weight: 700; letter-spacing: 0.12em; color: var(--ink); }
     .help { margin: 12px 4px 0; color: var(--ink-soft); font-size: 15px; }
     .stack { display: grid; gap: 8px; margin-top: 16px; }
 
@@ -128,7 +131,7 @@
         </div>
         <div class="bottom"><button class="btn primary" type="button">Создать класс</button></div>
       </div>
-      <p class="note">Первый вход учителя без классов. «Создать класс» ведёт в&nbsp;чат с&nbsp;ботом, шаг 2.</p>
+      <p class="note">Первый вход учителя без классов. «Создать класс» ведёт в&nbsp;чат с&nbsp;ботом, шаг 2: бот спросит название и предмет.</p>
     </section>
 
     <!-- B. Ученики -->
@@ -196,15 +199,17 @@
         <div class="top"><button class="ib" type="button" aria-label="Назад"><svg class="i"><use href="#i-back"/></svg></button><div class="title nopad"><h3>Пригласить в&nbsp;10А</h3></div></div>
         <div class="scroll">
           <div class="link-card"><code>max.ru/lesson_bot?start=10a-k7x2</code></div>
-          <p class="help">Отправьте ссылку ученикам. Они войдут через бота</p>
+          <div class="link-card code-card"><span class="cap">Код класса</span><code class="big">K7X2M9</code></div>
+          <p class="help">Отправьте ссылку ученикам или продиктуйте код на уроке</p>
           <div class="stack">
-            <button class="btn primary" type="button">Копировать</button>
+            <button class="btn primary" type="button">Копировать ссылку</button>
+            <button class="btn ghost" type="button">Копировать код</button>
             <button class="btn ghost" type="button">Поделиться</button>
             <button class="btn ghost" type="button">Новая ссылка</button>
           </div>
         </div>
       </div>
-      <p class="note">«Новая ссылка» ведёт к&nbsp;вопросу бота, шаг 8: старая ссылка перестанет работать.</p>
+      <p class="note">Код — шесть знаков, его можно продиктовать на&nbsp;уроке. «Копировать ссылку» и&nbsp;«Копировать код» кладут в&nbsp;буфер своё. «Новая ссылка» ведёт к&nbsp;вопросу бота, шаг 8: старые ссылка и&nbsp;код перестанут работать.</p>
     </section>
 
     <!-- C. Скопировано -->
@@ -214,16 +219,18 @@
         <div class="top"><button class="ib" type="button" aria-label="Назад"><svg class="i"><use href="#i-back"/></svg></button><div class="title nopad"><h3>Пригласить в&nbsp;10А</h3></div></div>
         <div class="scroll">
           <div class="link-card"><code>max.ru/lesson_bot?start=10a-k7x2</code></div>
-          <p class="help">Отправьте ссылку ученикам. Они войдут через бота</p>
+          <div class="link-card code-card"><span class="cap">Код класса</span><code class="big">K7X2M9</code></div>
+          <p class="help">Отправьте ссылку ученикам или продиктуйте код на уроке</p>
           <div class="stack">
-            <button class="btn primary" type="button">Копировать</button>
+            <button class="btn primary" type="button">Копировать ссылку</button>
+            <button class="btn ghost" type="button">Копировать код</button>
             <button class="btn ghost" type="button">Поделиться</button>
             <button class="btn ghost" type="button">Новая ссылка</button>
           </div>
         </div>
         <div class="toast" role="status" style="bottom: 24px"><span>Ссылка скопирована</span></div>
       </div>
-      <p class="note">Сообщение пропадает само через 3&nbsp;секунды.</p>
+      <p class="note">Сообщение пропадает само через 3&nbsp;секунды. После «Копировать код» оно такое: «Код скопирован».</p>
     </section>
 
     <!-- D. Пустой класс -->
