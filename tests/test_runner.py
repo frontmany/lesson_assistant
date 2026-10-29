@@ -239,3 +239,19 @@ def test_history_skips_quiet_lessons(tmp_path):
         {"date": "2026-10-08", "activity": 7},
     ]}), encoding="utf-8")
     assert load_history(seed) == [5, 7]
+
+
+def test_answer_in_several_phrases_counts_once():
+    # Артём отвечает на обращение тремя фразами с паузами: это одна реплика
+    teacher = np.concatenate([silence(0.3), vowel(1.5), silence(9)])
+    student = np.concatenate([silence(2.5), vowel(1.2), silence(0.8), vowel(1.2), silence(0.8), vowel(1.2), silence(3)])
+
+    def by_length(pcm: np.ndarray) -> str:
+        return "Артём, что Пётр сделал с флотом?" if len(pcm) > 2 * 16000 else "Флот строили."
+
+    events = run_all({ROSTER.teacher.id: teacher, "artem_k": student}, by_length)
+    said = [e for e in events if e.type == "utterance"]
+    assert [e.kind for e in said] == ["response"] * 3
+    # один отклик — вторая ступень; три засчитанных отклика дали бы четвёртую
+    artem = [e.level for e in events if e.type == "scale" and e.student_id == "artem_k"]
+    assert artem[-1] == 2

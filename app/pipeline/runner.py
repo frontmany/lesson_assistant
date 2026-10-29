@@ -160,7 +160,7 @@ async def transcribe_stream(
     и "kind" у учеников. norm — норма урока, по умолчанию из прошлых уроков.
     """
     from app.pipeline import asr
-    from app.pipeline.classify import classify
+    from app.pipeline.classify import CONTINUE_S, classify
     from app.pipeline.scoring import Scoreboard, lesson_norm
     from app.pipeline.vad import Phrase, PhraseDetector
 
@@ -261,6 +261,11 @@ async def transcribe_stream(
         # кадров больше не будет: кто говорил до последнего, тоже попадёт в урок
         await add_jobs(await loop.run_in_executor(_vad, flush))
 
+    def continues(who: str, t: float) -> bool:
+        """Фраза — продолжение прошлой реплики того же ученика: между ними никто не говорил."""
+        before = [item for item in context if item["t"] < t]
+        return bool(before) and before[-1]["student_id"] == who and t - before[-1]["end"] <= CONTINUE_S
+
     async def handle(job: _Job) -> None:
         picked = time.monotonic()
         text = await loop.run_in_executor(_asr, transcribe, job.pcm)
@@ -277,7 +282,10 @@ async def transcribe_stream(
             kind = classify(text, job.who, job.t, roster, context)
             item["kind"] = kind
             emit(Utterance(student_id=job.who, t=job.t, text=text, kind=kind, addressed=kind == "response"))
-            board.add(job.who, kind, text, job.t, job.end)
+            if continues(job.who, job.t):
+                board.extend(job.who, text, job.t, job.end)
+            else:
+                board.add(job.who, kind, text, job.t, job.end)
             show_scale(lesson_time())
         # распознаём не по порядку (next_job), а классификатор ждёт реплики по времени
         bisect.insort(context, item, key=lambda i: i["t"])

@@ -140,3 +140,12 @@ def test_demo_lesson_scale():
         "dmitry_p": [],
     }
     assert not board.quiet()
+
+
+def test_continuation_adds_speech_not_points():
+    board = Scoreboard(["sofya_l"], norm=6, lesson_s=40 * 60)
+    board.add("sofya_l", "response", "Нет.", 95, 96)
+    for i in range(10):
+        board.extend("sofya_l", "Это вообще очень интересный вопрос.", 97 + 3 * i, 99 + 3 * i)
+    assert board.score("sofya_l") == 2  # один отклик; 20 секунд речи — меньше 30, баллов за объём нет
+    assert board.level("sofya_l") == 2
