@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Макет: регистрация в боте</title>
-  <!-- Макет переписки с ботом (issue #46). Все шаги на одной странице, один шаг: ?step=1…11.
+  <!-- Макет переписки с ботом (issue #46). Все шаги на одной странице, один шаг: ?step=1…14.
        Тексты прошли ru-text. Неразрывные пробелы (&nbsp;) расставлены в тексте, их нужно сохранить в боте.
        Цвета и тени берём из токенов, своих значений здесь нет. Тёмная тема включается системной. -->
   <link rel="stylesheet" href="../webapp/css/tokens.css">
@@ -38,6 +38,8 @@
     .msg.me { align-self: flex-end; background: var(--accent-tint); border-color: transparent; border-bottom-left-radius: 16px; border-bottom-right-radius: 4px; }
     .msg a { color: var(--accent); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; word-break: break-all; }
     .msg .url { display: block; margin: 4px 0; }
+    .msg .code { font-family: ui-monospace, Consolas, monospace; font-weight: 700; letter-spacing: 0.08em; }
+    .msg.list { white-space: pre-line; }
 
     .keys { display: flex; flex-direction: column; gap: 6px; max-width: 86%; margin-top: -2px; }
     .keys .row { display: flex; gap: 6px; }
@@ -86,12 +88,12 @@
           <div class="bar"><div class="ava" aria-hidden="true">И</div><div><b>Идея фикс</b><span>бот</span></div></div>
           <div class="feed">
             <div class="tap">Нажато: «Я&nbsp;учитель»</div>
-            <div class="msg">Создадим первый класс. Как его назвать? Например, 10А.</div>
-            <div class="msg me">10А</div>
-            <div class="msg">Класс 10А создан.</div>
+            <div class="msg">Создадим первый класс. Название и&nbsp;предмет. Например: 10А, история.</div>
+            <div class="msg me">10А, история</div>
+            <div class="msg">Создан класс&nbsp;10А, история.</div>
           </div>
         </div>
-        <div class="note"><p><b>Когда:</b> после «Я учитель» или когда учитель хочет добавить класс.</p><p>Название — любой текст. Следом приходит шаг 3.</p></div>
+        <div class="note"><p><b>Когда:</b> после «Я учитель» или по кнопке «Новый класс» из шага 12. Для следующего класса бот пишет «Создадим класс», без слова «первый».</p><p><b>Разбор ответа:</b> до запятой название, после запятой предмет. Предмет попадает в «Урок начался» и в&nbsp;список классов. Следом приходит шаг 3.</p></div>
       </div></div>
     </section>
 
@@ -101,14 +103,14 @@
         <div class="chat" role="group" aria-label="Чат с ботом">
           <div class="bar"><div class="ava" aria-hidden="true">И</div><div><b>Идея фикс</b><span>бот</span></div></div>
           <div class="feed">
-            <div class="msg">Ссылка для учеников:<a class="url" href="#">max.ru/lesson_bot?start=10a-k7x2</a>Отправьте её&nbsp;классу. Ссылка работает, пока вы&nbsp;не&nbsp;создадите новую.</div>
+            <div class="msg">Ссылка для учеников:<a class="url" href="#">max.ru/lesson_bot?start=10a-k7x2</a>Код класса: <span class="code">K7X2M9</span><br>Отправьте ссылку классу или продиктуйте код на&nbsp;уроке. Ссылка и&nbsp;код работают, пока вы&nbsp;не&nbsp;создадите новые.</div>
             <div class="keys">
               <div class="row"><button class="kb" type="button">Поделиться</button><button class="kb" type="button">Ученики</button></div>
               <div class="row"><button class="kb" type="button">Новая ссылка</button></div>
             </div>
           </div>
         </div>
-        <div class="note"><p><b>«Поделиться»:</b> окно отправки MAX со ссылкой. <b>«Ученики»:</b> открывает экран «Ученики» в мини-приложении. <b>«Новая ссылка»:</b> шаг 8.</p></div>
+        <div class="note"><p><b>«Поделиться»:</b> окно отправки MAX со ссылкой. <b>«Ученики»:</b> открывает экран «Ученики» в мини-приложении. <b>«Новая ссылка»:</b> шаг 8.</p><p><b>Код:</b> шесть знаков, цифры и заглавные буквы без похожих (нет 0 и&nbsp;O, 1 и&nbsp;I). Вводится в любом регистре и в любой раскладке, сходство К/K, Х/X, М/M, Т/T бот прощает. Он&nbsp;показывается моноширинным шрифтом, чтобы его удобно диктовать.</p></div>
       </div></div>
     </section>
 
@@ -136,10 +138,13 @@
           <div class="bar"><div class="ava" aria-hidden="true">И</div><div><b>Идея фикс</b><span>бот</span></div></div>
           <div class="feed">
             <div class="tap">Нажато: «Я&nbsp;ученик»</div>
-            <div class="msg">Чтобы войти в&nbsp;класс, нужна ссылка. Попросите её&nbsp;у&nbsp;учителя и&nbsp;откройте.</div>
+            <div class="msg">Введите код класса. Его назовёт учитель.</div>
+            <div class="msg me"><span class="code">K7X2M9</span></div>
+            <div class="msg">Вы входите в&nbsp;класс&nbsp;10А. Вас зовут Иван&nbsp;Иванов?</div>
+            <div class="keys"><div class="row"><button class="kb" type="button">Это я</button><button class="kb" type="button">Изменить имя</button></div></div>
           </div>
         </div>
-        <div class="note"><p>Кнопок нет: дальше человек откроет ссылку, и&nbsp;бот покажет шаг 4.</p></div>
+        <div class="note"><p>Кнопок нет, ждём код. Верный код ведёт к&nbsp;шагу 4, дальше всё как по ссылке.</p><p><b>Неверный код:</b> «Такого кода нет. Проверьте и&nbsp;введите ещё раз.» Сообщение повторяется, пока человек не&nbsp;введёт верный код или не&nbsp;откроет ссылку.</p></div>
       </div></div>
     </section>
 
@@ -184,7 +189,7 @@
               <div class="msg">Иван&nbsp;И. теперь не&nbsp;в&nbsp;классе&nbsp;10А.</div>
             </div>
           </div>
-          <div class="note"><p><b>Когда:</b> ученик выбрал «Выйти из класса» в меню бота. Учителю приходит уведомление без кнопок.</p></div>
+          <div class="note"><p><b>Когда:</b> ученик нажал «Выйти из класса» в шаге 13. Учителю приходит уведомление без кнопок.</p></div>
         </div>
       </div>
     </section>
@@ -195,14 +200,14 @@
         <div class="chat" role="group" aria-label="Чат с ботом">
           <div class="bar"><div class="ava" aria-hidden="true">И</div><div><b>Идея фикс</b><span>бот</span></div></div>
           <div class="feed">
-            <div class="msg">Создать новую ссылку? Старая перестанет работать.</div>
+            <div class="msg">Создать новую ссылку и&nbsp;код? Старые перестанут работать.</div>
             <div class="keys"><div class="row"><button class="kb" type="button">Создать ссылку</button><button class="kb" type="button">Отмена</button></div></div>
             <div class="tap">Нажато: «Создать ссылку»</div>
-            <div class="msg">Новая ссылка для&nbsp;10А:<a class="url" href="#">max.ru/lesson_bot?start=10a-q4m8</a></div>
+            <div class="msg">Новая ссылка для&nbsp;10А:<a class="url" href="#">max.ru/lesson_bot?start=10a-q4m8</a>Новый код: <span class="code">Q4M8TZ</span></div>
             <div class="keys"><div class="row"><button class="kb" type="button">Поделиться</button></div></div>
           </div>
         </div>
-        <div class="note"><p>Ученики, уже вошедшие в&nbsp;класс, остаются. Старая ссылка перестаёт принимать новых.</p></div>
+        <div class="note"><p>Ученики, уже вошедшие в&nbsp;класс, остаются. Старые ссылка и&nbsp;код перестают принимать новых: у&nbsp;открывшего их бот показывает шаг 14.</p></div>
       </div></div>
     </section>
 
@@ -219,7 +224,7 @@
             <div class="keys"><div class="row"><button class="kb" type="button">Вернуть</button></div></div>
           </div>
         </div>
-        <div class="note"><p>Класс 30&nbsp;дней лежит в&nbsp;корзине. «Вернуть» восстанавливает класс с&nbsp;учениками и&nbsp;ссылкой.</p></div>
+        <div class="note"><p><b>Когда:</b> учитель нажал «Удалить класс» в шаге 12. Если классов несколько, бот сначала спрашивает класс, как в шаге 11.</p><p>Класс 30&nbsp;дней лежит в&nbsp;корзине. «Вернуть» восстанавливает класс с&nbsp;учениками и&nbsp;ссылкой.</p></div>
       </div></div>
     </section>
 
@@ -250,6 +255,70 @@
         </div>
         <div class="note"><p><b>Когда:</b> человек в&nbsp;двух классах и&nbsp;нажимает «Войти в&nbsp;урок» или «Начать урок». Кнопка на&nbsp;каждый класс, название класса — подпись.</p></div>
       </div></div>
+    </section>
+
+    <section class="scene" id="s12" data-step="12">
+      <h2><span class="num">12</span>Знакомый учитель пишет боту</h2>
+      <div class="phones"><div>
+        <p class="who">Учитель</p>
+        <div class="chat" role="group" aria-label="Чат с ботом">
+          <div class="bar"><div class="ava" aria-hidden="true">И</div><div><b>Идея фикс</b><span>бот</span></div></div>
+          <div class="feed">
+            <div class="msg list">Ваши классы:
+10А, история — 24&nbsp;ученика
+9Б, история — 18&nbsp;учеников</div>
+            <div class="keys">
+              <div class="row"><button class="kb" type="button">Начать урок</button><button class="kb" type="button">Открыть классы</button></div>
+              <div class="row"><button class="kb" type="button">Пригласить</button><button class="kb" type="button">Новый класс</button></div>
+              <div class="row"><button class="kb danger" type="button">Удалить класс</button></div>
+            </div>
+          </div>
+        </div>
+        <div class="note"><p><b>Когда:</b> учитель пишет боту что угодно, кроме ссылки или кода.</p><p><b>«Начать урок», «Пригласить», «Удалить класс»:</b> если классов несколько, бот сначала спрашивает класс, как в&nbsp;шаге 11. Дальше шаг 10, шаг 3 и&nbsp;шаг 9. <b>«Открыть классы»:</b> экран «Мои классы». <b>«Новый класс»:</b> шаг 2.</p><p>Число учеников склоняется по числу.</p></div>
+      </div></div>
+    </section>
+
+    <section class="scene" id="s13" data-step="13">
+      <h2><span class="num">13</span>Знакомый ученик пишет боту</h2>
+      <div class="phones"><div>
+        <p class="who">Ученик</p>
+        <div class="chat" role="group" aria-label="Чат с ботом">
+          <div class="bar"><div class="ava" aria-hidden="true">И</div><div><b>Идея фикс</b><span>бот</span></div></div>
+          <div class="feed">
+            <div class="msg">Вы в&nbsp;классе&nbsp;10А, история. Урок пока не&nbsp;идёт. Я&nbsp;напишу, когда начнётся.</div>
+            <div class="keys"><div class="row"><button class="kb" type="button">Выйти из&nbsp;класса</button></div></div>
+          </div>
+        </div>
+        <div class="note"><p><b>Когда:</b> ученик пишет боту что угодно, кроме ссылки или кода. «Выйти из&nbsp;класса» ведёт к&nbsp;шагу 7.</p><p><b>Во время урока</b> сообщение другое: «Вы в&nbsp;классе&nbsp;10А, история. Урок идёт.» и&nbsp;перед «Выйти из&nbsp;класса» появляется «Войти в&nbsp;урок». Если классов несколько, бот сначала спрашивает класс, как в&nbsp;шаге 11.</p></div>
+      </div></div>
+    </section>
+
+    <section class="scene wide" id="s14" data-step="14">
+      <h2><span class="num">14</span>Старая ссылка и удалённый класс</h2>
+      <div class="phones">
+        <div>
+          <p class="who">Ученик открыл старую ссылку или ввёл старый код</p>
+          <div class="chat" role="group" aria-label="Чат с ботом">
+            <div class="bar"><div class="ava" aria-hidden="true">И</div><div><b>Идея фикс</b><span>бот</span></div></div>
+            <div class="feed">
+              <div class="msg">Эта ссылка устарела. Попросите у&nbsp;учителя новую ссылку или код.</div>
+              <div class="keys"><div class="row"><button class="kb" type="button">Ввести код</button></div></div>
+              <div class="tap">Нажато: «Ввести код»</div>
+              <div class="msg">Введите код класса. Его назовёт учитель.</div>
+            </div>
+          </div>
+        </div>
+        <div>
+          <p class="who">Ученик открыл ссылку удалённого класса</p>
+          <div class="chat" role="group" aria-label="Чат с ботом">
+            <div class="bar"><div class="ava" aria-hidden="true">И</div><div><b>Идея фикс</b><span>бот</span></div></div>
+            <div class="feed">
+              <div class="msg">Этот класс удалён. Спросите у&nbsp;учителя.</div>
+            </div>
+          </div>
+          <div class="note"><p><b>Когда:</b> ссылка или код заменены новыми (шаг 8) или класс удалён (шаг 9). После возврата класса из корзины ссылка снова работает.</p><p>У&nbsp;удалённого класса кнопок нет: ввод кода ему не&nbsp;поможет. Ученик, уже вошедший в&nbsp;класс, этого сообщения не&nbsp;видит.</p></div>
+        </div>
+      </div>
     </section>
 
   </div>
