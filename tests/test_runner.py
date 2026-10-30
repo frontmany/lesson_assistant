@@ -255,3 +255,72 @@ def test_answer_in_several_phrases_counts_once():
     # один отклик — вторая ступень; три засчитанных отклика дали бы четвёртую
     artem = [e.level for e in events if e.type == "scale" and e.student_id == "artem_k"]
     assert artem[-1] == 2
+
+
+def test_failing_phrase_does_not_stop_lesson():
+    # распознавание падает на второй фразе: первая и третья всё равно доходят до панели
+    talk = np.concatenate([silence(0.5), vowel(1.5), silence(1), vowel(1.5), silence(1), vowel(1.5), silence(1)])
+    calls = []
+
+    def flaky(pcm: np.ndarray) -> str:
+        calls.append(len(pcm))
+        if len(calls) == 2:
+            raise RuntimeError("модель упала")
+        return f"фраза {len(calls)}"
+
+    events = run({"artem_k": talk}, flaky)
+    assert [e.text for e in events] == ["фраза 1", "фраза 3"]
+
+
+def test_failing_classifier_does_not_stop_lesson(monkeypatch):
+    from app.pipeline import classify as rules
+
+    real = rules.classify
+    seen = []
+
+    def flaky(text, student_id, t, roster, context):
+        seen.append(text)
+        if len(seen) == 1:
+            raise ValueError("правило не разобрало реплику")
+        return real(text, student_id, t, roster, context)
+
+    monkeypatch.setattr(rules, "classify", flaky)
+    talk = np.concatenate([silence(0.5), vowel(1.5), silence(1), vowel(1.5), silence(1)])
+    assert [e.text for e in run({"artem_k": talk})] == ["фраза 2"]
+
+
+def test_end_does_not_hang_after_failure(monkeypatch):
+    from app.pipeline import asr, runner
+    from app.sources import call
+
+    talk = as_int16(np.concatenate([silence(0.5), vowel(1.5), silence(1), vowel(1.5), silence(1)]))
+    finished = []
+    calls = []
+
+    async def fake_listen(lesson_id, stop, **kwargs):
+        for i in range(0, len(talk), FRAME):
+            yield "artem_k", talk[i : i + FRAME].tobytes()
+        await stop.wait()
+
+    def broken(pcm):
+        calls.append(1)
+        if len(calls) == 1:
+            raise RuntimeError("модель упала")
+        return "вторая фраза"
+
+    async def fake_finish(lesson_id, roster, utterances):
+        finished.append(utterances)
+
+    monkeypatch.setattr(call, "listen", fake_listen)
+    monkeypatch.setattr(asr, "model", lambda: None)
+    monkeypatch.setattr(asr, "transcribe", broken)
+    monkeypatch.setattr(runner, "finish_lesson", fake_finish)
+
+    async def scenario():
+        assert runner.start("fail-test", ROSTER)
+        await asyncio.sleep(0.5)
+        # без защиты вторая фраза осталась бы в очереди, а /end ждал бы её вечно
+        assert await asyncio.wait_for(runner.end("fail-test"), 5)
+
+    asyncio.run(scenario())
+    assert [[u["text"] for u in lesson] for lesson in finished] == [["вторая фраза"]]

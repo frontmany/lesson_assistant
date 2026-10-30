@@ -300,6 +300,10 @@ async def transcribe_stream(
                 busy = True
             try:
                 await handle(job)
+            except Exception:
+                # одна плохая фраза не должна останавливать урок: иначе очередь
+                # перестала бы разбираться, а /end ждал бы её вечно
+                log.exception("%s, %.1f–%.1f с: фраза пропущена", job.who, job.t, job.end)
             finally:
                 async with changed:
                     busy = False
@@ -309,8 +313,11 @@ async def transcribe_stream(
         # «давно не отвечал» появляется, когда ученик молчит, а не когда он говорит
         while True:
             await asyncio.sleep(FLAGS_EVERY_S)
-            board.tick(lesson_time())
-            show_scale(lesson_time())
+            try:
+                board.tick(lesson_time())
+                show_scale(lesson_time())
+            except Exception:
+                log.exception("не удалось обновить флаги шкалы")
 
     show_scale(0.0)  # все начинают с первой ступени
     reader = asyncio.create_task(read())
