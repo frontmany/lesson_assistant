@@ -31,12 +31,16 @@ EMPTY_ROOM_S = 300
 
 
 async def listen(
-    lesson_id: str, stop: asyncio.Event | None = None, empty_room_s: float = EMPTY_ROOM_S
+    lesson_id: str,
+    stop: asyncio.Event | None = None,
+    empty_room_s: float = EMPTY_ROOM_S,
+    ready: asyncio.Event | None = None,
 ) -> AsyncIterator[tuple[str, bytes]]:
     """Отдавать пары (id участника, PCM int16) по мере того, как люди говорят.
 
     Заканчивается, когда выставлен stop (учитель завершил урок) или комната
     пуста empty_room_s секунд. Тогда ассистент выходит из комнаты.
+    ready выставляется, когда ассистент вошёл и слушает.
 
     Каждая дорожка читается своей задачей. Когда участник выходит, его задача
     заканчивается вместе с дорожкой, а при повторном входе приходит новая
@@ -122,6 +126,8 @@ async def listen(
 
     await room.connect(settings.livekit_url, assistant_token(lesson_id))
     log.info("ассистент слушает комнату %s", room.name)
+    if ready:
+        ready.set()
     helpers = [asyncio.create_task(job()) for job in (report, watch_empty, wake_on_stop)]
     try:
         while True:

@@ -12,8 +12,10 @@ from urllib.parse import urlparse
 
 import pytest
 
+from app import mocks
 from app.call import participant_token
 from app.config import settings
+from app.models import Roster
 from app.sources.call import FRAME_MS, SAMPLE_RATE, listen
 
 LESSON = "live-test"
@@ -158,3 +160,44 @@ async def collect_until_end(**kwargs) -> int:
     async for _ in listen(LESSON, **kwargs):
         count += 1
     return count
+
+
+def test_virtual_class_plays_and_live_teacher_stays(tmp_path):
+    from app.sources.virtual_class import play, virtual_id
+    from tests.test_vad import vowel
+
+    import wave
+
+    for pid in ("teacher", "artem_k"):
+        with wave.open(str(tmp_path / f"{pid}.wav"), "wb") as wav:
+            wav.setnchannels(1)
+            wav.setsampwidth(2)
+            wav.setframerate(SAMPLE_RATE)
+            wav.writeframes((vowel(3) * 32767).astype("int16").tobytes())
+    tracks = sorted(tmp_path.glob("*.wav"))
+    roster = Roster.model_validate(mocks.load("roster.json"))
+
+    async def scenario():
+        counts: dict[str, int] = {}
+        # живой учитель в той же комнате: identity «teacher», как у дорожки учителя
+        async with speaker("teacher") as teacher_room:
+
+            async def run():
+                async for who, _ in listen(LESSON):
+                    counts[who] = counts.get(who, 0) + 1
+
+            listener = asyncio.create_task(run())
+            await asyncio.sleep(1)
+            await play(LESSON, roster, tracks)
+            await asyncio.sleep(0.5)
+            still_there = teacher_room.connection_state == rtc.ConnectionState.CONN_CONNECTED
+            listener.cancel()
+            await asyncio.gather(listener, return_exceptions=True)
+        return counts, still_there
+
+    counts, still_there = asyncio.run(scenario())
+    assert still_there
+    # ассистент слышит ботов под их identity и живого учителя отдельно
+    assert counts.get(virtual_id("teacher"), 0) > 60
+    assert counts.get(virtual_id("artem_k"), 0) > 60
+    assert counts.get("teacher", 0) > 60

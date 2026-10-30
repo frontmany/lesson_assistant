@@ -1,7 +1,7 @@
 """Запуск из командной строки.
 
     python -m app.cli replay data/demo_lesson          # записанный урок без звонка
-    python -m app.cli virtual-class data/demo_lesson   # записанный урок заходит в звонок ботами
+    python -m app.cli virtual-class data/demo_lesson --lesson <id>   # записанный урок заходит в звонок ботами
     python -m app.cli mock-summary                     # сводка из мока
 """
 
@@ -32,14 +32,18 @@ def replay(lesson_dir: Path) -> None:
         print(f"\nКонвейер ещё не готов: {exc}")
 
 
-def virtual_class(lesson_dir: Path) -> None:
-    roster, tracks = _load(lesson_dir)
-    from app.sources.virtual_class import play
+def virtual_class(lesson_dir: Path, lesson_id: str | None) -> None:
+    from app.sources.virtual_class import load_tracks, play
 
+    roster, _ = _load(lesson_dir)
     try:
-        asyncio.run(play(roster.lesson_id, roster, tracks))
-    except NotImplementedError as exc:
-        print(f"\nВиртуальный класс ещё не готов: {exc}")
+        roster, tracks = load_tracks(lesson_dir)
+    except FileNotFoundError as exc:
+        raise SystemExit(f"Виртуальный класс: {exc}") from exc
+    lesson_id = lesson_id or roster.lesson_id
+    print(f"Заводим запись в урок {lesson_id}. Чтобы ассистент засчитал ботов, урок начинают так:")
+    print(f"  curl -X POST 'http://localhost:8000/api/lessons/{lesson_id}/start?virtual=true'")
+    asyncio.run(play(lesson_id, roster, tracks))
 
 
 def main() -> None:
@@ -51,6 +55,7 @@ def main() -> None:
 
     p_virtual = sub.add_parser("virtual-class", help="завести записанный урок в звонок ботами")
     p_virtual.add_argument("lesson_dir", type=Path)
+    p_virtual.add_argument("--lesson", help="id урока, в который заходят боты; по умолчанию из roster.json")
 
     sub.add_parser("mock-summary", help="показать сводку учителю из мока")
 
@@ -58,7 +63,7 @@ def main() -> None:
     if args.command == "replay":
         replay(args.lesson_dir)
     elif args.command == "virtual-class":
-        virtual_class(args.lesson_dir)
+        virtual_class(args.lesson_dir, args.lesson)
     elif args.command == "mock-summary":
         print(json.dumps(mocks.load("summary.json"), ensure_ascii=False, indent=2))
 

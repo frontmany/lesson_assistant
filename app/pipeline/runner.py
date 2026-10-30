@@ -31,22 +31,40 @@ _asr = ThreadPoolExecutor(max_workers=1, thread_name_prefix="asr")
 BACKLOG_FRAMES = 1000
 # Как часто проверять флаги без новых реплик: «давно не отвечал» — это минуты
 FLAGS_EVERY_S = 30
-_running: dict[str, tuple[asyncio.Task, asyncio.Event]] = {}  # урок -> конвейер и сигнал «завершить»
+@dataclass
+class _Lesson:
+    """Идущий урок: конвейер, его состав и виртуальный класс, если он есть."""
+
+    roster: Roster
+    stop: asyncio.Event  # «завершить урок»
+    listening: asyncio.Event  # ассистент в комнате: виртуальный класс может начинать
+    task: asyncio.Task | None = None
+    virtual: asyncio.Task | None = None
+    virtual_stop: asyncio.Event | None = None
+
+
+_lessons: dict[str, _Lesson] = {}
 
 
 def start(lesson_id: str, roster: Roster) -> bool:
     """Запустить конвейер урока в фоне. False — он уже работает."""
     if is_running(lesson_id):
         return False
-    stop = asyncio.Event()
-    task = asyncio.create_task(run_call(lesson_id, roster, stop))
-    task.add_done_callback(lambda t: _log_end(lesson_id, t))
-    _running[lesson_id] = (task, stop)
+    lesson = _Lesson(roster, asyncio.Event(), asyncio.Event())
+    lesson.task = asyncio.create_task(run_call(lesson_id, lesson))
+    lesson.task.add_done_callback(lambda t: _log_end(lesson_id, t))
+    _lessons[lesson_id] = lesson
     return True
 
 
 def is_running(lesson_id: str) -> bool:
-    return lesson_id in _running and not _running[lesson_id][0].done()
+    lesson = _lessons.get(lesson_id)
+    return lesson is not None and not lesson.task.done()
+
+
+def roster_of(lesson_id: str) -> Roster | None:
+    """Состав идущего урока: с виртуальными учениками, если урок начат с ними."""
+    return _lessons[lesson_id].roster if is_running(lesson_id) else None
 
 
 async def end(lesson_id: str) -> bool:
@@ -57,23 +75,62 @@ async def end(lesson_id: str) -> bool:
     """
     if not is_running(lesson_id):
         return False
-    task, stop = _running[lesson_id]
-    stop.set()
-    await asyncio.gather(task, return_exceptions=True)
+    lesson = _lessons[lesson_id]
+    lesson.stop.set()
+    await asyncio.gather(lesson.task, return_exceptions=True)
+    return True
+
+
+def play_virtual(lesson_id: str, demo: Roster, tracks: list[Path]) -> bool:
+    """Завести в идущий урок виртуальный класс: записанные дорожки заходят ботами.
+
+    Боты начинают говорить, когда ассистент уже в комнате, и уходят вместе
+    с уроком. False — урок не идёт или виртуальный класс уже играет.
+    """
+    from app.sources.virtual_class import play
+
+    if not is_running(lesson_id):
+        return False
+    lesson = _lessons[lesson_id]
+    if lesson.virtual and not lesson.virtual.done():
+        return False
+
+    async def run() -> None:
+        # ждём, пока ассистент войдёт в комнату, иначе начало записи пропадёт
+        waits = [asyncio.create_task(lesson.listening.wait()), asyncio.create_task(lesson.virtual_stop.wait())]
+        await asyncio.wait(waits, return_when=asyncio.FIRST_COMPLETED)
+        for task in waits:
+            task.cancel()
+        if not lesson.virtual_stop.is_set():
+            await play(lesson_id, demo, tracks, lesson.virtual_stop)
+
+    lesson.virtual_stop = asyncio.Event()
+    lesson.virtual = asyncio.create_task(run())
+    lesson.virtual.add_done_callback(lambda t: _log_end(lesson_id, t))
+    return True
+
+
+async def stop_virtual(lesson_id: str) -> bool:
+    """Боты виртуального класса выходят, урок идёт дальше. False — их нет."""
+    lesson = _lessons.get(lesson_id)
+    if lesson is None or lesson.virtual is None or lesson.virtual.done():
+        return False
+    lesson.virtual_stop.set()
+    await asyncio.gather(lesson.virtual, return_exceptions=True)
     return True
 
 
 def _log_end(lesson_id: str, task: asyncio.Task) -> None:
     if not task.cancelled() and task.exception():
-        log.error("конвейер урока %s упал", lesson_id, exc_info=task.exception())
+        log.error("урок %s: фоновая задача упала", lesson_id, exc_info=task.exception())
 
 
-async def run_call(lesson_id: str, roster: Roster, stop: asyncio.Event) -> None:
+async def run_call(lesson_id: str, lesson: _Lesson) -> None:
     """Слушать звонок урока до его конца и рассылать события по WebSocket.
 
     Урок кончается, когда выставлен stop (POST /end) или комната пуста
     5 минут (sources.call.EMPTY_ROOM_S). Тогда ассистент выходит из комнаты,
-    конвейер дораспознаёт очередь и вызывает finish_lesson.
+    виртуальный класс тоже, конвейер дораспознаёт очередь и вызывает finish_lesson.
     """
     from app.sources.call import listen
     from app.ws import lesson as ws
@@ -81,11 +138,14 @@ async def run_call(lesson_id: str, roster: Roster, stop: asyncio.Event) -> None:
     ws.set_live(lesson_id, True)
     try:
         utterances = await transcribe_stream(
-            listen(lesson_id, stop), roster, lambda event: ws.publish(lesson_id, event)
+            listen(lesson_id, lesson.stop, ready=lesson.listening),
+            lesson.roster,
+            lambda event: ws.publish(lesson_id, event),
         )
     finally:
         ws.set_live(lesson_id, False)
-    await finish_lesson(lesson_id, roster, utterances)
+        await stop_virtual(lesson_id)
+    await finish_lesson(lesson_id, lesson.roster, utterances)
 
 
 async def finish_lesson(lesson_id: str, roster: Roster, utterances: list[dict]) -> None:
@@ -136,6 +196,8 @@ def load_history(path: Path | None = None) -> list[float]:
     TODO(#23): прошлые уроки этого класса из БД, history_seed.json — для нового класса.
     """
     path = path or settings.demo_lesson_dir / "history_seed.json"
+    if not path.exists():
+        return []  # истории нет — норма по умолчанию (scoring.lesson_norm)
     lessons = json.loads(path.read_text(encoding="utf-8")).get("lessons", [])
     return [float(lesson["activity"]) for lesson in lessons if not lesson.get("quiet")]
 
@@ -172,7 +234,9 @@ async def transcribe_stream(
     started = time.monotonic()
     students = [s.id for s in roster.students]
     is_student = set(students)
-    known = is_student | {roster.teacher.id}
+    # учитель из записи виртуального класса — тоже учитель: контекст классификатора
+    teachers = {roster.teacher.id} | ({roster.virtual_teacher.id} if roster.virtual_teacher else set())
+    known = is_student | teachers
     context: list[dict] = []
 
     def lesson_time() -> float:
@@ -277,7 +341,8 @@ async def transcribe_stream(
             job.who, job.t, job.end, text, done - started - job.end,
             job.detected - started - job.end, picked - job.detected, done - picked,
         )
-        item = {"student_id": job.who, "t": job.t, "end": job.end, "text": text}
+        who = job.who if job.who in is_student else roster.teacher.id
+        item = {"student_id": who, "t": job.t, "end": job.end, "text": text}
         if job.who in is_student:
             kind = classify(text, job.who, job.t, roster, context)
             item["kind"] = kind
