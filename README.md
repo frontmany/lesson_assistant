@@ -15,6 +15,8 @@ cp .env.example .env
 docker compose up --build
 ```
 
+В `.env` впишите `LIVEKIT_NODE_IP` — IPv4 машины в локальной сети (`ipconfig` / `ip addr`). Этот адрес LiveKit отдаёт браузерам для звука. Адрес контейнера с хоста недоступен, и вход висит на «Подключаемся…». Если адрес в сети сменился, обновите его и перезапустите `docker compose up -d livekit`.
+
 Поднимаются приложение, LiveKit (звонок), PostgreSQL и Redis. Откройте в двух вкладках:
 
 - http://localhost:8000/teacher.html — учитель;
