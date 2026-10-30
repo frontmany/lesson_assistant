@@ -17,7 +17,8 @@ export function inMax() {
 
 // Что нужно, чтобы был микрофон:
 // "ok" — можно звать getUserMedia; "max-settings" — разрешить мини-приложению в MAX;
-// "system-settings" — разрешить MAX в настройках телефона; "browser" — открыть урок в браузере
+// "system-settings" — разрешить MAX в настройках телефона; "update" — обновить MAX;
+// "browser" — открыть урок в браузере
 export async function micAccess() {
   if (!inMax()) return "ok";
   const pm = window.WebApp.PermissionsManager;
@@ -66,6 +67,8 @@ function verdict(info) {
 }
 
 function fromError(err) {
+  // Старый MAX на Android (26.34.1) отказывает уже в init(), после обновления работает
+  if (err?.error?.code === "client.permissions_get_info.refused" && window.WebApp.platform === "android") return "update";
   const c = code(err);
   if (MAX_SETTINGS.includes(c)) return "max-settings";
   if (SYSTEM_SETTINGS.includes(c)) return "system-settings";
