@@ -60,6 +60,23 @@ def test_question_is_initiative():
     assert kind("А зачем было менять?", "maria_s", 3, []) == "initiative"
 
 
+def test_question_without_mark_is_initiative():
+    # Whisper на живой речи теряет «?»: вопрос узнаётся по слову в начале
+    assert kind("А почему столицу перенесли в Петербург", "maria_s", 3, []) == "initiative"
+    assert kind("То есть как это работает", "maria_s", 3, []) == "initiative"
+    assert kind("Правильно ли я понял про коллегии", "maria_s", 3, []) == "initiative"
+
+
+def test_answer_starting_with_when_is_not_question():
+    assert kind("Когда Пётр вернулся, он начал строить флот.", "maria_s", 3, []) == "other"
+    assert kind("Потому что нужен был выход к морю.", "maria_s", 3, []) == "other"
+
+
+def test_reply_to_teacher_question_without_mark_is_answer():
+    ctx = [said("teacher", 0, 5, "Кто знает в чём было главное отличие")]
+    assert kind("У каждой коллегии была своя отрасль.", "alisa_n", 7, ctx) == "answer"
+
+
 def test_addressing_teacher_by_name_is_initiative():
     assert kind("Елена Викторовна, можно я отвечу.", "maria_s", 3, []) == "initiative"
 
