@@ -10,7 +10,7 @@
 1. response — в последней реплике учителя, закончившейся не раньше чем за
    ADDRESS_WINDOW_S секунд до начала реплики ученика, есть имя этого ученика,
    и между ними не говорил другой ученик;
-2. initiative — реплика заканчивается вопросом или начинается с обращения
+2. initiative — реплика вопрос (см. «Вопрос» ниже) или начинается с обращения
    к учителю по имени-отчеству;
 3. answer — реплика начинается не позже чем через ADDRESS_WINDOW_S секунд
    после вопроса учителя, и в ней не меньше ANSWER_MIN_WORDS слов;
@@ -18,6 +18,17 @@
    после своей прошлой реплики: тип берётся от неё. Длинный ответ делится
    на фразы по паузам, и без этого правила его хвост стал бы other;
 5. other — всё остальное.
+
+Вопрос — фраза со знаком «?» или с вопросительным словом в начале. Whisper
+ставит «?» по интонации и на живой речи часто его теряет, поэтому одного
+знака мало. Вопросительное слово ищется после вводных («а», «ну», «то есть»…):
+- QUESTION_WORDS почти не начинают ответ: «почему», «зачем», «сколько»…;
+- AMBIGUOUS_WORDS («как», «что», «когда», «где») начинают и ответ:
+  «Когда Пётр вернулся, он…». Они считаются вопросом, только если во фразе
+  нет запятой, то есть это не придаточное в начале ответа;
+- частица «ли» в первых трёх словах: «Правильно ли я понял…».
+Вопрос «да/нет» без вопросительного слова («Это правда работает») узнаётся
+только по «?».
 
 Слова темы урока не нужны: связь с вопросом учителя надёжнее, а предмет
 системе знать не нужно. Качество ответа оценивается после урока, в сводке LLM.
@@ -59,6 +70,16 @@ SHORT_NAMES = {
     "софья": ["соня", "софия"],
 }
 
+QUESTION_WORDS = {
+    "почему", "зачем", "отчего", "сколько", "кто", "кого", "кому", "кем",
+    "чем", "чего", "куда", "откуда", "разве", "неужели", "можно",
+    "какой", "какая", "какое", "какие", "каким", "какую", "каких", "какого", "какому", "какими",
+    "который", "которая", "которое", "которые",
+}
+AMBIGUOUS_WORDS = {"как", "что", "когда", "где"}
+# Вводные перед вопросительным словом: «А почему…», «То есть как…»
+LEAD_WORDS = {"а", "и", "но", "ну", "так", "вот", "то", "есть", "получается", "скажите", "подскажите", "извините"}
+
 _WORD = re.compile(r"[а-яa-z0-9-]+")
 
 
@@ -79,6 +100,20 @@ def _names(full_name: str) -> list[str]:
 def _mentions(text: str, names: list[str]) -> bool:
     # «Артём», «Артёма», «Артёму»: имя с окончанием до двух букв
     return any(w.startswith(n) and len(w) - len(n) <= 2 for w in _words(text) for n in names)
+
+
+def _is_question(text: str) -> bool:
+    if "?" in text:
+        return True
+    words = _words(text)
+    if "ли" in words[1:3]:
+        return True
+    rest = words
+    while rest and rest[0] in LEAD_WORDS:
+        rest = rest[1:]
+    if not rest:
+        return False
+    return rest[0] in QUESTION_WORDS or (rest[0] in AMBIGUOUS_WORDS and "," not in text)
 
 
 def _end(item: dict) -> float:
@@ -119,11 +154,11 @@ def classify(text: str, student_id: str, t: float, roster: Roster, context: list
 
     # 2. Инициатива: свой вопрос или обращение к учителю
     stripped = text.strip()
-    if stripped.endswith("?") or _norm(stripped).startswith(_norm(roster.teacher.name)):
+    if _is_question(stripped) or _norm(stripped).startswith(_norm(roster.teacher.name)):
         return "initiative"
 
     # 3. Ответ на вопрос учителя
-    if in_window and "?" in turn_text and len(_words(text)) >= ANSWER_MIN_WORDS:
+    if in_window and any(_is_question(item["text"]) for item in turn) and len(_words(text)) >= ANSWER_MIN_WORDS:
         return "answer"
 
     # 4. Продолжение своей прошлой реплики
