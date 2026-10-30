@@ -38,6 +38,7 @@
     <section id="rows"></section>
     <button id="askMic" class="secondary">Запросить микрофон у MAX</button>
     <button id="maxSettings" class="secondary">Открыть настройки MAX</button>
+    <button id="systemSettings" class="secondary">Открыть настройки телефона</button>
     <button id="copy" class="secondary">Скопировать отчёт</button>
     <div id="log"></div>
   </main>
@@ -77,6 +78,9 @@
       if (typeof e === "string") return e;
       try {
         const fields = {};
+        // у DOMException name и message лежат в прототипе: getOwnPropertyNames их не видит
+        if (e.name) fields.name = e.name;
+        if (e.message) fields.message = e.message;
         for (const key of Object.getOwnPropertyNames(e)) fields[key] = e[key];
         return JSON.stringify(fields);
       } catch {
@@ -150,7 +154,15 @@
         const r = await step(name, call);
         if (r.ok) {
           await micState(pm);
-          show("maxPerm", title, true, `сработал вызов ${name}`);
+          // Вызов проходит и без доступа: смотрим флаги, которые он вернул
+          const mic = r.result?.mic;
+          if (mic?.appAccessGranted === false) {
+            show("maxPerm", title, false, "MAX не разрешил микрофон мини-приложению. Нажми «Открыть настройки MAX»");
+          } else if (mic?.systemAccessGranted === false) {
+            show("maxPerm", title, false, "у самого MAX нет доступа к микрофону в телефоне. Нажми «Открыть настройки телефона»");
+          } else {
+            show("maxPerm", title, true, `сработал вызов ${name}`);
+          }
           return;
         }
       }
@@ -269,6 +281,12 @@
       const pm = window.WebApp?.PermissionsManager;
       if (!pm) return log("PermissionsManager нет, настройки MAX открыть нельзя");
       await step("openMaxSettings()", () => pm.openMaxSettings());
+    });
+
+    document.getElementById("systemSettings").addEventListener("click", async () => {
+      const pm = window.WebApp?.PermissionsManager;
+      if (!pm) return log("PermissionsManager нет, настройки телефона открыть нельзя");
+      await step("openSystemSettings()", () => pm.openSystemSettings());
     });
 
     document.getElementById("copy").addEventListener("click", async () => {
