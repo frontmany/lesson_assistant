@@ -80,6 +80,9 @@ def test_stream_splits_phrases_on_pause():
     assert (first.start, first.end) == around(0.5, 2.0)
     assert (second.start, second.end) == around(3.0, 4.0)
     assert first.duration == pytest.approx(first.end - first.start, abs=0.01)
+    # сама речь — без запаса тишины
+    assert first.speech_start == pytest.approx(0.5, abs=0.15)
+    assert first.speech_end == pytest.approx(2.0, abs=0.15)
 
 
 def test_short_pause_does_not_split():
