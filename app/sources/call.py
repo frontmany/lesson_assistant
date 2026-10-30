@@ -26,17 +26,28 @@ STATS_EVERY_S = 5
 # распознавание не успевает, старые кадры сбрасываются, чтобы не росли
 # память и задержка шкалы.
 QUEUE_FRAMES = 1000
+# Учитель закрыл MAX и не вернулся: столько секунд пустой комнаты — и урок кончился
+EMPTY_ROOM_S = 300
 
 
-async def listen(lesson_id: str) -> AsyncIterator[tuple[str, bytes]]:
+async def listen(
+    lesson_id: str,
+    stop: asyncio.Event | None = None,
+    empty_room_s: float = EMPTY_ROOM_S,
+    ready: asyncio.Event | None = None,
+) -> AsyncIterator[tuple[str, bytes]]:
     """Отдавать пары (id участника, PCM int16) по мере того, как люди говорят.
+
+    Заканчивается, когда выставлен stop (учитель завершил урок) или комната
+    пуста empty_room_s секунд. Тогда ассистент выходит из комнаты.
+    ready выставляется, когда ассистент вошёл и слушает.
 
     Каждая дорожка читается своей задачей. Когда участник выходит, его задача
     заканчивается вместе с дорожкой, а при повторном входе приходит новая
     дорожка и новая задача, так что кадры идут снова. В лог раз в несколько
     секунд пишется, от кого сколько кадров пришло.
     """
-    queue: asyncio.Queue[tuple[str, bytes]] = asyncio.Queue(maxsize=QUEUE_FRAMES)
+    queue: asyncio.Queue[tuple[str, bytes] | None] = asyncio.Queue(maxsize=QUEUE_FRAMES)
     room = rtc.Room()
     pumps: dict[str, asyncio.Task] = {}  # sid дорожки -> задача чтения
     frames: Counter[str] = Counter()  # id участника -> кадров с прошлой записи в лог
@@ -44,8 +55,9 @@ async def listen(lesson_id: str) -> AsyncIterator[tuple[str, bytes]]:
 
     def put(identity: str, data: bytes) -> None:
         if queue.full():
-            old, _ = queue.get_nowait()
-            dropped[old] += 1
+            old = queue.get_nowait()
+            if old is not None:
+                dropped[old[0]] += 1
         queue.put_nowait((identity, data))
 
     async def pump(stream: rtc.AudioStream, identity: str) -> None:
@@ -93,14 +105,39 @@ async def listen(lesson_id: str) -> AsyncIterator[tuple[str, bytes]]:
     def on_left(participant: rtc.RemoteParticipant):
         log.info("участник вышел: %s", participant.identity)
 
+    stop = stop or asyncio.Event()
+
+    async def watch_empty() -> None:
+        empty_since = time.monotonic()
+        while True:
+            await asyncio.sleep(min(STATS_EVERY_S, empty_room_s / 4))
+            if room.remote_participants:
+                empty_since = time.monotonic()
+            elif time.monotonic() - empty_since >= empty_room_s:
+                log.info("комната %s пуста %.0f с, урок заканчивается", room.name, empty_room_s)
+                stop.set()
+                return
+
+    async def wake_on_stop() -> None:
+        await stop.wait()
+        if queue.full():
+            queue.get_nowait()
+        queue.put_nowait(None)  # будит цикл ниже, даже если кадров нет
+
     await room.connect(settings.livekit_url, assistant_token(lesson_id))
     log.info("ассистент слушает комнату %s", room.name)
-    reporter = asyncio.create_task(report())
+    if ready:
+        ready.set()
+    helpers = [asyncio.create_task(job()) for job in (report, watch_empty, wake_on_stop)]
     try:
         while True:
-            yield await queue.get()
+            item = await queue.get()
+            if item is None or stop.is_set():
+                log.info("ассистент выходит из комнаты %s", room.name)
+                return
+            yield item
     finally:
-        tasks = [reporter, *pumps.values()]
+        tasks = [*helpers, *pumps.values()]
         for task in tasks:
             task.cancel()
         # дождаться задач, чтобы aclose() потоков успел до disconnect()

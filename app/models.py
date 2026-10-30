@@ -27,6 +27,9 @@ class Student(BaseModel):
     # Сферуме приходит из школьной системы вместе с составом класса. Наружу
     # через API не отдаётся
     max_user_id: int | None = Field(default=None, exclude=True)
+    # виртуальный ученик: говорит записью, а не живым голосом (#18). В состав
+    # класса и в норму не попадает, только в состав урока
+    virtual: bool = False
 
 
 class Roster(BaseModel):
@@ -36,6 +39,8 @@ class Roster(BaseModel):
     topic: str
     teacher: Student
     students: list[Student]
+    # учитель из записи виртуального класса: для конвейера тоже учитель
+    virtual_teacher: Student | None = None
 
 
 class JoinInfo(BaseModel):

@@ -15,6 +15,8 @@ ROOT = Path(__file__).resolve().parent.parent
 class Settings:
     source_mode: str = os.getenv("SOURCE_MODE", "call")
     demo_lesson_dir: Path = ROOT / os.getenv("DEMO_LESSON_DIR", "data/demo_lesson")
+    # Длина урока для шкалы: от неё зависят смягчение нормы и «давно не отвечал»
+    lesson_minutes: float = float(os.getenv("LESSON_MINUTES", "40"))
     public_url: str = os.getenv("PUBLIC_URL", "")
 
     livekit_url: str = os.getenv("LIVEKIT_URL", "ws://localhost:7880")

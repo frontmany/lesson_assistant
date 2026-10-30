@@ -15,6 +15,8 @@ cp .env.example .env
 docker compose up --build
 ```
 
+В `.env` впишите `LIVEKIT_NODE_IP` — IPv4 машины в локальной сети (`ipconfig` / `ip addr`). Этот адрес LiveKit отдаёт браузерам для звука. Адрес контейнера с хоста недоступен, и вход висит на «Подключаемся…». Если адрес в сети сменился, обновите его и перезапустите `docker compose up -d livekit`.
+
 Поднимаются приложение, LiveKit (звонок), PostgreSQL и Redis. Откройте в двух вкладках:
 
 - http://localhost:8000/teacher.html — учитель;
@@ -29,6 +31,27 @@ curl -X POST http://localhost:8000/api/lessons/10a-history-05/start
 ```
 
 Первый запуск скачивает модель распознавания (в том `models`, дальше она берётся оттуда). Когда в `docker compose logs app` появится «ассистент слушает комнату», говорите во вкладке ученика: реплика с id ученика и текстом придёт в панель учителя, а в логе будет её задержка.
+
+Завершить урок: ассистент выйдет из комнаты, дораспознает последние фразы и завершит урок. Если комната пуста 5 минут, урок завершается сам.
+
+```bash
+curl -X POST http://localhost:8000/api/lessons/10a-history-05/end
+```
+
+### Урок без учеников: виртуальный класс
+
+Записанный урок заходит в звонок ботами вместо учеников, ассистент обрабатывает его как живой. Так урок показывают в одиночку: учитель или жюри входят во вкладке учителя и слышат класс.
+
+```bash
+curl -X POST http://localhost:8000/api/lessons/10a-history-05/virtual-class    # начать урок с записанным классом
+curl -X DELETE http://localhost:8000/api/lessons/10a-history-05/virtual-class  # боты выходят, урок идёт дальше
+```
+
+Дорожки записи лежат в Git LFS. Перед первой сборкой поставьте `git-lfs` и скачайте их, иначе вместо дорожек будут указатели и сервер ответит 503:
+
+```bash
+git lfs install && git lfs pull
+```
 
 Чтобы модель распознавания скачалась при сборке и запуск не зависел от сети:
 
@@ -65,7 +88,7 @@ uvicorn app.main:app --reload
 python -m app.cli replay data/demo_lesson
 
 # завести записанный урок в звонок ботами: каждая дорожка — отдельный участник
-python -m app.cli virtual-class data/demo_lesson
+python -m app.cli virtual-class data/demo_lesson --lesson 10a-history-05
 
 # показать сводку учителю из мока
 python -m app.cli mock-summary

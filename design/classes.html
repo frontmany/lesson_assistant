@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Макет: классы учителя</title>
+  <!-- Макет экранов мини-приложения учителя «Мои классы» и «Ученики» (issue #46).
+       Без адреса показаны все экраны, один экран: ?screen=classes|classes-empty|students|students-menu|students-removed|invite|invite-copied|class-empty.
+       Тексты прошли ru-text, неразрывные пробелы (&nbsp;) нужно сохранить. Цвета и тени берём из токенов.
+       Тёмная тема включается системной. Экран рассчитан на 375 px, на широком окне стоит по центру. -->
+  <link rel="stylesheet" href="../webapp/css/tokens.css">
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: var(--font); background: var(--bg); color: var(--ink); line-height: 1.4; }
+    button { font: inherit; color: inherit; cursor: pointer; border: 0; background: none; padding: 0; }
+
+    .i { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+
+    .page { max-width: 1240px; margin: 0 auto; padding: 32px 16px 64px; }
+    .page > h1 { margin: 0 0 4px; font-size: 24px; }
+    .lead { margin: 0 0 32px; color: var(--ink-soft); max-width: 62ch; }
+    .gallery { display: grid; gap: 40px 32px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 375px), 1fr)); align-items: start; }
+    .item h2 { margin: 0 0 12px; font-size: 17px; }
+    .item .note { max-width: 375px; margin: 12px 0 0; font-size: 13px; color: var(--ink-soft); }
+
+    /* Экран мини-приложения */
+    .screen { position: relative; width: 100%; max-width: 375px; height: 700px; display: flex; flex-direction: column; overflow: hidden;
+              background: var(--bg); border: 1px solid var(--line); border-radius: 24px; box-shadow: var(--shadow-float); }
+    .top { display: flex; align-items: center; gap: 4px; min-height: 56px; padding: 6px 8px 6px 8px; }
+    .top h3 { margin: 0; font-size: 20px; line-height: 1.2; }
+    .top small { display: block; font-size: 13px; font-weight: 400; color: var(--ink-soft); }
+    .top .title { flex: 1; min-width: 0; padding-left: 8px; }
+    .top .title.nopad { padding-left: 8px; }
+    .ib { width: 44px; height: 44px; display: grid; place-items: center; border-radius: 12px; flex: none; }
+    .ib:focus-visible, .btn:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+    .scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 4px 16px 16px; }
+    .list { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
+    .list > li { min-width: 0; }
+    .row { display: flex; align-items: center; gap: 12px; min-height: 64px; padding: 8px 8px 8px 14px; border-radius: var(--radius);
+           background: var(--surface); border: 1px solid var(--line); }
+    .row .main { flex: 1; min-width: 0; text-align: left; }
+    .row .name { display: block; font-weight: 600; font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .row .sub { display: block; font-size: 13px; color: var(--ink-soft); }
+    .ava { width: 40px; height: 40px; flex: none; border-radius: 50%; display: grid; place-items: center; background: var(--accent-tint); color: var(--accent); font-weight: 700; font-size: 14px; }
+    .row .go { color: var(--ink-soft); }
+
+    .bottom { display: flex; gap: 8px; padding: 12px 16px 16px; border-top: 1px solid var(--line); background: var(--bg); }
+    .btn { flex: 1; min-height: 48px; padding: 0 16px; border-radius: 12px; font-weight: 600; font-size: 16px; text-align: center; display: inline-flex; align-items: center; justify-content: center; }
+    .btn.primary { background: var(--accent); color: var(--surface); }
+    .btn.ghost { background: var(--surface); border: 1px solid var(--line-strong); }
+    .btn.danger { color: var(--danger); }
+
+    /* Пустое состояние */
+    .empty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 6px; padding: 24px 32px; }
+    .empty h4 { margin: 0; font-size: 18px; }
+    .empty p { margin: 0; color: var(--ink-soft); font-size: 15px; max-width: 28ch; }
+    .empty .glyph { width: 56px; height: 56px; border-radius: 50%; display: grid; place-items: center; background: var(--accent-tint); color: var(--accent); margin-bottom: 10px; }
+    .empty .glyph .i { width: 28px; height: 28px; }
+
+    /* Меню за троеточием */
+    .menu { position: absolute; right: 24px; z-index: 2; min-width: 190px; padding: 6px; border-radius: 12px; background: var(--surface);
+            border: 1px solid var(--line-strong); box-shadow: var(--shadow-float); }
+    .menu button { width: 100%; min-height: 44px; padding: 0 12px; border-radius: 8px; text-align: left; font-weight: 600; font-size: 15px; }
+
+    /* Сообщение внизу */
+    .toast { position: absolute; left: 12px; right: 12px; bottom: 84px; z-index: 2; display: flex; align-items: center; gap: 8px; padding: 4px 4px 4px 16px;
+             border-radius: 12px; background: var(--slide); color: var(--on-slide); box-shadow: var(--shadow-float); font-size: 15px; }
+    .toast span { flex: 1; min-width: 0; }
+    .toast button { min-height: 44px; padding: 0 14px; font-weight: 700; color: var(--accent-on-scrim); }
+
+    /* Ссылка */
+    .link-card { margin: 4px 0 0; padding: 14px; border-radius: var(--radius); background: var(--surface); border: 1px solid var(--line); }
+    .link-card code { display: block; font-family: var(--font); font-size: 15px; font-weight: 600; color: var(--accent); word-break: break-all; }
+    .code-card { margin-top: 8px; }
+    .code-card .cap { display: block; font-size: 13px; color: var(--ink-soft); }
+    .code-card code.big { font-family: ui-monospace, Consolas, monospace; font-size: 28px; font-weight: 700; letter-spacing: 0.12em; color: var(--ink); }
+    .help { margin: 12px 4px 0; color: var(--ink-soft); font-size: 15px; }
+    .stack { display: grid; gap: 8px; margin-top: 16px; }
+
+    /* Один экран */
+    body.single .gallery { display: block; }
+    body.single .item { display: none; }
+    body.single .item.on { display: block; }
+    body.single .page { padding: 0; max-width: none; }
+    body.single .page > h1, body.single .page > .lead, body.single .item h2, body.single .item .note { display: none; }
+    body.single .screen { margin: 0 auto; max-width: 480px; height: 100vh; min-height: 560px; border-radius: 0; border: 0; box-shadow: none; }
+  </style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-back" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></symbol>
+  <symbol id="i-dots" viewBox="0 0 24 24"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></symbol>
+  <symbol id="i-next" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></symbol>
+  <symbol id="i-people" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.6-3.6 3.2-5.5 6.5-5.5s5.9 1.9 6.5 5.5"/><path d="M16 4.7a3.5 3.5 0 010 6.6M18.5 14.8c1.8.7 2.8 2.3 3 5.2"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+</svg>
+
+<div class="page">
+  <h1>Классы учителя</h1>
+  <p class="lead">Экраны мини-приложения. Телефон, 375 px. Подписи и кнопки — окончательные тексты, неразрывные пробелы стоят там, где нужны.</p>
+
+  <div class="gallery">
+
+    <!-- A. Мои классы -->
+    <section class="item" data-screen="classes">
+      <h2>Мои классы</h2>
+      <div class="screen">
+        <div class="top"><div class="title"><h3>Мои классы</h3></div></div>
+        <div class="scroll">
+          <ul class="list">
+            <li><button class="row" type="button" style="width:100%"><span class="ava" aria-hidden="true">10А</span><span class="main"><span class="name">10А</span><span class="sub">24&nbsp;ученика · история</span></span><svg class="i go"><use href="#i-next"/></svg></button></li>
+            <li><button class="row" type="button" style="width:100%"><span class="ava" aria-hidden="true">9Б</span><span class="main"><span class="name">9Б</span><span class="sub">18&nbsp;учеников · история</span></span><svg class="i go"><use href="#i-next"/></svg></button></li>
+            <li><button class="row" type="button" style="width:100%"><span class="ava" aria-hidden="true">11В</span><span class="main"><span class="name">11В</span><span class="sub">21&nbsp;ученик · история</span></span><svg class="i go"><use href="#i-next"/></svg></button></li>
+          </ul>
+        </div>
+        <div class="bottom"><button class="btn primary" type="button">Создать класс</button></div>
+      </div>
+      <p class="note">Строка открывает экран «Ученики». Число учеников склоняется по числу: 1&nbsp;ученик, 2–4&nbsp;ученика, 5 и&nbsp;больше — учеников.</p>
+    </section>
+
+    <!-- A0. Пусто -->
+    <section class="item" data-screen="classes-empty">
+      <h2>Мои классы, пусто</h2>
+      <div class="screen">
+        <div class="top"><div class="title"><h3>Мои классы</h3></div></div>
+        <div class="empty">
+          <div class="glyph"><svg class="i"><use href="#i-people"/></svg></div>
+          <h4>Классов пока нет</h4>
+          <p>Создайте первый, чтобы пригласить учеников</p>
+        </div>
+        <div class="bottom"><button class="btn primary" type="button">Создать класс</button></div>
+      </div>
+      <p class="note">Первый вход учителя без классов. «Создать класс» ведёт в&nbsp;чат с&nbsp;ботом, шаг 2: бот спросит название и предмет.</p>
+    </section>
+
+    <!-- B. Ученики -->
+    <section class="item" data-screen="students">
+      <h2>Ученики</h2>
+      <div class="screen">
+        <div class="top"><button class="ib" type="button" aria-label="Назад"><svg class="i"><use href="#i-back"/></svg></button><div class="title nopad"><h3>10А</h3><small>24&nbsp;ученика</small></div></div>
+        <div class="scroll">
+          <ul class="list">
+            <li class="row"><span class="ava" aria-hidden="true">АК</span><span class="main"><span class="name">Артём&nbsp;К.</span></span><button class="ib" type="button" aria-label="Меню: Артём К."><svg class="i"><use href="#i-dots"/></svg></button></li>
+            <li class="row"><span class="ava" aria-hidden="true">АН</span><span class="main"><span class="name">Алиса&nbsp;Н.</span></span><button class="ib" type="button" aria-label="Меню: Алиса Н."><svg class="i"><use href="#i-dots"/></svg></button></li>
+            <li class="row"><span class="ava" aria-hidden="true">ДП</span><span class="main"><span class="name">Дмитрий&nbsp;П.</span></span><button class="ib" type="button" aria-label="Меню: Дмитрий П."><svg class="i"><use href="#i-dots"/></svg></button></li>
+            <li class="row"><span class="ava" aria-hidden="true">ИИ</span><span class="main"><span class="name">Иван&nbsp;И.</span></span><button class="ib" type="button" aria-label="Меню: Иван И."><svg class="i"><use href="#i-dots"/></svg></button></li>
+            <li class="row"><span class="ava" aria-hidden="true">МС</span><span class="main"><span class="name">Мария&nbsp;С.</span></span><button class="ib" type="button" aria-label="Меню: Мария С."><svg class="i"><use href="#i-dots"/></svg></button></li>
+            <li class="row"><span class="ava" aria-hidden="true">СЛ</span><span class="main"><span class="name">Софья&nbsp;Л.</span></span><button class="ib" type="button" aria-label="Меню: Софья Л."><svg class="i"><use href="#i-dots"/></svg></button></li>
+            <li class="row"><span class="ava" aria-hidden="true">АК</span><span class="main"><span class="name">Александра Константинопольская-Ли&nbsp;К.</span></span><button class="ib" type="button" aria-label="Меню: Александра Константинопольская-Ли К."><svg class="i"><use href="#i-dots"/></svg></button></li>
+          </ul>
+        </div>
+        <div class="bottom"><button class="btn ghost" type="button">Пригласить</button><button class="btn primary" type="button">Начать урок</button></div>
+      </div>
+      <p class="note">Список в&nbsp;алфавитном порядке, прокручивается. Длинное имя обрезается многоточием, полное читает скринридер. Здесь показана часть из&nbsp;24.</p>
+    </section>
+
+    <!-- B. Меню -->
+    <section class="item" data-screen="students-menu">
+      <h2>Ученики, меню</h2>
+      <div class="screen">
+        <div class="top"><button class="ib" type="button" aria-label="Назад"><svg class="i"><use href="#i-back"/></svg></button><div class="title nopad"><h3>10А</h3><small>24&nbsp;ученика</small></div></div>
+        <div class="scroll">
+          <ul class="list">
+            <li class="row"><span class="ava" aria-hidden="true">АК</span><span class="main"><span class="name">Артём&nbsp;К.</span></span><button class="ib" type="button" aria-label="Меню: Артём К." aria-expanded="true"><svg class="i"><use href="#i-dots"/></svg></button></li>
+            <li class="row"><span class="ava" aria-hidden="true">АН</span><span class="main"><span class="name">Алиса&nbsp;Н.</span></span><button class="ib" type="button" aria-label="Меню: Алиса Н."><svg class="i"><use href="#i-dots"/></svg></button></li>
+            <li class="row"><span class="ava" aria-hidden="true">ДП</span><span class="main"><span class="name">Дмитрий&nbsp;П.</span></span><button class="ib" type="button" aria-label="Меню: Дмитрий П."><svg class="i"><use href="#i-dots"/></svg></button></li>
+            <li class="row"><span class="ava" aria-hidden="true">ИИ</span><span class="main"><span class="name">Иван&nbsp;И.</span></span><button class="ib" type="button" aria-label="Меню: Иван И."><svg class="i"><use href="#i-dots"/></svg></button></li>
+          </ul>
+        </div>
+        <div class="menu" role="menu" style="top: 112px"><button class="danger" type="button" role="menuitem" style="color: var(--danger)">Убрать из&nbsp;класса</button></div>
+        <div class="bottom"><button class="btn ghost" type="button">Пригласить</button><button class="btn primary" type="button">Начать урок</button></div>
+      </div>
+      <p class="note">В&nbsp;меню один пункт. Нажатие убирает ученика сразу, без вопроса.</p>
+    </section>
+
+    <!-- B. Убрано -->
+    <section class="item" data-screen="students-removed">
+      <h2>Ученики, убран ученик</h2>
+      <div class="screen">
+        <div class="top"><button class="ib" type="button" aria-label="Назад"><svg class="i"><use href="#i-back"/></svg></button><div class="title nopad"><h3>10А</h3><small>23&nbsp;ученика</small></div></div>
+        <div class="scroll">
+          <ul class="list">
+            <li class="row"><span class="ava" aria-hidden="true">АН</span><span class="main"><span class="name">Алиса&nbsp;Н.</span></span><button class="ib" type="button" aria-label="Меню: Алиса Н."><svg class="i"><use href="#i-dots"/></svg></button></li>
+            <li class="row"><span class="ava" aria-hidden="true">ДП</span><span class="main"><span class="name">Дмитрий&nbsp;П.</span></span><button class="ib" type="button" aria-label="Меню: Дмитрий П."><svg class="i"><use href="#i-dots"/></svg></button></li>
+            <li class="row"><span class="ava" aria-hidden="true">ИИ</span><span class="main"><span class="name">Иван&nbsp;И.</span></span><button class="ib" type="button" aria-label="Меню: Иван И."><svg class="i"><use href="#i-dots"/></svg></button></li>
+          </ul>
+        </div>
+        <div class="toast" role="status"><span>Убрано из&nbsp;класса: Артём&nbsp;К.</span><button type="button">Вернуть</button></div>
+        <div class="bottom"><button class="btn ghost" type="button">Пригласить</button><button class="btn primary" type="button">Начать урок</button></div>
+      </div>
+      <p class="note">Сообщение внизу видно несколько секунд. «Вернуть» возвращает ученика на&nbsp;прежнее место в&nbsp;списке.</p>
+    </section>
+
+    <!-- C. Пригласить -->
+    <section class="item" data-screen="invite">
+      <h2>Пригласить</h2>
+      <div class="screen">
+        <div class="top"><button class="ib" type="button" aria-label="Назад"><svg class="i"><use href="#i-back"/></svg></button><div class="title nopad"><h3>Пригласить в&nbsp;10А</h3></div></div>
+        <div class="scroll">
+          <div class="link-card"><code>max.ru/lesson_bot?start=10a-k7x2</code></div>
+          <div class="link-card code-card"><span class="cap">Код класса</span><code class="big">K7X2M9</code></div>
+          <p class="help">Отправьте ссылку ученикам или продиктуйте код на уроке</p>
+          <div class="stack">
+            <button class="btn primary" type="button">Копировать ссылку</button>
+            <button class="btn ghost" type="button">Копировать код</button>
+            <button class="btn ghost" type="button">Поделиться</button>
+            <button class="btn ghost" type="button">Новая ссылка</button>
+          </div>
+        </div>
+      </div>
+      <p class="note">Код — шесть знаков, его можно продиктовать на&nbsp;уроке. «Копировать ссылку» и&nbsp;«Копировать код» кладут в&nbsp;буфер своё. «Новая ссылка» ведёт к&nbsp;вопросу бота, шаг 8: старые ссылка и&nbsp;код перестанут работать.</p>
+    </section>
+
+    <!-- C. Скопировано -->
+    <section class="item" data-screen="invite-copied">
+      <h2>Пригласить, скопировано</h2>
+      <div class="screen">
+        <div class="top"><button class="ib" type="button" aria-label="Назад"><svg class="i"><use href="#i-back"/></svg></button><div class="title nopad"><h3>Пригласить в&nbsp;10А</h3></div></div>
+        <div class="scroll">
+          <div class="link-card"><code>max.ru/lesson_bot?start=10a-k7x2</code></div>
+          <div class="link-card code-card"><span class="cap">Код класса</span><code class="big">K7X2M9</code></div>
+          <p class="help">Отправьте ссылку ученикам или продиктуйте код на уроке</p>
+          <div class="stack">
+            <button class="btn primary" type="button">Копировать ссылку</button>
+            <button class="btn ghost" type="button">Копировать код</button>
+            <button class="btn ghost" type="button">Поделиться</button>
+            <button class="btn ghost" type="button">Новая ссылка</button>
+          </div>
+        </div>
+        <div class="toast" role="status" style="bottom: 24px"><span>Ссылка скопирована</span></div>
+      </div>
+      <p class="note">Сообщение пропадает само через 3&nbsp;секунды. После «Копировать код» оно такое: «Код скопирован».</p>
+    </section>
+
+    <!-- D. Пустой класс -->
+    <section class="item" data-screen="class-empty">
+      <h2>Ученики, пустой класс</h2>
+      <div class="screen">
+        <div class="top"><button class="ib" type="button" aria-label="Назад"><svg class="i"><use href="#i-back"/></svg></button><div class="title nopad"><h3>10А</h3></div></div>
+        <div class="empty">
+          <div class="glyph"><svg class="i"><use href="#i-people"/></svg></div>
+          <h4>В&nbsp;классе пока никого</h4>
+          <p>Отправьте ссылку, и&nbsp;ученики появятся здесь</p>
+        </div>
+        <div class="bottom"><button class="btn primary" type="button">Пригласить</button></div>
+      </div>
+      <p class="note">Только что созданный класс. Кнопки «Начать урок» нет: в&nbsp;пустом классе урок не&nbsp;начать. Число учеников в&nbsp;шапке не&nbsp;показываем.</p>
+    </section>
+
+  </div>
+</div>
+<script>
+  (function () {
+    var name = new URLSearchParams(location.search).get("screen");
+    var item = name && document.querySelector('.item[data-screen="' + name + '"]');
+    if (item) { document.body.classList.add("single"); item.classList.add("on"); }
+  })();
+</script>
+</body>
+</html>

@@ -80,6 +80,9 @@ def test_stream_splits_phrases_on_pause():
     assert (first.start, first.end) == around(0.5, 2.0)
     assert (second.start, second.end) == around(3.0, 4.0)
     assert first.duration == pytest.approx(first.end - first.start, abs=0.01)
+    # сама речь — без запаса тишины
+    assert first.speech_start == pytest.approx(0.5, abs=0.15)
+    assert first.speech_end == pytest.approx(2.0, abs=0.15)
 
 
 def test_short_pause_does_not_split():
@@ -100,3 +103,14 @@ def test_long_monologue_is_cut():
     found = phrases(np.concatenate([vowel(MAX_PHRASE_S + 3), silence(1)]))
     assert len(found) == 2
     assert found[0].duration == pytest.approx(MAX_PHRASE_S, abs=0.1)
+
+
+def test_flush_returns_unfinished_phrase():
+    detector = PhraseDetector()
+    pcm = as_int16(np.concatenate([silence(0.5), vowel(1.5)]))
+    for i in range(0, len(pcm), FRAME):
+        assert detector.feed(pcm[i : i + FRAME].tobytes()) == []
+    phrase = detector.flush()
+    assert phrase is not None
+    assert phrase.duration == pytest.approx(1.5 + PAD, abs=0.15)
+    assert detector.flush() is None
