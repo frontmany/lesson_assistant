@@ -23,8 +23,14 @@ export async function joinCall(participantId, { onSpeakers, onState } = {}) {
   room.on(RoomEvent.ConnectionStateChanged, (state) => onState?.(state));
 
   await room.connect(url, token);
-  await room.startAudio();
-  await room.localParticipant.setMicrophoneEnabled(true);
+  try {
+    await room.startAudio();
+    await room.localParticipant.setMicrophoneEnabled(true);
+  } catch (err) {
+    // Без микрофона в звонке не остаёмся: иначе после повторного входа будет два подключения
+    await room.disconnect();
+    throw err;
+  }
   return room;
 }
 
