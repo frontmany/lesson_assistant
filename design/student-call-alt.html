@@ -68,6 +68,21 @@
     .seg button { min-height: 44px; }
     .note { margin: 10px 0 0; font-size: 13px; font-weight: 500; }
 
+    /* Шкалу можно скрыть: остаётся строка с названием и кнопкой «Показать» */
+    .scale-head { align-items: center; gap: 8px; }
+    .scale-head h2 { flex: 1; }
+    .toggle {
+      display: inline-flex; align-items: center; gap: 4px; min-height: 44px; margin: -10px -8px -10px 0; padding: 0 8px;
+      border-radius: 10px; font-size: 14px; font-weight: 600;
+    }
+    .toggle .i { width: 20px; height: 20px; transition: transform .3s; }
+    .scale.collapsed .toggle .i { transform: rotate(180deg); }
+    .fold { display: grid; grid-template-rows: 1fr; transition: grid-template-rows .35s; }
+    .fold > div { overflow: hidden; min-height: 0; }
+    .scale.collapsed .fold { grid-template-rows: 0fr; }
+    .scale.collapsed .scale-head { margin-bottom: 0; }
+    .scale.collapsed .fold > div { visibility: hidden; transition: visibility 0s .35s; }
+
     .controls { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 14px 20px 22px; background: var(--navy); }
     .cbtn {
       width: 56px; height: 56px; border-radius: 50%; display: grid; place-items: center; flex: none;
@@ -91,9 +106,13 @@
     <div class="status"><span class="ana"><span class="dot" aria-hidden="true"></span>Аналитика активна</span></div>
     <div class="stream" role="img" aria-label="Трансляция урока"><span class="tag">Елена В.</span></div>
     <section class="scale" aria-labelledby="st">
-      <div class="scale-head"><h2 id="st">Твоё участие</h2><span>ступень <b id="cur">2</b> из 4</span></div>
-      <ol class="segs" id="segs"></ol>
-      <p class="note">Видна только тебе. Шкала не опускается</p>
+      <div class="scale-head"><h2 id="st">Твоё участие</h2><span>ступень <b id="cur">2</b> из 4</span>
+        <button type="button" class="toggle" id="toggle" aria-expanded="true" aria-controls="fold">
+          <span id="toggle-text">Скрыть</span><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 15l7-7 7 7"/></svg></button></div>
+      <div class="fold" id="fold"><div>
+        <ol class="segs" id="segs"></ol>
+        <p class="note">Видна только тебе. Шкала не опускается</p>
+      </div></div>
       <p class="sr" id="live" role="status" aria-live="polite"></p>
     </section>
     <footer class="controls">
@@ -127,6 +146,21 @@
       const on = b.classList.toggle("on"); b.setAttribute("aria-pressed", on);
     }));
     render(false);
+
+    // Скрытие шкалы: выбор помним на устройстве, адрес ?scale=hidden|shown его перекрывает
+    const scaleEl = document.querySelector(".scale"), toggle = document.getElementById("toggle");
+    function setCollapsed(c, save) {
+      scaleEl.classList.toggle("collapsed", c);
+      toggle.setAttribute("aria-expanded", !c);
+      document.getElementById("toggle-text").textContent = c ? "Показать" : "Скрыть";
+      if (save) try { localStorage.setItem("scaleHidden", c ? "1" : "0"); } catch {}
+    }
+    let hidden = false;
+    try { hidden = localStorage.getItem("scaleHidden") === "1"; } catch {}
+    const q = new URLSearchParams(location.search).get("scale");
+    if (q) hidden = q === "hidden";
+    setCollapsed(hidden, false);
+    toggle.addEventListener("click", () => setCollapsed(!scaleEl.classList.contains("collapsed"), true));
   </script>
 </body>
 </html>
