@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Макет: звонок ученика, вариант 2</title>
+  <!-- Вариант экрана ученика в звонке (issue #8) на заданной палитре: синий #0B1E36, светлый беж #EFEBE5, зелёный #556050, красный #A54A4A.
+       Палитра и шрифт здесь свои, не из webapp/css/tokens.css: так просили в задании. Телефон, 375 px.
+       Состояния: ?level=1…4 (по умолчанию 2). Нажатие на ступень выше текущей поднимает шкалу, ниже — ничего не меняет. -->
+  <style>
+    :root {
+      --navy: #0B1E36;
+      --sand: #EFEBE5;
+      --green: #556050;
+      --red: #A54A4A;
+      --white: #ffffff;
+      --seg-off: rgba(11, 30, 54, 0.16);
+      --font: "Inter", -apple-system, system-ui, "Segoe UI", Roboto, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--sand); font-family: var(--font); color: var(--navy); line-height: 1.5; }
+    button { font: inherit; color: inherit; cursor: pointer; border: 0; background: none; padding: 0; }
+    button:focus-visible { outline: 3px solid var(--white); outline-offset: 2px; }
+    .i { width: 24px; height: 24px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+    .screen {
+      width: 100%; max-width: 375px; height: 100vh; min-height: 640px; max-height: 812px; margin: 0 auto;
+      display: flex; flex-direction: column; background: var(--sand); overflow: hidden;
+    }
+    @media (min-width: 420px) { body { background: #DDD7CE; padding: 24px 0; } .screen { height: 812px; border-radius: 28px; } }
+
+    .status { display: flex; justify-content: center; padding: 14px 16px 10px; }
+    .ana {
+      display: inline-flex; align-items: center; gap: 10px; padding: 7px 16px 7px 12px; border-radius: 999px;
+      background: var(--white); border: 1px solid rgba(11, 30, 54, .14); font-size: 14px; font-weight: 600; letter-spacing: .01em;
+    }
+    .dot { position: relative; width: 10px; height: 10px; border-radius: 50%; background: var(--green); }
+    .dot::after { content: ""; position: absolute; inset: 0; border-radius: 50%; background: var(--green); animation: pulse 1.8s ease-out infinite; }
+    @keyframes pulse { from { transform: scale(1); opacity: .6; } to { transform: scale(3); opacity: 0; } }
+
+    .stream {
+      position: relative; flex: 1; min-height: 220px; margin: 0 16px; border-radius: 20px; background: var(--navy); overflow: hidden;
+    }
+    .stream::before {
+      content: ""; position: absolute; left: 50%; top: 24%; width: 26%; aspect-ratio: 1; transform: translateX(-50%);
+      border-radius: 50%; background: rgba(255, 255, 255, .14);
+    }
+    .stream::after {
+      content: ""; position: absolute; left: 50%; bottom: -20%; width: 66%; height: 50%; transform: translateX(-50%);
+      border-radius: 50% 50% 0 0; background: rgba(255, 255, 255, .14);
+    }
+    .tag {
+      position: absolute; left: 12px; bottom: 12px; z-index: 1; padding: 4px 12px; border-radius: 10px;
+      background: rgba(255, 255, 255, .16); color: var(--white); font-size: 14px; font-weight: 600;
+    }
+
+    .scale { padding: 18px 16px 16px; }
+    .scale-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 12px; }
+    .scale-head h2 { margin: 0; font-size: 17px; font-weight: 700; }
+    .scale-head span { font-size: 14px; font-weight: 500; }
+    .segs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 0; padding: 0; list-style: none; }
+    .seg button { display: flex; flex-direction: column; justify-content: flex-start; width: 100%; text-align: center; padding: 0; }
+    .bar { display: block; height: 12px; border-radius: 6px; background: var(--seg-off); transition: background .5s; }
+    .label { display: block; margin-top: 8px; padding: 0 2px; font-size: 13px; line-height: 1.3; font-weight: 500; opacity: .8; transition: opacity .4s; }
+    .seg.reached .bar { background: var(--navy); }
+    .seg.reached .label { opacity: 1; }
+    .seg.now .label { font-weight: 700; }
+    .seg button { min-height: 44px; }
+    .note { margin: 10px 0 0; font-size: 13px; font-weight: 500; }
+
+    /* Шкалу можно скрыть: остаётся строка с названием и кнопкой «Показать» */
+    .scale-head { align-items: center; gap: 8px; }
+    .scale-head h2 { flex: 1; }
+    .toggle {
+      display: inline-flex; align-items: center; gap: 4px; min-height: 44px; margin: -10px -8px -10px 0; padding: 0 8px;
+      border-radius: 10px; font-size: 14px; font-weight: 600;
+    }
+    .toggle .i { width: 20px; height: 20px; transition: transform .3s; }
+    .scale.collapsed .toggle .i { transform: rotate(180deg); }
+    .fold { display: grid; grid-template-rows: 1fr; transition: grid-template-rows .35s; }
+    .fold > div { overflow: hidden; min-height: 0; }
+    .scale.collapsed .fold { grid-template-rows: 0fr; }
+    .scale.collapsed .scale-head { margin-bottom: 0; }
+    .scale.collapsed .fold > div { visibility: hidden; transition: visibility 0s .35s; }
+
+    .controls { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 14px 20px 22px; background: var(--navy); }
+    .cbtn {
+      width: 56px; height: 56px; border-radius: 50%; display: grid; place-items: center; flex: none;
+      background: rgba(255, 255, 255, .14); color: var(--white); transition: background .2s;
+    }
+    .cbtn.on { background: var(--green); }
+    .cbtn.leave { background: var(--red); }
+    .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+    @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+  </style>
+</head>
+<body>
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <symbol id="mic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></symbol>
+    <symbol id="cam" viewBox="0 0 24 24"><rect x="3" y="6" width="12" height="12" rx="2"/><path d="M15 10l6-3v10l-6-3"/></symbol>
+    <symbol id="hand" viewBox="0 0 24 24"><path d="M8 12V6a1.5 1.5 0 0 1 3 0v5M11 11V4.500a1.500 1.500 0 0 1 3 0V11M14 11V6a1.500 1.500 0 0 1 3 0v8c0 4-2.500 6-5.500 6S7 18 6 15l-1.500-3.500a1.500 1.500 0 0 1 2.500-1.500L8 12"/></symbol>
+    <symbol id="leave" viewBox="0 0 24 24"><path d="M3 14c5-5 13-5 18 0l-2.5 3-3.500-1.500v-3c-2-.7-4-.7-6 0v3L5.500 17z"/></symbol>
+  </svg>
+
+  <main class="screen" id="screen" aria-label="Звонок, экран ученика">
+    <div class="status"><span class="ana"><span class="dot" aria-hidden="true"></span>Аналитика активна</span></div>
+    <div class="stream" role="img" aria-label="Трансляция урока"><span class="tag">Елена В.</span></div>
+    <section class="scale" aria-labelledby="st">
+      <div class="scale-head"><h2 id="st">Твоё участие</h2><span>ступень <b id="cur">2</b> из 4</span>
+        <button type="button" class="toggle" id="toggle" aria-expanded="true" aria-controls="fold">
+          <span id="toggle-text">Скрыть</span><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 15l7-7 7 7"/></svg></button></div>
+      <div class="fold" id="fold"><div>
+        <ol class="segs" id="segs"></ol>
+        <p class="note">Видна только тебе. Шкала не опускается</p>
+      </div></div>
+      <p class="sr" id="live" role="status" aria-live="polite"></p>
+    </section>
+    <footer class="controls">
+      <button class="cbtn on" aria-pressed="true" aria-label="Микрофон"><svg class="i"><use href="#mic"/></svg></button>
+      <button class="cbtn on" aria-pressed="true" aria-label="Камера"><svg class="i"><use href="#cam"/></svg></button>
+      <button class="cbtn" aria-pressed="false" aria-label="Поднять руку"><svg class="i"><use href="#hand"/></svg></button>
+      <button class="cbtn leave" aria-label="Выйти из звонка"><svg class="i"><use href="#leave"/></svg></button>
+    </footer>
+  </main>
+
+  <script>
+    const LABELS = ["Пока тихо", "Есть ответ", "Участвуешь", "Активно на уроке"];
+    let level = Math.max(1, Math.min(4, +new URLSearchParams(location.search).get("level") || 2));
+    const segs = document.getElementById("segs");
+    segs.innerHTML = LABELS.map((l, i) => `<li class="seg" data-n="${i + 1}"><button type="button" aria-label="${l}"><span class="bar"></span><span class="label">${l}</span></button></li>`).join("");
+    function render(announce) {
+      segs.querySelectorAll(".seg").forEach((s) => {
+        const n = +s.dataset.n;
+        s.classList.toggle("reached", n <= level);
+        s.classList.toggle("now", n === level);
+        s.querySelector("button")[n === level ? "setAttribute" : "removeAttribute"]("aria-current", "step");
+      });
+      document.getElementById("cur").textContent = level;
+      if (announce) document.getElementById("live").textContent = "Ступень: " + LABELS[level - 1];
+    }
+    segs.addEventListener("click", (e) => {
+      const seg = e.target.closest(".seg");
+      if (seg && +seg.dataset.n > level) { level = +seg.dataset.n; render(true); }
+    });
+    document.querySelectorAll(".cbtn:not(.leave)").forEach((b) => b.addEventListener("click", () => {
+      const on = b.classList.toggle("on"); b.setAttribute("aria-pressed", on);
+    }));
+    render(false);
+
+    // Скрытие шкалы: выбор помним на устройстве, адрес ?scale=hidden|shown его перекрывает
+    const scaleEl = document.querySelector(".scale"), toggle = document.getElementById("toggle");
+    function setCollapsed(c, save) {
+      scaleEl.classList.toggle("collapsed", c);
+      toggle.setAttribute("aria-expanded", !c);
+      document.getElementById("toggle-text").textContent = c ? "Показать" : "Скрыть";
+      if (save) try { localStorage.setItem("scaleHidden", c ? "1" : "0"); } catch {}
+    }
+    let hidden = false;
+    try { hidden = localStorage.getItem("scaleHidden") === "1"; } catch {}
+    const q = new URLSearchParams(location.search).get("scale");
+    if (q) hidden = q === "hidden";
+    setCollapsed(hidden, false);
+    toggle.addEventListener("click", () => setCollapsed(!scaleEl.classList.contains("collapsed"), true));
+  </script>
+</body>
+</html>
