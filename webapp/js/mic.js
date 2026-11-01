@@ -4,6 +4,8 @@
 // PermissionsManager пока есть только на Android и в веб-клиенте MAX, поэтому
 // на iOS и десктопе, а также при любом непонятном отказе урок открывается в браузере.
 
+import { browserLink } from "./lesson.js";
+
 const REASON = "Ассистенту урока нужно слышать ваш голос";
 
 const MAX_SETTINGS = ["app_permission_denied", "mic_app_permission_denied"];
@@ -21,7 +23,14 @@ export function inMax() {
 // "browser" — открыть урок в браузере
 export async function micAccess() {
   if (!inMax()) return "ok";
-  const pm = window.WebApp.PermissionsManager;
+  const access = await ask(window.WebApp.PermissionsManager);
+  // Ссылку в браузер готовим заранее: MAX откроет её только сразу по нажатию,
+  // а запрос к серверу внутри нажатия этот жест теряет
+  if (access !== "ok") link = await browserLink().catch(() => location.href);
+  return access;
+}
+
+async function ask(pm) {
   if (!pm) return "browser";
   try {
     if (!(await flag(pm, "isInited"))) await pm.init();
@@ -40,9 +49,11 @@ export function openSystemSettings() {
 }
 
 // Тот же урок во внешнем браузере. Только по нажатию: без клика MAX ссылку не откроет.
-// TODO(Фёдор, #24): в браузере нет initData — передать в ссылке одноразовый токен входа
+// Данных запуска в браузере нет, поэтому в ссылке одноразовый вход (#24)
+let link = null;
+
 export function openInBrowser() {
-  window.WebApp.openLink(location.href);
+  window.WebApp.openLink(link ?? location.href);
 }
 
 async function request(pm) {

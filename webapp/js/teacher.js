@@ -3,7 +3,7 @@
 // Плитки строятся по участникам LiveKit, панель класса — по событиям урока из WebSocket.
 
 import { DisconnectReason, joinCall } from "./call.js";
-import { LESSON_ID, loadRoster, subscribe } from "./lesson.js";
+import { LESSON_ID, api, loadRoster, signIn, subscribe, whoAmI } from "./lesson.js";
 import { inMax, micAccess, openInBrowser, openMaxSettings, openSystemSettings } from "./mic.js";
 
 const { RoomEvent, Track } = window.LivekitClient;
@@ -25,9 +25,12 @@ const NOMIC = {
 const $ = (id) => document.getElementById(id);
 const mobile = matchMedia("(max-width: 700px)");
 
+await signIn();
+// Учитель — тот, кого сервер узнал по данным запуска MAX (#24); ученика отправляем на его экран
+const me = await whoAmI().catch((err) => fail(err));
+if (me.role !== "teacher") location.replace(`student.html${location.search}`);
+const teacherId = me.participant_id;
 let roster = await loadRoster();
-// TODO(Фёдор, #24): учитель — из данных запуска MAX, а не из состава урока
-const teacherId = roster.teacher.id;
 
 const prefs = { mic: true, cam: false };
 const students = {}; // id → { level, flags, off, last }
@@ -102,7 +105,7 @@ async function enter({ mic = prefs.mic } = {}) {
   startedAt = Date.now();
   // Учитель в звонке: ассистент начинает слушать, ученики получают «Урок начался».
   // Демо-урок сервер начинает сразу с записанным классом
-  await fetch(`/api/lessons/${LESSON_ID}/start`, { method: "POST" })
+  await api(`/api/lessons/${LESSON_ID}/start`, { method: "POST" })
     .catch((err) => console.warn("урок не начался на сервере", err));
   // Состав мог поменяться: виртуальный класс заменяет учеников записанными
   roster = await loadRoster();
@@ -327,10 +330,9 @@ async function setAnalytics(studentId, enabled) {
   students[studentId].off = !enabled;
   renderPanel();
   // TODO(Ярослав): сервер пока только отвечает тем же и не рассылает состояние по WebSocket
-  await fetch(`/api/lessons/${LESSON_ID}/analytics`, {
+  await api(`/api/lessons/${LESSON_ID}/analytics`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ type: "analytics", enabled, student_id: studentId }),
+    body: { type: "analytics", enabled, student_id: studentId },
   }).catch((err) => console.warn("выключатель аналитики не дошёл до сервера", err));
 }
 
@@ -426,7 +428,7 @@ $("btnLeave").onclick = async () => {
   $("studentsCount").textContent = `Учеников: ${roster.students.length}`;
   $("backToChat").hidden = !inMax();
   // ассистент дораспознаёт очередь и выходит, сводку отправит бот (#21)
-  fetch(`/api/lessons/${LESSON_ID}/end`, { method: "POST" }).catch((err) => console.warn("урок не завершился на сервере", err));
+  api(`/api/lessons/${LESSON_ID}/end`, { method: "POST" }).catch((err) => console.warn("урок не завершился на сервере", err));
 };
 
 $("backToChat").onclick = () => window.WebApp?.close?.();
@@ -519,6 +521,14 @@ function iconSpan(cls, icon) {
   const el = span(cls, "");
   el.append(svg(icon));
   return el;
+}
+
+// Не пустили в урок: человек не из этого класса или ссылка устарела
+function fail(err) {
+  setLobbyText("Не удалось открыть урок", err.message);
+  $("lobbyActions").replaceChildren();
+  $("preview").hidden = true;
+  throw err;
 }
 
 lobby();

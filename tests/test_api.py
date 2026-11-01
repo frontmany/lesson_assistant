@@ -10,7 +10,7 @@ def test_health():
 
 
 def test_webapp_is_served():
-    assert "Я учитель" in client.get("/").text
+    assert "Открываем урок" in client.get("/").text
 
 
 def test_summary():
