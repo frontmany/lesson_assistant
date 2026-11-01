@@ -8,6 +8,7 @@ import bisect
 import json
 import logging
 import time
+import wave
 from collections import deque
 from collections.abc import AsyncIterator, Callable
 from concurrent.futures import ThreadPoolExecutor
@@ -188,6 +189,22 @@ def next_job(jobs: list[_Job], students: set[str]) -> _Job:
     return min(before, key=lambda j: j.end) if before else first
 
 
+def save_phrase(directory: Path, job: _Job, text: str) -> None:
+    """Записать фразу в wav и рядом распознанный текст: так собирается набор для замеров."""
+    try:
+        directory.mkdir(parents=True, exist_ok=True)
+        name = f"{job.t:07.1f}-{job.who}"
+        with wave.open(str(directory / f"{name}.wav"), "wb") as out:
+            out.setnchannels(1)
+            out.setsampwidth(2)
+            out.setframerate(16_000)
+            out.writeframes((np.clip(job.pcm, -1, 1) * 32767).astype(np.int16).tobytes())
+        (directory / f"{name}.txt").write_text(text, encoding="utf-8")
+    except OSError:
+        # набор — побочная задача, урок из-за неё не падает
+        log.exception("не удалось сохранить фразу %s", job.who)
+
+
 def load_history(path: Path | None = None) -> list[float]:
     """Активность прошлых уроков класса, от старых к новым: для нормы урока.
 
@@ -206,7 +223,7 @@ async def transcribe_stream(
     frames: AsyncIterator[tuple[str, bytes]],
     roster: Roster,
     emit: Callable[[LessonEvent], None],
-    transcribe: Callable[[np.ndarray], str] | None = None,
+    transcribe: Callable[[np.ndarray, str], str] | None = None,
     norm: float | None = None,
 ) -> list[dict]:
     """Кадры участников → фразы → текст → тип реплики и шкала → события.
@@ -228,8 +245,14 @@ async def transcribe_stream(
 
     loop = asyncio.get_running_loop()
     if transcribe is None:
-        transcribe = asr.transcribe
-        await loop.run_in_executor(_asr, asr.model)  # загрузить модель до первой фразы
+        names = asr.class_names(roster)
+
+        def transcribe(pcm: np.ndarray, role: str) -> str:
+            return asr.transcribe(pcm, role, names if role == "teacher" else None)
+
+        # загрузить модели до первой фразы
+        for role in ("teacher", "student"):
+            await loop.run_in_executor(_asr, asr.model, role)
 
     started = time.monotonic()
     students = [s.id for s in roster.students]
@@ -238,6 +261,10 @@ async def transcribe_stream(
     teachers = {roster.teacher.id} | ({roster.virtual_teacher.id} if roster.virtual_teacher else set())
     known = is_student | teachers
     context: list[dict] = []
+    phrases_dir = None
+    if settings.save_phrases_dir:
+        phrases_dir = Path(settings.save_phrases_dir) / time.strftime("%Y%m%d-%H%M%S")
+        log.warning("фразы урока сохраняются в %s: только для тестовых уроков команды", phrases_dir)
 
     def lesson_time() -> float:
         return time.monotonic() - started
@@ -332,8 +359,11 @@ async def transcribe_stream(
 
     async def handle(job: _Job) -> None:
         picked = time.monotonic()
-        text = await loop.run_in_executor(_asr, transcribe, job.pcm)
+        role = "student" if job.who in is_student else "teacher"
+        text = await loop.run_in_executor(_asr, transcribe, job.pcm, role)
         done = time.monotonic()
+        if phrases_dir:
+            await loop.run_in_executor(_asr, save_phrase, phrases_dir, job, text)
         if not text:
             return
         log.info(

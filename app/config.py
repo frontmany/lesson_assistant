@@ -30,9 +30,15 @@ class Settings:
     # имя бота нужно кнопке, которая открывает его мини-приложение
     max_bot_name: str = os.getenv("MAX_BOT_NAME", "")
 
-    whisper_model: str = os.getenv("WHISPER_MODEL", "base")
+    whisper_model_teacher: str = os.getenv("WHISPER_MODEL_TEACHER", "small")
+    # TODO(#55): выбрать по сравнению на живых фразах (analytics/compare_asr.py)
+    whisper_model_student: str = os.getenv("WHISPER_MODEL_STUDENT", "small")
     whisper_compute_type: str = os.getenv("WHISPER_COMPUTE_TYPE", "int8")
     whisper_download_root: str = os.getenv("WHISPER_DOWNLOAD_ROOT", str(ROOT / "models"))
+
+    # Сохранять найденные фразы (wav и текст) для набора замеров. Только для
+    # тестовых уроков команды: голоса детей не сохраняем
+    save_phrases_dir: str = os.getenv("SAVE_PHRASES_DIR", "")
 
     llm_api_url: str = os.getenv("LLM_API_URL", "")
     llm_api_key: str = os.getenv("LLM_API_KEY", "")
