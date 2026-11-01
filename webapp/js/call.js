@@ -7,8 +7,9 @@ const { Room, RoomEvent, Track } = window.LivekitClient;
 
 // Войти в звонок, включить микрофон и слышать остальных.
 // Вызывать только по нажатию кнопки: без жеста пользователя браузер
-// не даст ни микрофон, ни звук.
-export async function joinCall(participantId, { onSpeakers, onState } = {}) {
+// не даст ни микрофон, ни звук. mic: false — войти с выключенным микрофоном,
+// cam: true — сразу включить камеру; без камеры урок идёт, поэтому её ошибка не мешает входу.
+export async function joinCall(participantId, { onSpeakers, onState, mic = true, cam = false } = {}) {
   const res = await fetch(`/api/lessons/${LESSON_ID}/join?participant_id=${encodeURIComponent(participantId)}`);
   if (!res.ok) throw new Error("Нет доступа к уроку");
   const { url, token } = await res.json();
@@ -25,11 +26,18 @@ export async function joinCall(participantId, { onSpeakers, onState } = {}) {
   await room.connect(url, token);
   try {
     await room.startAudio();
-    await room.localParticipant.setMicrophoneEnabled(true);
+    if (mic) await room.localParticipant.setMicrophoneEnabled(true);
   } catch (err) {
     // Без микрофона в звонке не остаёмся: иначе после повторного входа будет два подключения
     await room.disconnect();
     throw err;
+  }
+  if (cam) {
+    try {
+      await room.localParticipant.setCameraEnabled(true);
+    } catch (err) {
+      console.warn("камера не включилась", err);
+    }
   }
   return room;
 }
