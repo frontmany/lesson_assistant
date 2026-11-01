@@ -100,6 +100,10 @@ async function enter({ mic = prefs.mic } = {}) {
   }
   leaving = false;
   startedAt = Date.now();
+  // Учитель в звонке: ассистент начинает слушать, ученики получают «Урок начался».
+  // Демо-урок сервер начинает сразу с записанным классом
+  await fetch(`/api/lessons/${LESSON_ID}/start`, { method: "POST" })
+    .catch((err) => console.warn("урок не начался на сервере", err));
   // Состав мог поменяться: виртуальный класс заменяет учеников записанными
   roster = await loadRoster();
   resetStudents();
