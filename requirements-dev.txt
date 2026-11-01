@@ -1,1 +1,3 @@
 pytest==8.3.5
+# сравнение моделей распознавания: GigaAM v3 без PyTorch (analytics/compare_asr.py)
+onnx-asr==0.12.0

@@ -65,7 +65,7 @@ def test_no_speech_in_silence_noise_and_tone(audio):
 
 
 def test_offline_segments():
-    audio = np.concatenate([silence(0.5), vowel(1.5), silence(1), vowel(1), silence(0.5)])
+    audio = np.concatenate([silence(0.5), vowel(1.5), silence(1), vowel(1), silence(1)])
     segments = speech_segments(as_int16(audio))
     assert len(segments) == 2
     assert segments[0] == around(0.5, 2.0)
