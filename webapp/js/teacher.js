@@ -2,14 +2,13 @@
 // Состояния: до входа → подключаемся → в уроке (связь может пропасть) → урок завершён.
 // Плитки строятся по участникам LiveKit, панель класса — по событиям урока из WebSocket.
 
-import { joinCall } from "./call.js";
+import { DisconnectReason, joinCall } from "./call.js";
 import { LESSON_ID, loadRoster, subscribe } from "./lesson.js";
 import { inMax, micAccess, openInBrowser, openMaxSettings, openSystemSettings } from "./mic.js";
 
 const { RoomEvent, Track } = window.LivekitClient;
 
-const LABELS = { 1: "Пока тихо", 2: "Есть ответ", 3: "Участвует", 4: "Активно на уроке" };
-const FLAG_TEXT = { long_silence: "давно не отвечал", quiet_but_precise: "тихий, но точный" };
+const FLAG_TEXT = { long_silence: "давно не отвечал", quiet_but_precise: "редко, но развёрнуто" };
 const FLAG_RANK = { long_silence: 0, quiet_but_precise: 1 };
 const COMPACT_FROM = 9; // с девяти учеников строки панели сжаты, над списком фильтры
 const TOAST_MS = 4000;
@@ -62,7 +61,7 @@ function lobby(kind = "ready", detail = "") {
     actions.append(button(action ? "secondary" : "primary", "Попробовать снова", () => enter()));
     actions.append(button("link", "Войти без микрофона", () => enter({ mic: false })));
   } else {
-    setLobbyText("Готовы войти?", detail || "Проверьте микрофон и камеру. Аналитика будет включена, когда вы войдёте в урок");
+    setLobbyText("Готовы войти?", detail || "Проверьте микрофон и камеру");
     $("lobbyText").classList.toggle("lobby-error", Boolean(detail));
     actions.append(button("primary", "Войти в урок", () => enter()));
   }
@@ -73,6 +72,7 @@ function lobby(kind = "ready", detail = "") {
 function setLobbyText(title, text) {
   $("lobbyTitle").textContent = title;
   $("lobbyText").textContent = text;
+  $("lobbyText").hidden = !text;
   $("lobbyText").classList.remove("lobby-error");
 }
 
@@ -122,11 +122,13 @@ function watchRoom() {
   ]) room.on(event, redraw);
 }
 
-function onState(state) {
+function onState(state, reason) {
   reconnecting = state === "reconnecting" || state === "signalReconnecting";
   if (state === "disconnected" && !leaving && room) {
     room = null;
-    return lobby("ready", "Связь с уроком потеряна. Войдите ещё раз");
+    return lobby("ready", reason === DisconnectReason.DUPLICATE_IDENTITY
+      ? "Вы вошли в урок в другом окне, здесь звонок закрыт"
+      : "Связь с уроком потеряна. Войдите ещё раз");
   }
   render();
 }
@@ -162,7 +164,9 @@ function tile(p, i) {
   }
   const mic = p.getTrackPublication(Track.Source.Microphone);
   if (!mic || mic.isMuted) el.append(iconSpan("micoff", "mic-off"));
-  el.append(span("name", personName(p)));
+  // Подписи на плитке нет: имя только во всплывающей подсказке и для экранного чтения
+  el.title = personName(p);
+  el.setAttribute("aria-label", personName(p));
   return el;
 }
 
@@ -207,7 +211,6 @@ function renderStage() {
     $("prev").disabled = page === 1;
     $("next").disabled = page === pages;
   }
-  $("peopleCount").textContent = all.length;
   renderControls();
 }
 
@@ -233,6 +236,9 @@ function renderPanel() {
   const started = list.some((s) => students[s.id].level !== null);
   const compact = list.length >= COMPACT_FROM;
   $("panel").hidden = !panelOpen || list.length === 0;
+  // Свёрнутую панель выдвигают стрелкой на её месте: справа, на телефоне снизу
+  $("expand").hidden = panelOpen || list.length === 0;
+  $("expand").querySelector("use").setAttribute("href", mobile.matches ? "#chev-u" : "#chev-l");
   $("count").textContent = `Учеников: ${list.length}`;
   $("collapse").querySelector("use").setAttribute("href", mobile.matches ? "#chev-d" : "#chev-r");
 
@@ -241,14 +247,13 @@ function renderPanel() {
     : !started ? "Шкалы участия появятся, когда ученики заговорят" : "";
   $("hint").hidden = !hint;
   $("hint").textContent = hint;
-  $("legend").hidden = Boolean(hint) || compact;
 
   const count = (flag) => list.filter((s) => students[s.id].flags.includes(flag)).length;
   $("chips").hidden = !compact || !started;
   $("chips").replaceChildren(
     chip("all", `Все ${list.length}`),
     chip("long_silence", `Давно не отвечали ${count("long_silence")}`),
-    chip("quiet_but_precise", `Тихий, но точный ${count("quiet_but_precise")}`),
+    chip("quiet_but_precise", `Редко, но развёрнуто ${count("quiet_but_precise")}`),
   );
 
   const rank = (s) => Math.min(2, ...students[s.id].flags.map((f) => FLAG_RANK[f] ?? 2));
@@ -261,7 +266,7 @@ function row(s, compact, started) {
   const st = students[s.id];
   const el = div(`stu${compact ? " compact" : ""}${st.off ? " off" : ""}`);
   const line = div("stu-line");
-  line.append(span("stu-name", s.name + (s.virtual ? " · запись" : "")));
+  line.append(span("stu-name", s.name));
   const flags = started && !st.off ? st.flags.map((f) => span(`flag ${f}`, FLAG_TEXT[f])) : [];
   const bars = div("bars");
   for (let n = 1; n <= 4; n++) bars.append(span(`bar${st.level && n <= st.level ? " on" : ""}`, ""));
@@ -282,8 +287,11 @@ function row(s, compact, started) {
     line.append(...flags, bars, dots);
     el.append(line);
   } else {
-    line.append(span("stu-label", st.off ? "аналитика выключена" : LABELS[st.level ?? 1]), dots);
-    el.append(line, bars, ...flags);
+    // Ступень видна по шкале, словами её не подписываем; выключенную аналитику — подписываем
+    if (st.off) line.append(span("stu-label", "аналитика выключена"));
+    line.append(...flags); // метки справа от имени, а не под шкалой
+    line.append(dots);
+    el.append(line, bars);
     if (st.last && !st.off) el.append(Object.assign(document.createElement("p"), { className: "stu-last", textContent: `«${st.last}»` }));
   }
   if (menuFor === s.id) el.append(menu(s));
@@ -336,7 +344,7 @@ document.addEventListener("click", () => {
 
 const togglePanel = () => { panelOpen = !panelOpen; render(); };
 $("collapse").onclick = togglePanel;
-$("btnPeople").onclick = togglePanel;
+$("expand").onclick = togglePanel;
 
 subscribe((event) => {
   if (event.type === "analytics") {
@@ -360,7 +368,6 @@ function renderControls() {
   $("btnScreen").hidden = !navigator.mediaDevices?.getDisplayMedia;
   $("btnScreen").classList.toggle("active", lp.isScreenShareEnabled);
   $("btnScreen").setAttribute("aria-label", lp.isScreenShareEnabled ? "Остановить показ экрана" : "Показать экран");
-  $("btnPeople").classList.toggle("active", !$("panel").hidden);
 }
 
 $("btnMic").onclick = async () => {
