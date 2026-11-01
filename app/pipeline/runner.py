@@ -62,6 +62,13 @@ def is_running(lesson_id: str) -> bool:
     return lesson is not None and not lesson.task.done()
 
 
+def when_finished(lesson_id: str, callback: Callable[[str], None]) -> None:
+    """Вызвать callback(lesson_id), когда конвейер урока закончится: «Завершить урок» или пустая комната."""
+    lesson = _lessons.get(lesson_id)
+    if lesson is not None and lesson.task is not None:
+        lesson.task.add_done_callback(lambda _: callback(lesson_id))
+
+
 def roster_of(lesson_id: str) -> Roster | None:
     """Состав идущего урока: с виртуальными учениками, если урок начат с ними."""
     return _lessons[lesson_id].roster if is_running(lesson_id) else None
