@@ -1,7 +1,7 @@
 // Звонок урока на LiveKit. Код: Фёдор.
 // SDK подключается в HTML: livekit-client.umd.js даёт глобальный LivekitClient.
 
-import { LESSON_ID } from "./lesson.js";
+import { LESSON_ID, api } from "./lesson.js";
 
 const { DisconnectReason, Room, RoomEvent, Track } = window.LivekitClient;
 
@@ -12,9 +12,9 @@ export { DisconnectReason };
 // не даст ни микрофон, ни звук. mic: false — войти с выключенным микрофоном,
 // cam: true — сразу включить камеру; без камеры урок идёт, поэтому её ошибка не мешает входу.
 export async function joinCall(participantId, { onSpeakers, onState, mic = true, cam = false } = {}) {
-  const res = await fetch(`/api/lessons/${LESSON_ID}/join?participant_id=${encodeURIComponent(participantId)}`);
-  if (!res.ok) throw new Error("Нет доступа к уроку");
-  const { url, token } = await res.json();
+  // участника сервер берёт из сессии (#24); participantId — для проверки, что это тот же человек
+  const { url, token, participant_id: id } = await api(`/api/lessons/${LESSON_ID}/join`);
+  if (participantId && id !== participantId) throw new Error("Нет доступа к уроку");
 
   const room = new Room({ adaptiveStream: true, dynacast: true });
 

@@ -1,8 +1,15 @@
 import { setupCall } from "./controls.js";
-import { LEVEL_LABELS, subscribe } from "./lesson.js";
+import { LEVEL_LABELS, signIn, subscribe, whoAmI } from "./lesson.js";
 
-// TODO(Фёдор): в MAX брать ученика из window.WebApp.initData, а не из адреса
-const studentId = new URLSearchParams(location.search).get("id") ?? "artem_k";
+// Ученик — тот, кого сервер узнал по данным запуска MAX (#24)
+await signIn();
+const me = await whoAmI().catch((err) => {
+  document.getElementById("state").textContent = err.message;
+  document.getElementById("join").hidden = true;
+  throw err;
+});
+if (me.role === "teacher") location.replace(`teacher.html${location.search}`);
+const studentId = me.participant_id;
 
 setupCall(studentId);
 

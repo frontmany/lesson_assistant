@@ -14,7 +14,7 @@ def _claims(token: str) -> dict:
 
 
 def test_student_joins_own_room_under_own_id():
-    info = client.get(f"/api/lessons/{LESSON}/join", params={"participant_id": "artem_k"}).json()
+    info = client.get(f"/api/lessons/{LESSON}/join", params={"id": "artem_k"}).json()
     assert info["role"] == "student"
     assert info["url"] == settings.livekit_public_url
 
@@ -25,12 +25,12 @@ def test_student_joins_own_room_under_own_id():
 
 
 def test_teacher_joins():
-    info = client.get(f"/api/lessons/{LESSON}/join", params={"participant_id": "teacher"}).json()
+    info = client.get(f"/api/lessons/{LESSON}/join", params={"id": "teacher"}).json()
     assert info["role"] == "teacher"
 
 
 def test_stranger_cannot_join():
-    assert client.get(f"/api/lessons/{LESSON}/join", params={"participant_id": "stranger"}).status_code == 404
+    assert client.get(f"/api/lessons/{LESSON}/join", params={"id": "stranger"}).status_code == 403
 
 
 def test_assistant_is_hidden_listener():

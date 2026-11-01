@@ -4,18 +4,24 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Ассистент Сферум AI</title>
+  <!-- Стартовая страница мини-приложения (#24): узнаёт человека по данным запуска MAX
+       и открывает то, что передала кнопка бота: c<id> — учитель начинает урок класса,
+       l<id> — урок, учителю его панель, ученику его экран. Логика — js/start.js -->
   <link rel="stylesheet" href="css/tokens.css">
   <link rel="stylesheet" href="css/app.css">
 </head>
 <body>
   <main>
-    <h1>Урок 10А, история</h1>
-    <!-- TODO(Фёдор): экран выбора роли по макету. В MAX роль придёт из данных запуска -->
-    <nav class="roles">
-      <a href="teacher.html">Я учитель</a>
-      <a href="student.html?id=artem_k">Я ученик: Артём К.</a>
-      <a href="student.html?id=alisa_n">Я ученик: Алиса Н.</a>
+    <h1 id="title">Открываем урок…</h1>
+    <p id="text" class="state"></p>
+    <!-- Для разработки (DEV_AUTH=1): урок демо-класса без MAX -->
+    <nav class="roles" id="dev" hidden>
+      <a href="teacher.html">Учитель демо-класса</a>
+      <a href="student.html?id=artem_k">Ученик: Артём К.</a>
+      <a href="student.html?id=alisa_n">Ученик: Алиса Н.</a>
     </nav>
   </main>
+  <script src="https://st.max.ru/js/max-web-app.js"></script>
+  <script type="module" src="js/start.js"></script>
 </body>
 </html>
