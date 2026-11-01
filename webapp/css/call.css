@@ -242,3 +242,54 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 .switch { cursor: pointer; }
 .cbtn.armed { box-shadow: 0 0 0 3px var(--warn-tint); }
 .lobby-error { color: var(--danger); }
+
+/* Свёрнутая панель класса: стрелка на её месте выдвигает её обратно */
+.expand {
+  flex: none; align-self: center; width: 32px; height: 72px; border-radius: 12px;
+  background: var(--surface); border: 1px solid var(--line); color: var(--ink-soft);
+  display: grid; place-items: center;
+}
+.expand:hover { background: var(--surface-muted); }
+
+/* Прокрутка панели в цветах темы, а не белая системная */
+.plist { scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
+.plist::-webkit-scrollbar { width: 6px; }
+.plist::-webkit-scrollbar-track { background: transparent; }
+.plist::-webkit-scrollbar-thumb { background: var(--line-strong); border-radius: 3px; }
+
+@media (max-width: 700px) {
+  .expand { align-self: stretch; width: auto; height: 32px; }
+}
+
+/* Меню ученика слева от троеточия, поверх его же строки, а не под ней */
+.menu { top: 4px; right: 32px; }
+
+/* Стрелка выдвигания — на уровне стрелки, которой панель сворачивают */
+.expand { align-self: flex-start; height: 48px; margin-top: 6px; }
+@media (max-width: 700px) {
+  .expand { align-self: stretch; height: 32px; margin-top: 0; }
+}
+
+/* Строки панели посвободнее, метки в строке с именем */
+.stu { padding: 14px 0; }
+.stu-line { gap: 10px; }
+.stu-line .flag { margin: 0; }
+.bars { margin-top: 10px; }
+.stu-last { margin-top: 10px; line-height: 1.45; }
+.plist { padding-bottom: 12px; }
+
+/* Метка сразу за именем с отступом, троеточие прижато вправо */
+.stu-line .stu-name { flex: 0 1 auto; }
+.stu-line .flag { margin-left: 4px; }
+.stu-line .iconbtn { margin-left: auto; }
+
+/* Экран «Урок завершён» посвободнее */
+.lobby.ended .done { margin-bottom: 24px; }
+.lobby.ended h1 { margin-bottom: 16px; }
+.lobby.ended .facts { gap: 10px; margin-bottom: 24px; }
+.lobby.ended .facts span { padding: 6px 14px; }
+.lobby.ended p { line-height: 1.6; margin-bottom: 24px; }
+
+/* «Урок завершён» по центру экрана */
+.lobby.ended { justify-content: center; align-items: center; }
+/* сам блок по центру, а внутри всё по левому краю, как было */

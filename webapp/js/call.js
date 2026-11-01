@@ -3,7 +3,9 @@
 
 import { LESSON_ID } from "./lesson.js";
 
-const { Room, RoomEvent, Track } = window.LivekitClient;
+const { DisconnectReason, Room, RoomEvent, Track } = window.LivekitClient;
+
+export { DisconnectReason };
 
 // Войти в звонок, включить микрофон и слышать остальных.
 // Вызывать только по нажатию кнопки: без жеста пользователя браузер
@@ -21,7 +23,9 @@ export async function joinCall(participantId, { onSpeakers, onState, mic = true,
   });
   room.on(RoomEvent.TrackUnsubscribed, (track) => track.detach().forEach((el) => el.remove()));
   room.on(RoomEvent.ActiveSpeakersChanged, (speakers) => onSpeakers?.(speakers.map((p) => p.identity)));
-  room.on(RoomEvent.ConnectionStateChanged, (state) => onState?.(state));
+  // «Отключились» приходит отдельным событием: в нём причина, например вход в урок из другого окна
+  room.on(RoomEvent.ConnectionStateChanged, (state) => state !== "disconnected" && onState?.(state));
+  room.on(RoomEvent.Disconnected, (reason) => onState?.("disconnected", reason));
 
   await room.connect(url, token);
   try {
