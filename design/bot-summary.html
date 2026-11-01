@@ -1,0 +1,334 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Макет: сводка и карточка в боте</title>
+<!-- Макет сообщений бота после урока (issue #15). Все сцены на одной странице, одна сцена: ?scene=1…9,
+     без рамки для экспорта: ?scene=1&bare=1.
+     Форматирование сообщений в MAX ограничено, поэтому в тексте только жирный (названия блоков), переносы строк и пустая строка между блоками.
+     Ни таблиц, ни заголовков, ни цвета, ни эмодзи. Неразрывные пробелы (&nbsp;) расставлены в тексте, их нужно сохранить в боте.
+     Палитра как во втором варианте экрана ученика (student-call-alt.html): синий #0B1E36 (текст), молочный #FBF8F0 (фон), пастельный оливковый #C8D2AA / #E1E7CE (шапка, кнопки, свои сообщения), зелёный #556050, красный #A54A4A, шрифт Inter / системный.
+     Палитра задана прямо в файле, не в tokens.css. Тема: системная, адрес ?theme=dark|light перекрывает. -->
+<style>
+  :root {
+    --navy: #0B1E36;
+    --sand: #EFEBE5;
+    --green: #556050;
+    --red: #A54A4A;
+    --font: "Inter", -apple-system, system-ui, "Segoe UI", Roboto, sans-serif;
+
+    --olive: #C8D2AA;
+    --olive-soft: #E1E7CE;
+    --page: #F1EDE2;
+    --bg: #FBF8F0;
+    --ink: var(--navy);
+    --ink-soft: rgba(11, 30, 54, .68);
+    --bubble: #FFFEFA;
+    --bubble-line: rgba(11, 30, 54, .12);
+    --me: var(--olive);
+    --on-me: var(--navy);
+    --head: var(--olive-soft);
+    --on-head: var(--navy);
+    --key: var(--olive);
+    --on-key: var(--navy);
+    --key-line: rgba(85, 96, 80, .35);
+    --tag: var(--olive-soft);
+    --ava: var(--green);
+  }
+  :root[data-theme="dark"] {
+    --olive: #46533C;
+    --olive-soft: #1E2B25;
+    --page: #040B14;
+    --bg: #07121F;
+    --ink: var(--sand);
+    --ink-soft: rgba(239, 235, 229, .68);
+    --bubble: #0F2540;
+    --bubble-line: rgba(239, 235, 229, .18);
+    --me: #46533C;
+    --on-me: var(--sand);
+    --head: #1E2B25;
+    --on-head: var(--sand);
+    --key: #46533C;
+    --on-key: var(--sand);
+    --key-line: rgba(239, 235, 229, .18);
+    --tag: rgba(239, 235, 229, .10);
+    --ava: #8DA086;
+  }
+
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: var(--font); background: var(--page); color: var(--ink); line-height: 1.5; }
+  button { font: inherit; color: inherit; cursor: pointer; }
+
+  .page { max-width: 1240px; margin: 0 auto; padding: 32px 16px 64px; }
+  .page > h1 { margin: 0 0 4px; font-size: 24px; }
+  .lead { margin: 0 0 24px; color: var(--ink-soft); max-width: 62ch; }
+
+  .rules { max-width: 62ch; margin: 0 0 40px; padding: 14px 16px; border-radius: 20px; background: var(--bg); border: 1px solid var(--bubble-line); font-size: 14px; }
+  .rules h2 { margin: 0 0 6px; font-size: 15px; }
+  .rules ul { margin: 0; padding-left: 20px; }
+  .rules li { margin: 0 0 4px; }
+
+  .scenes { display: grid; gap: 40px 32px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 375px), 1fr)); align-items: start; }
+  .scene h2 { display: flex; align-items: center; gap: 10px; margin: 0 0 12px; font-size: 17px; }
+  .num { flex: none; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center;
+         background: var(--green); color: #fff; font-size: 14px; font-weight: 700; }
+  :root[data-theme="dark"] .num { background: #8DA086; color: var(--navy); }
+  .who { margin: 0 0 6px; font-size: 13px; font-weight: 600; color: var(--ink-soft); }
+
+  /* Окно чата */
+  .chat { width: 100%; max-width: 375px; border-radius: 24px; overflow: hidden; background: var(--bg); }
+  .bar { display: flex; align-items: center; gap: 10px; padding: 12px 16px; background: var(--head); color: var(--on-head); }
+  .ava { width: 36px; height: 36px; border-radius: 50%; background: var(--ava); color: #fff; display: grid; place-items: center; font-weight: 700; }
+  :root[data-theme="dark"] .ava { color: var(--navy); }
+  .bar b { display: block; font-size: 15px; line-height: 1.2; }
+  .bar span { font-size: 12px; opacity: .72; }
+  .feed { display: flex; flex-direction: column; gap: 8px; padding: 16px 12px 20px; }
+
+  .msg { max-width: 92%; padding: 10px 14px; border-radius: 18px; font-size: 15px; background: var(--bubble); border: 1px solid var(--bubble-line); border-bottom-left-radius: 6px; }
+  .msg p { margin: 0 0 10px; }
+  .msg p:last-child { margin: 0; }
+  .msg b { font-weight: 700; }
+  .msg.me { align-self: flex-end; background: var(--me); color: var(--on-me); border-color: transparent; border-bottom-left-radius: 18px; border-bottom-right-radius: 6px; }
+
+  .keys { display: flex; flex-direction: column; gap: 6px; max-width: 92%; margin-top: -2px; }
+  .keys .row { display: flex; gap: 6px; }
+  .kb { flex: 1; min-height: 44px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--key-line); background: var(--key); color: var(--on-key);
+        font-weight: 600; font-size: 15px; text-align: center; }
+  .kb.danger { background: var(--red); color: #fff; border-color: transparent; }
+  .tap { align-self: center; margin: 4px 0; padding: 2px 10px; font-size: 12px; color: var(--ink-soft); border-radius: 999px; background: var(--tag); }
+
+  /* Заметка для разработчика */
+  .note { max-width: 375px; margin: 12px 0 0; font-size: 13px; color: var(--ink-soft); }
+  .note p { margin: 0 0 4px; }
+  .note b { color: var(--ink); }
+
+  /* Одна сцена */
+  body.single .scene { display: none; }
+  body.single .scene.on { display: block; grid-column: 1 / -1; }
+  body.single .scenes { display: block; }
+  body.single .page > .lead, body.single .rules { display: none; }
+
+  /* Одна сцена без рамки: чистый экран телефона для экспорта */
+  body.bare { background: var(--bg); }
+  body.bare .page { max-width: none; padding: 0; }
+  body.bare .page > h1, body.bare .scene h2, body.bare .note, body.bare .who { display: none; }
+  body.bare .chat { max-width: none; width: 375px; min-height: 100vh; border-radius: 0; }
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>Сводка и карточка в боте</h1>
+  <p class="lead">Сообщения бота после урока. Кнопки под сообщением — встроенная клавиатура MAX. Подпись «Нажато» показывает, какая кнопка вызвала следующее сообщение. Имена и темы взяты из демо-урока (<code>webapp/mock/</code>).</p>
+
+  <div class="rules">
+    <h2>Как устроены тексты</h2>
+    <ul>
+      <li>Сводка помещается на один экран телефона: сообщение и кнопки видны без прокрутки, даже когда в классе тридцать человек.</li>
+      <li>Форматирование в MAX ограничено, поэтому в тексте только жирные названия блоков и пустая строка между блоками. Ни таблиц, ни заголовков, ни цвета, ни эмодзи.</li>
+      <li>Пустой блок не показываем. Нет выпавших или слабых тем — блока в сообщении нет.</li>
+      <li>Длинные списки обрезаем: четыре имени, дальше «и ещё N». Полный список — в мини-приложении, на экране «Ученики».</li>
+      <li>Карточка пишет про ученика на «ты», без оценок, баллов и сравнения с классом. Глаголов в прошедшем времени нет: пол ученика бот не знает.</li>
+    </ul>
+  </div>
+
+  <div class="scenes">
+
+    <section class="scene" id="s1" data-scene="1">
+      <h2><span class="num">1</span>Сводка учителю</h2>
+      <div><div>
+        <p class="who">Учитель</p>
+        <div class="chat" role="group" aria-label="Чат с ботом">
+          <div class="bar"><div class="ava" aria-hidden="true">И</div><div><b>Идея фикс</b><span>бот</span></div></div>
+          <div class="feed">
+            <div class="msg">
+              <p><b>Итоги урока: 10А, история</b><br>Реформы Петра&nbsp;I, 38&nbsp;минут, 6&nbsp;учеников</p>
+              <p><b>Вытянули урок</b><br>Иван&nbsp;И., Мария&nbsp;С.</p>
+              <p><b>Выпали</b><br>Дмитрий&nbsp;П.</p>
+              <p><b>Класс не&nbsp;уверен</b><br>Табель о&nbsp;рангах, Коллегии</p>
+              <p><b>Спросить в&nbsp;следующий раз</b><br>Артём&nbsp;К.&nbsp;— Реформы Петра&nbsp;I<br>«Зачем Петру понадобился Табель о&nbsp;рангах?»</p>
+              <p>Дмитрий&nbsp;П.&nbsp;— Северная война<br>«Что дал России выход к&nbsp;Балтийскому морю?»</p>
+            </div>
+            <div class="keys"><div class="row"><button class="kb" type="button">Ученики</button><button class="kb" type="button">Начать урок</button></div></div>
+          </div>
+        </div>
+        <div class="note"><p><b>Когда:</b> через 30–45 секунд после «Завершить урок», одним сообщением. Блоки идут в порядке важности для учителя: кто и о чём спросить — внизу, ближе к кнопкам.</p><p><b>Откуда:</b> «Вытянули урок» — <code>carried</code>, «Выпали» — <code>dropped</code>, «Класс не уверен» — <code>weak_topics</code>, «Спросить в следующий раз» — <code>ask_next</code>. Вопрос готовый: учитель может задать его как есть.</p><p><b>Строка под заголовком:</b> тема, длительность и число учеников. В <code>Summary</code> этих полей нет, их берём из самого урока.</p><p><b>«Ученики»:</b> экран «Ученики» в мини-приложении. <b>«Начать урок»:</b> шаг 10 регистрации.</p></div>
+      </div></div>
+    </section>
+
+    <section class="scene" id="s2" data-scene="2">
+      <h2><span class="num">2</span>Пустые блоки скрыты</h2>
+      <div><div>
+        <p class="who">Учитель, первый урок класса</p>
+        <div class="chat" role="group" aria-label="Чат с ботом">
+          <div class="bar"><div class="ava" aria-hidden="true">И</div><div><b>Идея фикс</b><span>бот</span></div></div>
+          <div class="feed">
+            <div class="msg">
+              <p><b>Итоги урока: 10А, история</b><br>Реформы Петра&nbsp;I, 38&nbsp;минут, 6&nbsp;учеников</p>
+              <p><b>Вытянули урок</b><br>Иван&nbsp;И., Мария&nbsp;С.</p>
+              <p><b>Класс не&nbsp;уверен</b><br>Табель о&nbsp;рангах</p>
+            </div>
+            <div class="keys"><div class="row"><button class="kb" type="button">Ученики</button><button class="kb" type="button">Начать урок</button></div></div>
+          </div>
+        </div>
+        <div class="note"><p><b>Когда:</b> пустые <code>dropped</code> и <code>ask_next</code>. Рекомендации «кого о чём спросить» появляются со второго-третьего урока (<code>docs/concept.md</code>, §«Сентябрь»), на первом блока нет, и сообщение об этом не пишем.</p><p>Сообщение без блока выглядит так же цельно, как полное: заголовка «Выпали: никто» нет.</p></div>
+      </div></div>
+    </section>
+
+    <section class="scene" id="s3" data-scene="3">
+      <h2><span class="num">3</span>Выводов нет</h2>
+      <div><div>
+        <p class="who">Учитель</p>
+        <div class="chat" role="group" aria-label="Чат с ботом">
+          <div class="bar"><div class="ava" aria-hidden="true">И</div><div><b>Идея фикс</b><span>бот</span></div></div>
+          <div class="feed">
+            <div class="msg">
+              <p><b>Итоги урока: 10А, история</b><br>Реформы Петра&nbsp;I, 6&nbsp;минут, 6&nbsp;учеников</p>
+              <p>Для сводки данных пока мало: нужны хотя бы несколько реплик учеников.</p>
+            </div>
+            <div class="keys"><div class="row"><button class="kb" type="button">Начать урок</button></div></div>
+          </div>
+        </div>
+        <div class="note"><p><b>Когда:</b> все четыре списка пустые. Сообщение приходит, чтобы учитель не ждал сводку зря. Нельзя молчать: отсутствие сводки читается как поломка.</p></div>
+      </div></div>
+    </section>
+
+    <section class="scene" id="s4" data-scene="4">
+      <h2><span class="num">4</span>Класс на 28 человек</h2>
+      <div><div>
+        <p class="who">Учитель</p>
+        <div class="chat" role="group" aria-label="Чат с ботом">
+          <div class="bar"><div class="ava" aria-hidden="true">И</div><div><b>Идея фикс</b><span>бот</span></div></div>
+          <div class="feed">
+            <div class="msg">
+              <p><b>Итоги урока: 10А, история</b><br>Реформы Петра&nbsp;I, 40&nbsp;минут, 28&nbsp;учеников</p>
+              <p><b>Вытянули урок</b><br>Иван&nbsp;И., Мария&nbsp;С., Пётр&nbsp;Н., Ольга&nbsp;Т. и&nbsp;ещё&nbsp;3</p>
+              <p><b>Выпали</b><br>Дмитрий&nbsp;П., Кирилл&nbsp;Б., Анна&nbsp;Ш., Егор&nbsp;В. и&nbsp;ещё&nbsp;5</p>
+              <p><b>Класс не&nbsp;уверен</b><br>Табель о&nbsp;рангах, Коллегии, Северная война</p>
+              <p><b>Спросить в&nbsp;следующий раз</b><br>Артём&nbsp;К.&nbsp;— Реформы Петра&nbsp;I<br>«Зачем Петру понадобился Табель о&nbsp;рангах?»</p>
+              <p>Дмитрий&nbsp;П.&nbsp;— Северная война<br>«Что дал России выход к&nbsp;Балтийскому морю?»</p>
+              <p>Анна&nbsp;Ш.&nbsp;— Коллегии<br>«Чем коллегии отличались от&nbsp;приказов?»</p>
+            </div>
+            <div class="keys"><div class="row"><button class="kb" type="button">Ученики</button><button class="kb" type="button">Начать урок</button></div></div>
+          </div>
+        </div>
+        <div class="note"><p><b>Пределы:</b> до четырёх имён в строке, до трёх тем, до трёх вопросов. Остальное отрезаем: «и ещё 3» ведёт на экран «Ученики». Слабых тем бот отдаёт по важности, поэтому обрезаются последние.</p><p>Сообщение остаётся в пределах одного экрана телефона.</p></div>
+      </div></div>
+    </section>
+
+    <section class="scene" id="s5" data-scene="5">
+      <h2><span class="num">5</span>Карточка ученика</h2>
+      <div><div>
+        <p class="who">Ученик</p>
+        <div class="chat" role="group" aria-label="Чат с ботом">
+          <div class="bar"><div class="ava" aria-hidden="true">И</div><div><b>Идея фикс</b><span>бот</span></div></div>
+          <div class="feed">
+            <div class="msg">
+              <p><b>Твоя карточка: 10А, история</b><br>Реформы Петра&nbsp;I</p>
+              <p><b>Что получилось</b><br>Ответ про строительство флота, когда к&nbsp;тебе обратились</p>
+              <p><b>Что повторить</b><br>Табель о&nbsp;рангах: зачем он понадобился и&nbsp;что изменил</p>
+              <p>Карточка не&nbsp;показывается классу.</p>
+            </div>
+          </div>
+        </div>
+        <div class="note"><p><b>Когда:</b> вместе со сводкой учителю, каждому ученику отдельно. Кнопок нет: карточку читают и закрывают.</p><p><b>Откуда:</b> «Что получилось» — <code>went_well</code>, «Что повторить» — <code>to_repeat</code>. Поле <code>level</code> в тексте не используем: ступень ученик видел в звонке, а в карточке она читается как оценка.</p><p><b>Пол:</b> бот его не знает, поэтому ответ описан существительным («Ответ про…», «Точное объяснение…»), а не «Ты ответил». Фёдору: так же просить писать модель.</p><p><b>Не отправляем</b> ученику, у которого учитель выключил аналитику.</p></div>
+      </div></div>
+    </section>
+
+    <section class="scene" id="s6" data-scene="6">
+      <h2><span class="num">6</span>Карточка с одним блоком</h2>
+      <div><div>
+        <p class="who">Ученик</p>
+        <div class="chat" role="group" aria-label="Чат с ботом">
+          <div class="bar"><div class="ava" aria-hidden="true">И</div><div><b>Идея фикс</b><span>бот</span></div></div>
+          <div class="feed">
+            <div class="msg">
+              <p><b>Твоя карточка: 10А, история</b><br>Реформы Петра&nbsp;I</p>
+              <p><b>Что повторить</b><br>Северная война и&nbsp;её итоги</p>
+              <p>Карточка не&nbsp;показывается классу.</p>
+            </div>
+          </div>
+        </div>
+        <div class="note"><p><b>Когда:</b> <code>went_well</code> пуст, например, ученик молчал весь урок. Блок «Что получилось» не показываем, придуманных похвал нет.</p><p><b>Оба списка пустые:</b> карточку не отправляем. Пустая карточка хуже тишины.</p></div>
+      </div></div>
+    </section>
+
+    <section class="scene" id="s7" data-scene="7">
+      <h2><span class="num">7</span>Сводка ещё готовится</h2>
+      <div><div>
+        <p class="who">Учитель</p>
+        <div class="chat" role="group" aria-label="Чат с ботом">
+          <div class="bar"><div class="ava" aria-hidden="true">И</div><div><b>Идея фикс</b><span>бот</span></div></div>
+          <div class="feed">
+            <div class="msg me">Где сводка?</div>
+            <div class="msg">
+              <p>Сводка по&nbsp;10А, история готовится. Обычно это минута. Я&nbsp;напишу, когда будет готова.</p>
+            </div>
+          </div>
+        </div>
+        <div class="note"><p><b>Когда:</b> учитель написал боту после «Завершить урок», но сводка ещё не пришла. Кнопок нет: ждать можно, нажимать нечего.</p></div>
+      </div></div>
+    </section>
+
+    <section class="scene" id="s8" data-scene="8">
+      <h2><span class="num">8</span>Сводку собрать не удалось</h2>
+      <div><div>
+        <p class="who">Учитель</p>
+        <div class="chat" role="group" aria-label="Чат с ботом">
+          <div class="bar"><div class="ava" aria-hidden="true">И</div><div><b>Идея фикс</b><span>бот</span></div></div>
+          <div class="feed">
+            <div class="msg">
+              <p>Сводку по&nbsp;10А, история собрать не&nbsp;удалось. Попробуйте ещё раз.</p>
+            </div>
+            <div class="keys"><div class="row"><button class="kb" type="button">Собрать снова</button></div></div>
+            <div class="tap">Нажато: «Собрать снова»</div>
+            <div class="msg">
+              <p>Собираю сводку. Напишу, когда будет готова.</p>
+            </div>
+          </div>
+        </div>
+        <div class="note"><p><b>Когда:</b> модель не ответила или вернула неразбираемый ответ. Ученикам в этом случае ничего не приходит. «Собрать снова» повторяет запрос по тому же уроку.</p></div>
+      </div></div>
+    </section>
+
+    <section class="scene" id="s9" data-scene="9">
+      <h2><span class="num">9</span>Меню учителя: последняя сводка</h2>
+      <div><div>
+        <p class="who">Учитель</p>
+        <div class="chat" role="group" aria-label="Чат с ботом">
+          <div class="bar"><div class="ava" aria-hidden="true">И</div><div><b>Идея фикс</b><span>бот</span></div></div>
+          <div class="feed">
+            <div class="msg">
+              <p>Ваши классы:<br>10А, история&nbsp;— 24&nbsp;ученика<br>9Б, история&nbsp;— 18&nbsp;учеников</p>
+            </div>
+            <div class="keys">
+              <div class="row"><button class="kb" type="button">Последняя сводка</button></div>
+              <div class="row"><button class="kb" type="button">Начать урок</button><button class="kb" type="button">Открыть классы</button></div>
+              <div class="row"><button class="kb" type="button">Пригласить</button><button class="kb" type="button">Новый класс</button></div>
+              <div class="row"><button class="kb danger" type="button">Удалить класс</button></div>
+            </div>
+          </div>
+        </div>
+        <div class="note"><p><b>Когда:</b> знакомый учитель пишет боту (шаг 12 регистрации), и у него уже была сводка. Кнопка «Последняя сводка» повторяет сводку из сцены 1. Если классов несколько, бот сначала спрашивает класс, как в шаге 11. Пока сводок не было, кнопки нет. Остальные кнопки те же, что в шаге 12.</p></div>
+      </div></div>
+    </section>
+
+  </div>
+</div>
+<script>
+  (function () {
+    var q = new URLSearchParams(location.search);
+    var t = q.get("theme");
+    if (t !== "dark" && t !== "light") t = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    document.documentElement.setAttribute("data-theme", t);
+    var scene = q.get("scene");
+    var el = scene && document.querySelector('.scene[data-scene="' + scene + '"]');
+    if (el) {
+      document.body.classList.add("single");
+      el.classList.add("on");
+      if (q.get("bare") === "1") document.body.classList.add("bare");
+    }
+  })();
+</script>
+</body>
+</html>
