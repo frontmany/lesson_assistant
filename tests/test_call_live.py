@@ -201,3 +201,26 @@ def test_virtual_class_plays_and_live_teacher_stays(tmp_path):
     assert counts.get(virtual_id("teacher"), 0) > 60
     assert counts.get(virtual_id("artem_k"), 0) > 60
     assert counts.get("teacher", 0) > 60
+
+
+def test_two_lessons_do_not_hear_each_other():
+    async def scenario():
+        heard: dict[str, set[str]] = {"first": set(), "second": set()}
+
+        async def listen_to(lesson_id, key):
+            async for who, _ in listen(lesson_id):
+                heard[key].add(who)
+
+        async with speaker("artem_k"):  # говорит в уроке LESSON
+            listeners = [
+                asyncio.create_task(listen_to(LESSON, "first")),
+                asyncio.create_task(listen_to(LESSON + "-other", "second")),
+            ]
+            await asyncio.sleep(3)
+            for task in listeners:
+                task.cancel()
+            await asyncio.gather(*listeners, return_exceptions=True)
+        return heard
+
+    heard = asyncio.run(scenario())
+    assert heard == {"first": {"artem_k"}, "second": set()}
