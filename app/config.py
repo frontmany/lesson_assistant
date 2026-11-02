@@ -29,6 +29,10 @@ class Settings:
     max_bot_mode: str = os.getenv("MAX_BOT_MODE", "polling")
     # имя бота нужно кнопке, которая открывает его мини-приложение
     max_bot_name: str = os.getenv("MAX_BOT_NAME", "")
+    # подпись сессий мини-приложения (#24); без неё — производная от токена бота
+    session_secret: str = os.getenv("SESSION_SECRET", "")
+    # разработка: участника можно назвать в адресе (?id=), без данных запуска MAX
+    dev_auth: bool = os.getenv("DEV_AUTH", "0") == "1"
 
     whisper_model_teacher: str = os.getenv("WHISPER_MODEL_TEACHER", "small")
     # TODO(#55): выбрать по сравнению на живых фразах (analytics/compare_asr.py)
