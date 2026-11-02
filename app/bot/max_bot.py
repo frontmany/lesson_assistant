@@ -215,7 +215,7 @@ class Bot:
         if startable:
             hint = "Чтобы начать урок, нажмите «Начать урок»: откроется звонок, а ученики получат приглашение."
         else:
-            hint = "Урок можно начать, когда в классе будет хотя бы один ученик. Позвать их — «Пригласить»."
+            hint = "Урок можно начать, когда в классе будет хотя бы один ученик."
         self.api.send(user_id, "Ваши классы:\n" + "\n".join(lines) + "\n\n" + hint, [b for b in [
             row,
             [callback("Пригласить", "invite"), callback("Новый класс", "newclass")],
@@ -246,7 +246,7 @@ class Bot:
 
     def ask_class_name(self, user_id: int, first: bool) -> None:
         db.set_dialog(user_id, "class_name")
-        self.api.send(user_id, f"Создадим {'первый ' if first else ''}класс. Название и предмет. Например: 10А, история.")
+        self.api.send(user_id, f"Создадим {'первый ' if first else ''}класс. Напишите название и предмет через запятую. Например: 10А, история.")
 
     def create_class(self, user: dict, body: str) -> None:
         name, _, subject = (part.strip() for part in body.partition(","))
