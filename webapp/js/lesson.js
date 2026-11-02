@@ -1,6 +1,8 @@
 // Общий код экранов: состав класса и поток событий урока.
 
-export const LESSON_ID = "10a-history-05";
+// Урок из адреса: его открывает стартовая страница мини-приложения (#24).
+// Без параметра — урок демо-класса из data/demo_lesson, для разработки
+export const LESSON_ID = new URLSearchParams(location.search).get("lesson") ?? "10a-history-05";
 
 export const LEVEL_LABELS = {
   1: "Пока тихо",

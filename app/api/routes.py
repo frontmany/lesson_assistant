@@ -1,20 +1,29 @@
 """REST API урока."""
 
+import asyncio
+import logging
+
 from fastapi import APIRouter, HTTPException
 
 from app import mocks
+from app.bot import max_bot
 from app.call import participant_token
 from app.config import settings
+from app.db import classes
 from app.models import AnalyticsState, JoinInfo, Roster, StudentCard, Summary
 from app.pipeline import runner
 from app.sources import virtual_class
 
 router = APIRouter()
+log = logging.getLogger(__name__)
 
 
 def _roster(lesson_id: str) -> Roster:
-    # TODO(Ярослав): брать состав из data/demo_lesson/roster.json или из БД
-    return Roster.model_validate(mocks.load("roster.json"))
+    """Состав урока из базы: класс урока и его действующие участники (#44)."""
+    roster = classes.lesson_roster(lesson_id)
+    if roster is None:
+        raise HTTPException(404, "Такого урока нет")
+    return roster
 
 
 def _lesson_roster(lesson_id: str, virtual: bool) -> Roster:
@@ -62,14 +71,34 @@ def join(lesson_id: str, participant_id: str):
     )
 
 
+# TODO(Фёдор, #24): «Начать урок», старт, конец урока и виртуальный класс — только учителю класса
+@router.post("/classes/{class_id}/lessons")
+def lesson_for_class(class_id: int):
+    """«Начать урок» в боте: урок класса, идущий или новый. Мини-приложение открывает его звонок."""
+    c = classes.get_class(class_id)
+    if c is None or c.deleted_at is not None:
+        raise HTTPException(404, "Такого класса нет")
+    return {"lesson_id": classes.lesson_for_class(class_id).id}
+
+
 @router.post("/lessons/{lesson_id}/start")
 async def start(lesson_id: str, virtual: bool = False):
-    """Учитель начал урок: ассистент заходит в звонок и начинает слушать.
+    """Учитель вошёл в звонок: ассистент заходит и слушает, ученики класса получают «Урок начался».
 
-    virtual=true — в составе урока ученики из записи: так ассистент засчитает
-    ботов, которых заводит `python -m app.cli virtual-class`.
+    Демо-урок начинается сразу с записанным классом. virtual=true — в составе
+    урока ученики из записи: так ассистент засчитает ботов, которых заводит
+    `python -m app.cli virtual-class`.
     """
+    lesson = classes.get_lesson(lesson_id)
+    if lesson is not None and lesson.demo:
+        result = await start_virtual_class(lesson_id)
+        return {"lesson_id": lesson_id, "started": result["playing"]}
     started = runner.start(lesson_id, _lesson_roster(lesson_id, virtual))
+    if started:
+        runner.when_finished(lesson_id, classes.mark_ended)
+    if classes.mark_live(lesson_id):
+        # рассылка ходит в API MAX, цикл событий она не держит
+        asyncio.get_running_loop().run_in_executor(None, max_bot.lesson_started, lesson_id)
     return {"lesson_id": lesson_id, "started": started}
 
 
@@ -83,7 +112,9 @@ async def start_virtual_class(lesson_id: str):
     demo, tracks = _demo()
     if runner.is_running(lesson_id) and runner.roster_of(lesson_id).virtual_teacher is None:
         raise HTTPException(409, "Урок уже идёт без виртуального класса: завершите его и начните заново")
-    runner.start(lesson_id, virtual_class.lesson_roster(_roster(lesson_id), demo))
+    if runner.start(lesson_id, virtual_class.lesson_roster(_roster(lesson_id), demo)):
+        runner.when_finished(lesson_id, classes.mark_ended)
+    classes.mark_live(lesson_id)
     playing = runner.play_virtual(lesson_id, demo, tracks)
     return {"lesson_id": lesson_id, "playing": playing}
 
@@ -99,6 +130,7 @@ async def stop_virtual_class(lesson_id: str):
 async def end(lesson_id: str):
     """Учитель нажал «Завершить урок»: ответ приходит, когда очередь дораспознана и ассистент вышел."""
     ended = await runner.end(lesson_id)
+    classes.mark_ended(lesson_id)
     return {"lesson_id": lesson_id, "ended": ended}
 
 

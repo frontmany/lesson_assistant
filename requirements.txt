@@ -15,6 +15,10 @@ livekit-api==1.2.1
 # бот MAX и LLM
 httpx==0.28.1
 
+# классы, участники и уроки (#44): SQLite локально, PostgreSQL в compose
+sqlalchemy==2.0.36
+psycopg[binary]==3.2.3
+
 # распознавание речи: faster-whisper тянет ctranslate2, onnxruntime и av,
 # а Silero VAD входит в него как ONNX-модель (без PyTorch)
 faster-whisper==1.1.1
