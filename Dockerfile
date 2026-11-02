@@ -9,15 +9,17 @@ WORKDIR /srv
 COPY requirements.txt .
 RUN pip install -r requirements.txt
 
-# Модель распознавания. С PRELOAD_MODEL=1 она скачивается при сборке,
+# Модели распознавания. С PRELOAD_MODEL=1 они скачиваются при сборке,
 # и запуск контейнера не зависит от сети.
 # TODO(Ярослав): включить по умолчанию, когда появится pipeline/asr.py
-ARG WHISPER_MODEL=base
+ARG WHISPER_MODEL_TEACHER=small
+ARG WHISPER_MODEL_STUDENT=small
 ARG PRELOAD_MODEL=0
-ENV WHISPER_MODEL=${WHISPER_MODEL} \
+ENV WHISPER_MODEL_TEACHER=${WHISPER_MODEL_TEACHER} \
+    WHISPER_MODEL_STUDENT=${WHISPER_MODEL_STUDENT} \
     WHISPER_DOWNLOAD_ROOT=/srv/models
 RUN if [ "$PRELOAD_MODEL" = "1" ]; then \
-      python -c "from faster_whisper import WhisperModel; WhisperModel('${WHISPER_MODEL}', device='cpu', compute_type='int8', download_root='/srv/models')"; \
+      python -c "import onnx_asr; from faster_whisper import WhisperModel; [onnx_asr.load_model(m, '/srv/models/' + m) if m.startswith('gigaam') else WhisperModel(m, device='cpu', compute_type='int8', download_root='/srv/models') for m in {'${WHISPER_MODEL_TEACHER}', '${WHISPER_MODEL_STUDENT}'}]"; \
     fi
 
 COPY app ./app
