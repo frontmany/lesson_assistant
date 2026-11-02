@@ -139,6 +139,16 @@ def test_socket_without_session_is_closed(lesson):
             ws.receive_json()
 
 
+def test_my_classes_for_start_page(lesson):
+    c, lesson_id = lesson
+    teacher = client.get("/api/me/classes", headers=sign_in(TEACHER)).json()
+    assert teacher == [{"id": c.id, "name": "10А", "subject": "история", "role": "teacher", "students": 2, "lesson": None}]
+    db.mark_live(lesson_id)
+    student = client.get("/api/me/classes", headers=sign_in(IVAN)).json()
+    assert student[0]["role"] == "student" and student[0]["lesson"] == lesson_id
+    assert client.get("/api/me/classes", headers=sign_in(STRANGER)).json() == []
+
+
 def test_demo_from_start_page(lesson):
     headers = sign_in(MARIA, first="Мария", last="Смирнова")
     lesson_id = client.post("/api/demo", headers=headers).json()["lesson_id"]
