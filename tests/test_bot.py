@@ -1,12 +1,12 @@
-"""Логика бота MAX без сети: обновления на входе, вызовы API на выходе."""
+"""Бот MAX без сети: обновления на входе, сообщения на выходе (#44, шаги — design/bot-registration.html)."""
 
-from app.bot.max_bot import Bot
-from app.config import settings
-from app.models import Roster
+import pytest
 
-ROSTER = Roster.model_validate_json((settings.demo_lesson_dir / "roster.json").read_text(encoding="utf-8"))
-TEACHER = ROSTER.teacher.max_user_id
-IVAN, STRANGER = 111, 999
+from app.bot.max_bot import Bot, students_count
+from app.db import classes as db
+
+BOT = "ideya_fiks_161_bot"
+TEACHER, IVAN, MARIA = 100, 111, 222
 
 
 class FakeApi:
@@ -17,71 +17,307 @@ class FakeApi:
     def send(self, user_id, text, buttons=None):
         self.sent.append((user_id, text, buttons))
 
-    def answer(self, callback_id, notification):
-        self.answers.append((callback_id, notification))
+    def answer(self, callback_id, notification=None, message=None):
+        self.answers.append((callback_id, notification or message))
+
+    def to(self, user_id):
+        return [(text, buttons) for u, text, buttons in self.sent if u == user_id]
 
 
-def make():
-    roster = ROSTER.model_copy(deep=True)
-    roster.students[0].max_user_id = IVAN  # Иван И.
+def user(user_id, first="Иван", last="Иванов"):
+    return {"user_id": user_id, "first_name": first, "last_name": last, "is_bot": False}
+
+
+def started(user_id, payload=None, **name):
+    return {"update_type": "bot_started", "user": user(user_id, **name), "payload": payload}
+
+
+def text(user_id, body, is_bot=False, **name):
+    return {"update_type": "message_created",
+            "message": {"sender": {**user(user_id, **name), "is_bot": is_bot}, "body": {"text": body}}}
+
+
+def press(user_id, payload, **name):
+    return {"update_type": "message_callback",
+            "callback": {"callback_id": "cb", "payload": payload, "user": user(user_id, **name)}}
+
+
+def buttons(message):
+    return [b for row in (message[1] or []) for b in row]
+
+
+def payload_of(message, title):
+    return next(b.get("payload") for b in buttons(message) if b["text"] == title)
+
+
+@pytest.fixture
+def bot():
     api = FakeApi()
-    return Bot(api, roster, "ideya_fiks_161_bot"), api
+    return Bot(api, BOT), api
 
 
-def started(user_id):
-    return {"update_type": "bot_started", "user": {"user_id": user_id, "first_name": "x", "is_bot": False}, "chat_id": 1}
+def make_class(b, title="10А, история"):
+    teacher = {"first": "Елена", "last": "Викторовна"}
+    b.handle(press(TEACHER, "teacher", **teacher))
+    b.handle(text(TEACHER, title, **teacher))
+    return db.classes_of(TEACHER)[-1][0]
 
 
-def text(user_id, body, is_bot=False):
-    return {"update_type": "message_created", "message": {"sender": {"user_id": user_id, "is_bot": is_bot}, "body": {"text": body}}}
+def join(b, user_id, code, **name):
+    b.handle(started(user_id, code, **name))
+    b.handle(press(user_id, f"me:{db.find_by_code(code)[1].id}", **name))
 
 
-def test_teacher_is_recognized_and_gets_button_that_opens_mini_app():
-    bot, api = make()
-    bot.handle(started(TEACHER))
-    user, message, buttons = api.sent[-1]
-    assert user == TEACHER
-    assert message.startswith("Вы учитель 10А")
-    assert buttons == [[{"type": "open_app", "text": "Начать урок", "web_app": "ideya_fiks_161_bot", "payload": ROSTER.lesson_id}]]
+def test_stranger_chooses_teacher_student_or_demo(bot):
+    b, api = bot
+    b.handle(started(MARIA))
+    message = api.to(MARIA)[-1]
+    assert message[0] == "Здравствуйте! Я помогаю вести уроки в MAX. Кто вы?"
+    assert [x["text"] for x in buttons(message)] == ["Я учитель", "Я ученик", "Посмотреть демо"]
 
 
-def test_student_is_recognized_without_choosing_a_role():
-    bot, api = make()
-    bot.handle(text(IVAN, "/start"))
-    _, message, buttons = api.sent[-1]
-    assert message.startswith("Вы Иван И., 10А")
-    assert buttons[0][0]["text"] == "Войти в урок"
+def test_teacher_creates_class_and_gets_code_and_link(bot):
+    b, api = bot
+    b.handle(press(TEACHER, "teacher"))
+    assert api.to(TEACHER)[-1][0] == "Создадим первый класс. Напишите название и предмет через запятую. Например: 10А, история."
+    b.handle(text(TEACHER, "10А,  История "))
+    c = db.classes_of(TEACHER)[0][0]
+    assert (c.name, c.subject) == ("10А", "история")
+    created, invite = api.to(TEACHER)[-2:]
+    assert created[0] == "Создан класс 10А, история."
+    assert f"https://max.ru/{BOT}?start={c.invite_code}" in invite[0]
+    assert f"Код класса: {c.invite_code}" in invite[0]
 
 
-def test_any_message_gets_the_same_answer():
-    bot, api = make()
-    bot.handle(text(IVAN, "привет"))
-    assert api.sent[-1][1].startswith("Вы Иван И.")
+def test_back_returns_to_role_choice(bot):
+    b, api = bot
+    b.handle(press(MARIA, "teacher"))
+    assert [x["text"] for x in buttons(api.to(MARIA)[-1])] == ["Назад"]
+    b.handle(press(MARIA, "back"))
+    assert api.to(MARIA)[-1][0] == "Здравствуйте! Я помогаю вести уроки в MAX. Кто вы?"
+    # бот больше не ждёт название: обычный текст не создаёт класс
+    b.handle(text(MARIA, "10А, история"))
+    assert db.classes_of(MARIA) == []
+    b.handle(press(MARIA, "student"))
+    b.handle(press(MARIA, "back"))
+    assert api.to(MARIA)[-1][0] == "Здравствуйте! Я помогаю вести уроки в MAX. Кто вы?"
 
 
-def test_stranger_is_not_let_in_and_learns_own_id():
-    bot, api = make()
-    bot.handle(started(STRANGER))
-    _, message, buttons = api.sent[-1]
-    assert "нет в списке класса" in message
-    assert str(STRANGER) in message
-    assert buttons is None
+def test_student_who_pressed_teacher_sends_code(bot):
+    b, api = bot
+    c = make_class(b)
+    b.handle(press(IVAN, "teacher"))
+    b.handle(text(IVAN, c.invite_code))
+    assert api.to(IVAN)[-1][0] == "Вы входите в класс 10А. Вас зовут Иван Иванов?"
+    assert len(db.classes_of(TEACHER)) == 1 and db.classes_of(IVAN) == []
 
 
-def test_bots_are_ignored():
-    bot, api = make()
-    bot.handle(text(STRANGER, "/start", is_bot=True))
+def test_class_name_without_subject_is_asked_again(bot):
+    b, api = bot
+    b.handle(press(TEACHER, "teacher"))
+    b.handle(text(TEACHER, "10А"))
+    assert "через запятую" in api.to(TEACHER)[-1][0]
+    assert db.classes_of(TEACHER) == []
+
+
+def test_student_joins_by_link_and_teacher_is_notified(bot):
+    b, api = bot
+    c = make_class(b)
+    b.handle(started(IVAN, c.invite_code))
+    question = api.to(IVAN)[-1]
+    assert question[0] == "Вы входите в класс 10А. Вас зовут Иван Иванов?"
+    b.handle(press(IVAN, payload_of(question, "Это я")))
+    assert api.to(IVAN)[-1][0] == "Готово, вы в классе 10А. Когда начнётся урок, я напишу."
+    note = api.to(TEACHER)[-1]
+    assert note[0] == "Иван И. теперь в классе 10А. Можно начинать урок."
+    assert [x["text"] for x in buttons(note)] == ["Начать урок", "Убрать из класса"]
+    assert buttons(note)[0]["payload"] == f"c{c.id}"
+
+
+def test_student_types_code_with_russian_lookalikes(bot):
+    b, api = bot
+    c = make_class(b)
+    b.handle(press(IVAN, "student"))
+    assert api.to(IVAN)[-1][0] == "Введите код класса. Его назовёт учитель."
+    b.handle(text(IVAN, "ZZZZZZ"))
+    assert api.to(IVAN)[-1][0] == "Такого кода нет. Проверьте и введите ещё раз."
+    lookalike = c.invite_code.lower().translate(str.maketrans("abekmhpctyx", "авекмнрстух"))
+    b.handle(text(IVAN, lookalike))
+    assert api.to(IVAN)[-1][0].startswith("Вы входите в класс 10А")
+
+
+def test_code_readings():
+    assert "K7X2M9" in db.code_candidates("Л7Ч2Ь9")  # русская раскладка
+    assert "K7X2M9" in db.code_candidates("к7х2м9")  # похожие русские буквы
+    assert "K7X2M9" in db.code_candidates(" k7x-2m9 ")
+
+
+def test_student_can_change_name(bot):
+    b, api = bot
+    c = make_class(b)
+    b.handle(started(IVAN, c.invite_code))
+    b.handle(press(IVAN, f"rename:{c.id}"))
+    assert api.to(IVAN)[-1][0] == "Напишите имя и фамилию."
+    b.handle(text(IVAN, "Ваня Петров"))
+    assert db.students_of(c.id)[0].name == "Ваня Петров"
+    assert api.to(TEACHER)[-1][0].startswith("Ваня П. теперь в классе 10А.")
+
+
+def test_teacher_removes_and_returns_student(bot):
+    b, api = bot
+    c = make_class(b)
+    join(b, IVAN, c.invite_code)
+    b.handle(press(TEACHER, payload_of(api.to(TEACHER)[-1], "Убрать из класса")))
+    assert db.students_of(c.id) == []
+    removed = api.to(TEACHER)[-1]
+    assert removed[0] == "Убрано из класса 10А: Иван И."
+    b.handle(press(TEACHER, payload_of(removed, "Вернуть")))
+    assert [m.name for m in db.students_of(c.id)] == ["Иван Иванов"]
+
+
+def test_only_teacher_can_remove(bot):
+    b, _ = bot
+    c = make_class(b)
+    join(b, IVAN, c.invite_code)
+    b.handle(press(MARIA, f"kick:{db.students_of(c.id)[0].id}"))
+    assert db.students_of(c.id) != []
+
+
+def test_student_leaves_and_teacher_learns(bot):
+    b, api = bot
+    c = make_class(b)
+    join(b, IVAN, c.invite_code)
+    b.handle(text(IVAN, "привет"))
+    known = api.to(IVAN)[-1]
+    assert known[0] == "Вы в классе 10А, история. Урок пока не идёт. Я напишу, когда начнётся."
+    b.handle(press(IVAN, payload_of(known, "Выйти из класса")))
+    assert api.to(IVAN)[-1][0] == "Выйти из класса 10А?"
+    b.handle(press(IVAN, f"leave_yes:{c.id}"))
+    assert api.to(IVAN)[-1][0] == "Вы вышли из 10А. Чтобы вернуться, попросите у учителя ссылку."
+    assert api.to(TEACHER)[-1][0] == "Иван И. теперь не в классе 10А."
+    assert db.students_of(c.id) == []
+
+
+def test_new_link_makes_old_code_outdated(bot):
+    b, api = bot
+    c = make_class(b)
+    old = c.invite_code
+    b.handle(press(TEACHER, f"newlink:{c.id}"))
+    assert api.to(TEACHER)[-1][0] == "Создать новую ссылку и код? Старые перестанут работать."
+    b.handle(press(TEACHER, f"newlink_yes:{c.id}"))
+    new = db.get_class(c.id).invite_code
+    assert new != old and f"Новый код: {new}" in api.to(TEACHER)[-1][0]
+    b.handle(started(IVAN, old))
+    outdated = api.to(IVAN)[-1]
+    assert outdated[0] == "Эта ссылка устарела. Попросите у учителя новую ссылку или код."
+    assert [x["text"] for x in buttons(outdated)] == ["Ввести код"]
+
+
+def test_member_with_old_link_is_not_told_it_is_outdated(bot):
+    b, api = bot
+    c = make_class(b)
+    join(b, IVAN, c.invite_code)
+    b.handle(press(TEACHER, f"newlink_yes:{c.id}"))
+    b.handle(started(IVAN, c.invite_code))
+    assert api.to(IVAN)[-1][0].startswith("Вы в классе 10А")
+
+
+def test_class_is_deleted_and_restored(bot):
+    b, api = bot
+    c = make_class(b)
+    join(b, IVAN, c.invite_code)
+    b.handle(press(TEACHER, "delete"))
+    assert api.to(TEACHER)[-1][0] == "Удалить класс 10А? Ученики потеряют доступ."
+    b.handle(press(TEACHER, f"delete_yes:{c.id}"))
+    assert api.to(TEACHER)[-1][0] == "Класс 10А удалён. Вернуть можно в течение 30 дней."
+    b.handle(started(MARIA, c.invite_code))
+    assert api.to(MARIA)[-1][0] == "Этот класс удалён. Спросите у учителя."
+    b.handle(press(TEACHER, f"restore:{c.id}"))
+    assert db.classes_of(TEACHER)[0][0].id == c.id
+    assert [m.name for m in db.students_of(c.id)] == ["Иван Иванов"]
+
+
+def test_known_teacher_sees_classes_and_starts_lesson(bot):
+    b, api = bot
+    c = make_class(b)
+    b.handle(text(TEACHER, "привет"))
+    empty = api.to(TEACHER)[-1]
+    assert empty[0].startswith("Ваши классы:\n10А, история — 0 учеников\n\nУрок можно начать, когда в классе")
+    assert "Начать урок" not in [x["text"] for x in buttons(empty)]  # в пустом классе урок не начать
+    join(b, IVAN, c.invite_code)
+    b.handle(text(TEACHER, "привет"))
+    menu = api.to(TEACHER)[-1]
+    assert menu[0].startswith("Ваши классы:\n10А, история — 1 ученик\n\nЧтобы начать урок")
+    start = next(x for x in buttons(menu) if x["text"] == "Начать урок")
+    assert start == {"type": "open_app", "text": "Начать урок", "web_app": BOT, "payload": f"c{c.id}"}
+
+
+def test_several_classes_are_chosen_first(bot):
+    b, api = bot
+    first = make_class(b)
+    b.handle(press(TEACHER, "newclass"))
+    assert api.to(TEACHER)[-1][0] == "Создадим класс. Напишите название и предмет через запятую. Например: 10А, история."
+    b.handle(text(TEACHER, "9Б, история"))
+    second = db.classes_of(TEACHER)[-1][0]
+    b.handle(press(TEACHER, "invite"))
+    choice = api.to(TEACHER)[-1]
+    assert choice[0] == "Вы в нескольких классах. Выберите класс."
+    assert [x["payload"] for x in buttons(choice)] == [f"invite:{first.id}", f"invite:{second.id}"]
+
+
+def test_students_get_lesson_started_and_late_joiner_too(bot):
+    b, api = bot
+    c = make_class(b)
+    join(b, IVAN, c.invite_code)
+    lesson = db.lesson_for_class(c.id)
+    db.mark_live(lesson.id)
+    b.lesson_started(IVAN, c, lesson.id)
+    message = api.to(IVAN)[-1]
+    assert message[0] == "Урок начался: 10А, история."
+    assert buttons(message)[0]["payload"] == f"l{lesson.id}"
+    # кто вошёл в класс во время урока, сразу получает приглашение
+    join(b, MARIA, c.invite_code, first="Мария", last="Смирнова")
+    assert api.to(MARIA)[-1][0] == "Урок начался: 10А, история."
+
+
+def test_demo_opens_own_lesson(bot):
+    b, api = bot
+    b.handle(press(MARIA, "demo", first="Мария", last="Смирнова"))
+    roster = db.lesson_roster(payload_of(api.to(MARIA)[-1], "Открыть демо")[1:])
+    assert roster.teacher.name == "Мария Смирнова"
+    assert roster.teacher.max_user_id == MARIA
+    assert len(roster.students) == 6
+
+
+def test_cancel_replaces_question_with_answer(bot):
+    b, api = bot
+    c = make_class(b)
+    b.handle(press(TEACHER, f"newlink:{c.id}"))
+    b.handle(press(TEACHER, payload_of(api.to(TEACHER)[-1], "Отмена")))
+    assert api.answers[-1] == ("cb", "Ссылка и код 10А остались прежними.")
+    assert db.get_class(c.id).invite_code == c.invite_code
+    b.handle(press(TEACHER, f"delete:{c.id}"))
+    b.handle(press(TEACHER, payload_of(api.to(TEACHER)[-1], "Отмена")))
+    assert api.answers[-1] == ("cb", "Класс 10А остался.")
+    join(b, IVAN, c.invite_code)
+    b.handle(press(IVAN, f"leave:{c.id}"))
+    b.handle(press(IVAN, payload_of(api.to(IVAN)[-1], "Остаться")))
+    assert api.answers[-1] == ("cb", "Вы остались в классе 10А.")
+    assert db.students_of(c.id) != []
+
+
+def test_bots_are_ignored(bot):
+    b, api = bot
+    b.handle(text(MARIA, "/start", is_bot=True))
     assert api.sent == []
 
 
-def test_old_role_buttons_are_answered():
-    bot, api = make()
-    old = {"update_type": "message_callback", "callback": {"callback_id": "cb", "payload": "role:teacher", "timestamp": 0,
-                                                           "user": {"user_id": TEACHER, "first_name": "x", "is_bot": False}}}
-    bot.handle(old)
+def test_unknown_buttons_are_answered(bot):
+    b, api = bot
+    b.handle(press(MARIA, "role:teacher"))
     assert api.answers == [("cb", "Эта кнопка больше не нужна")]
-    assert api.sent[-1][1].startswith("Вы учитель")
 
 
-def test_max_ids_are_not_exposed_through_api():
-    assert "max_user_id" not in ROSTER.model_dump()["teacher"]
+def test_students_are_counted_in_russian():
+    assert [students_count(n) for n in (1, 2, 5, 11, 21, 24)] == [
+        "1 ученик", "2 ученика", "5 учеников", "11 учеников", "21 ученик", "24 ученика"]
