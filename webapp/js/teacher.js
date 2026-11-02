@@ -13,13 +13,13 @@ const FLAG_RANK = { long_silence: 0, quiet_but_precise: 1 };
 const COMPACT_FROM = 9; // с девяти учеников строки панели сжаты, над списком фильтры
 const TOAST_MS = 4000;
 
-// Что сказать, если микрофона нет: зависит от того, что ответил MAX или браузер (js/mic.js)
+// Что предложить, если микрофона нет: зависит от того, что ответил MAX или браузер (js/mic.js)
 const NOMIC = {
-  "max-settings": ["Разрешите доступ к микрофону в настройках MAX и попробуйте снова", "Открыть настройки MAX", openMaxSettings],
-  "system-settings": ["У MAX нет доступа к микрофону. Включите его в настройках телефона и попробуйте снова", "Открыть настройки телефона", openSystemSettings],
-  update: ["Обновите MAX до последней версии или откройте урок в браузере", "Открыть в браузере", openInBrowser],
-  browser: ["В этой версии MAX микрофон для уроков пока не работает. Откройте урок в браузере", "Открыть в браузере", openInBrowser],
-  denied: ["Разрешите доступ к микрофону в настройках браузера и попробуйте снова", null, null],
+  "max-settings": ["Открыть настройки MAX", openMaxSettings],
+  "system-settings": ["Открыть настройки телефона", openSystemSettings],
+  update: ["Открыть в браузере", openInBrowser],
+  browser: ["Открыть в браузере", openInBrowser],
+  denied: [null, null],
 };
 
 const $ = (id) => document.getElementById(id);
@@ -61,8 +61,9 @@ function lobby(kind = "ready", detail = "") {
     setLobbyText("Проверяем микрофон", "Это занимает несколько секунд");
     actions.append(button("primary", "Проверяем…", null, true, true));
   } else if (kind in NOMIC) {
-    const [text, action, run] = NOMIC[kind];
-    setLobbyText("Нет доступа к микрофону", `${text}. Без микрофона ученики вас не услышат`);
+    const [action, run] = NOMIC[kind];
+    // без пояснений мелким текстом: что делать, говорят кнопки
+    setLobbyText("Нет доступа к микрофону", "");
     if (action) actions.append(button("primary", action, run));
     if (run === openInBrowser) {
       // если браузер не открылся сам, ссылку можно скопировать и открыть вручную
@@ -80,13 +81,27 @@ function lobby(kind = "ready", detail = "") {
   setIconButton($("pvCam"), prefs.cam, "cam", "камеру");
 }
 
-async function copyLink() {
+// Результат копирования показывает сама кнопка, ссылку на экран не выводим
+async function copyLink(e) {
+  const btn = e.currentTarget;
+  const label = btn.textContent;
+  btn.textContent = (await copy(browserUrl())) ? "Ссылка скопирована" : "Не удалось скопировать";
+  setTimeout(() => (btn.textContent = label), 2500);
+}
+
+async function copy(text) {
   try {
-    await navigator.clipboard.writeText(browserUrl());
-    $("lobbyText").textContent = "Ссылка скопирована. Вставьте её в адресную строку браузера: она работает один раз и 10 минут";
+    await navigator.clipboard.writeText(text);
+    return true;
   } catch {
-    // буфер обмена недоступен: показываем ссылку, её можно выделить
-    $("lobbyText").textContent = browserUrl();
+    // во фрейме MAX web буфер обмена через clipboard бывает закрыт: старый способ
+    const area = Object.assign(document.createElement("textarea"), { value: text });
+    area.style.cssText = "position:fixed;opacity:0";
+    document.body.append(area);
+    area.select();
+    const ok = document.execCommand("copy");
+    area.remove();
+    return ok;
   }
 }
 
