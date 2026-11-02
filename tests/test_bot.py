@@ -89,6 +89,29 @@ def test_teacher_creates_class_and_gets_code_and_link(bot):
     assert f"Код класса: {c.invite_code}" in invite[0]
 
 
+def test_back_returns_to_role_choice(bot):
+    b, api = bot
+    b.handle(press(MARIA, "teacher"))
+    assert [x["text"] for x in buttons(api.to(MARIA)[-1])] == ["Назад"]
+    b.handle(press(MARIA, "back"))
+    assert api.to(MARIA)[-1][0] == "Здравствуйте! Я помогаю вести уроки в MAX. Кто вы?"
+    # бот больше не ждёт название: обычный текст не создаёт класс
+    b.handle(text(MARIA, "10А, история"))
+    assert db.classes_of(MARIA) == []
+    b.handle(press(MARIA, "student"))
+    b.handle(press(MARIA, "back"))
+    assert api.to(MARIA)[-1][0] == "Здравствуйте! Я помогаю вести уроки в MAX. Кто вы?"
+
+
+def test_student_who_pressed_teacher_sends_code(bot):
+    b, api = bot
+    c = make_class(b)
+    b.handle(press(IVAN, "teacher"))
+    b.handle(text(IVAN, c.invite_code))
+    assert api.to(IVAN)[-1][0] == "Вы входите в класс 10А. Вас зовут Иван Иванов?"
+    assert len(db.classes_of(TEACHER)) == 1 and db.classes_of(IVAN) == []
+
+
 def test_class_name_without_subject_is_asked_again(bot):
     b, api = bot
     b.handle(press(TEACHER, "teacher"))
