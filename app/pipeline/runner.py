@@ -18,7 +18,7 @@ from pathlib import Path
 import numpy as np
 
 from app.config import settings
-from app.models import LEVEL_LABELS, LessonEvent, Roster, ScaleUpdate, Utterance
+from app.models import LEVEL_LABELS, LessonEvent, Roster, ScaleUpdate, Student, Utterance
 
 log = logging.getLogger(__name__)
 
@@ -32,6 +32,8 @@ _asr = ThreadPoolExecutor(max_workers=1, thread_name_prefix="asr")
 BACKLOG_FRAMES = 1000
 # Как часто проверять флаги без новых реплик: «давно не отвечал» — это минуты
 FLAGS_EVERY_S = 30
+# Кадры того, кого нет в составе урока: раз в столько секунд проверяем, не вошёл ли он в класс
+STRANGER_RECHECK_S = 10
 @dataclass
 class _Lesson:
     """Идущий урок: конвейер, его состав и виртуальный класс, если он есть."""
@@ -143,12 +145,19 @@ async def run_call(lesson_id: str, lesson: _Lesson) -> None:
     from app.sources.call import listen
     from app.ws import lesson as ws
 
+    def find_student(participant_id: str) -> Student | None:
+        from app.db.classes import lesson_roster
+
+        fresh = lesson_roster(lesson_id)
+        return next((s for s in fresh.students if s.id == participant_id), None) if fresh else None
+
     ws.set_live(lesson_id, True)
     try:
         utterances = await transcribe_stream(
             listen(lesson_id, lesson.stop, ready=lesson.listening),
             lesson.roster,
             lambda event: ws.publish(lesson_id, event),
+            find_student=find_student,
         )
     finally:
         ws.set_live(lesson_id, False)
@@ -232,6 +241,7 @@ async def transcribe_stream(
     emit: Callable[[LessonEvent], None],
     transcribe: Callable[[np.ndarray, str], str] | None = None,
     norm: float | None = None,
+    find_student: Callable[[str], Student | None] | None = None,
 ) -> list[dict]:
     """Кадры участников → фразы → текст → тип реплики и шкала → события.
 
@@ -244,6 +254,10 @@ async def transcribe_stream(
     Когда кадры кончились, недоговорённые фразы дораспознаются, и функция
     возвращает реплики урока по времени: {"student_id", "t", "end", "text"}
     и "kind" у учеников. norm — норма урока, по умолчанию из прошлых уроков.
+
+    find_student(id) ищет в составе урока того, чьих кадров не ждали: ученик
+    мог войти в класс уже во время урока. Найденный добавляется в roster.students
+    и на шкалу; посторонних по-прежнему отбрасываем.
     """
     from app.pipeline import asr
     from app.pipeline.classify import CONTINUE_S, classify
@@ -330,12 +344,29 @@ async def transcribe_stream(
                 jobs.extend(found)
                 changed.notify_all()
 
+    checked: dict[str, float] = {}  # кого не ждали → когда последний раз искали в составе
+
+    async def admit(who: str) -> None:
+        student = await loop.run_in_executor(None, find_student, who)
+        if student is None or who in known:
+            return
+        log.info("%s вошёл в класс во время урока, его реплики засчитываются", who)
+        roster.students.append(student)
+        students.append(who)
+        is_student.add(who)
+        known.add(who)
+        board.add_student(who)
+        show_scale(lesson_time())
+
     async def read() -> None:
         nonlocal reading
         dropped = 0
         try:
             async for who, pcm in frames:
                 if who not in known:
+                    if find_student and time.monotonic() - checked.get(who, -STRANGER_RECHECK_S) >= STRANGER_RECHECK_S:
+                        checked[who] = time.monotonic()
+                        asyncio.create_task(admit(who))
                     continue
                 if len(backlog) >= BACKLOG_FRAMES:
                     backlog.popleft()
