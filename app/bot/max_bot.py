@@ -141,6 +141,9 @@ class Bot:
         step, class_id = db.dialog_step(user_id)
         body = body.strip()
         if step == "class_name":
+            # нажал «Я учитель» по ошибке и прислал код класса — значит, он ученик
+            if db.code_candidates(body) and db.find_by_code(body)[0] != "none":
+                return self.code(user, body)
             return self.create_class(user, body)
         if step == "code":
             return self.code(user, body)
@@ -161,6 +164,7 @@ class Bot:
             "newclass": lambda: self.ask_class_name(user_id, first=False),
             "student": lambda: self.ask_code(user_id),
             "demo": lambda: self.demo(user),
+            "back": lambda: self.back(user_id),
             "me": lambda: self.join(user_id, int(arg), full_name(user)),
             "rename": lambda: self.ask_name(user_id, int(arg)),
             "kick": lambda: self.kick(user_id, int(arg)),
@@ -246,7 +250,8 @@ class Bot:
 
     def ask_class_name(self, user_id: int, first: bool) -> None:
         db.set_dialog(user_id, "class_name")
-        self.api.send(user_id, f"Создадим {'первый ' if first else ''}класс. Напишите название и предмет через запятую. Например: 10А, история.")
+        self.api.send(user_id, f"Создадим {'первый ' if first else ''}класс. Напишите название и предмет через запятую. Например: 10А, история.",
+                      [[callback("Назад", "back")]])
 
     def create_class(self, user: dict, body: str) -> None:
         name, _, subject = (part.strip() for part in body.partition(","))
@@ -326,7 +331,12 @@ class Bot:
 
     def ask_code(self, user_id: int) -> None:
         db.set_dialog(user_id, "code")
-        self.api.send(user_id, "Введите код класса. Его назовёт учитель.")
+        self.api.send(user_id, "Введите код класса. Его назовёт учитель.", [[callback("Назад", "back")]])
+
+    def back(self, user_id: int) -> None:
+        """Нажал не ту кнопку: бот перестаёт ждать название или код и возвращает к выбору."""
+        db.set_dialog(user_id, None)
+        self.greet(user_id)
 
     def code(self, user: dict, text: str) -> None:
         """Код из ссылки или сообщения: шаги 4, 5 и 14."""
