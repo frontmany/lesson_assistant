@@ -1,6 +1,7 @@
 """Распознавание речи. Владелец: Ярослав.
 
-faster-whisper в int8 на CPU, у учителя и учеников разные модели (#55).
+faster-whisper в int8 на CPU или GigaAM v3 через onnx-asr (имя модели
+начинается с «gigaam»), у учителя и учеников разные модели (#55).
 Учитель говорит чётко, от него нужны только имена и вопросы: лёгкая модель,
 имена класса подсказкой. Ученикам важнее качество: перепутанные слова и
 потерянный «?» стоят им инициативы. Цель: шкала на экране не позже чем через
@@ -11,6 +12,7 @@ from __future__ import annotations
 
 import functools
 import logging
+from pathlib import Path
 from typing import Literal
 
 import numpy as np
@@ -42,9 +44,19 @@ def model_name(role: Role) -> str:
     return settings.whisper_model_teacher if role == "teacher" else settings.whisper_model_student
 
 
+def is_gigaam(name: str) -> bool:
+    return name.startswith("gigaam")
+
+
 @functools.cache
-def _load(name: str) -> WhisperModel:
+def _load(name: str):
     """Модель загружается один раз на процесс: первый вызов долгий, остальные мгновенные."""
+    if is_gigaam(name):
+        import onnx_asr
+
+        # первый раз скачивается в эту папку, дальше берётся из неё без сети
+        log.info("загружаю модель распознавания %s (onnx)", name)
+        return onnx_asr.load_model(name, Path(settings.whisper_download_root) / name)
     log.info("загружаю модель распознавания %s (%s)", name, settings.whisper_compute_type)
     return WhisperModel(
         name,
@@ -54,7 +66,7 @@ def _load(name: str) -> WhisperModel:
     )
 
 
-def model(role: Role) -> WhisperModel:
+def model(role: Role):
     return _load(model_name(role))
 
 
@@ -85,6 +97,9 @@ def transcribe(pcm: bytes | np.ndarray, role: Role = "student", hotwords: str | 
     модель ждёт в этой фразе.
     """
     audio = to_float(pcm)
+    if is_gigaam(model_name(role)):
+        # GigaAM сама ставит знаки и не галлюцинирует повторами, как Whisper; подсказок у неё нет
+        return model(role).recognize(audio, sample_rate=SAMPLE_RATE).strip()
     segments, _ = model(role).transcribe(audio, **options(role, audio, hotwords))
     return join_segments(segments)
 

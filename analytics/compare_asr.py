@@ -1,7 +1,6 @@
 """Сравнение моделей распознавания на живых фразах (#55).
 
-    docker compose run --rm --no-deps -v "$PWD:/srv" -w /srv app sh -c \
-        'pip install -q -r requirements-dev.txt && python -m analytics.compare_asr'
+    docker compose run --rm --no-deps -v "$PWD:/srv" -w /srv app python -m analytics.compare_asr
 
 Набор — data/asr_check/labels.csv и wav рядом с ним: file, speaker, text, kind
 (question, answer, other), intonation_only, noise. Для каждой модели считает
@@ -74,14 +73,16 @@ def whisper(name: str) -> Callable[[np.ndarray], str]:
 
 
 def gigaam(name: str) -> Callable[[np.ndarray], str]:
-    import onnx_asr
+    from app.pipeline import asr
 
-    model = onnx_asr.load_model(name)
+    model = asr._load(name)
     return lambda audio: model.recognize(audio, sample_rate=SAMPLE_RATE)
 
 
 def recognizer(name: str) -> Callable[[np.ndarray], str]:
-    return gigaam(name) if name.startswith("gigaam") else whisper(name)
+    from app.pipeline.asr import is_gigaam
+
+    return gigaam(name) if is_gigaam(name) else whisper(name)
 
 
 def share(hits: int, total: int) -> str:

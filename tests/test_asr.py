@@ -109,3 +109,26 @@ def test_compare_measures_question_marks(monkeypatch):
 
 def test_long_phrase_stays_within_whisper_limit():
     assert asr.options("student", np.zeros(16000 * 60, dtype=np.float32))["max_new_tokens"] == asr.MAX_TOKENS
+
+
+class FakeGigaAM:
+    def __init__(self):
+        self.calls = 0
+
+    def recognize(self, audio, sample_rate):
+        assert sample_rate == 16000
+        self.calls += 1
+        return " Зачем Петру нужен был флот? "
+
+
+def test_gigaam_model_is_used_for_students(monkeypatch):
+    giga = FakeGigaAM()
+    whisper = FakeModel("small")
+    settings = dataclasses.replace(asr.settings, whisper_model_teacher="small", whisper_model_student="gigaam-v3-e2e-ctc")
+    monkeypatch.setattr(asr, "settings", settings)
+    monkeypatch.setattr(asr, "_load", lambda name: giga if asr.is_gigaam(name) else whisper)
+    audio = np.zeros(16000, dtype=np.float32)
+    assert asr.transcribe(audio, "student") == "Зачем Петру нужен был флот?"
+    assert giga.calls == 1 and whisper.options is None
+    asr.transcribe(audio, "teacher", "Артём")
+    assert whisper.options["hotwords"] == "Артём"
