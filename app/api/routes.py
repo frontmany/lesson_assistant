@@ -46,12 +46,6 @@ def _lesson_roster(lesson_id: str, virtual: bool) -> Roster:
     return virtual_class.lesson_roster(roster, demo, keep_class)
 
 
-def _empty_class(lesson_id: str) -> bool:
-    """Урок класса, в котором ещё нет учеников: его ведут с виртуальным классом (#45)."""
-    lesson = classes.get_lesson(lesson_id)
-    return lesson is not None and lesson.class_id is not None and not _roster(lesson_id).students
-
-
 def _demo() -> tuple[Roster, list]:
     try:
         return virtual_class.load_tracks(settings.demo_lesson_dir)
@@ -177,13 +171,14 @@ def lesson_for_class(class_id: int, user: User = Depends(current_user)):
 async def start(lesson_id: str, virtual: bool = False):
     """Учитель вошёл в звонок: ассистент заходит и слушает, ученики класса получают «Урок начался».
 
-    Демо-урок и урок класса, где ещё нет учеников, начинаются сразу с записанным
-    классом: так учитель или жюри показывают урок в одиночку. virtual=true —
+    Демо-урок начинается сразу с записанным классом: так учитель или жюри
+    показывают урок в одиночку. Пустой класс урок не начинает — для этого
+    «Посмотреть демо» в боте и мини-приложении. virtual=true —
     в составе урока ученики из записи: так ассистент засчитает ботов, которых
     заводит `python -m app.cli virtual-class`.
     """
     lesson = classes.get_lesson(lesson_id)
-    if lesson is not None and (lesson.demo or _empty_class(lesson_id)):
+    if lesson is not None and lesson.demo:
         return {"lesson_id": lesson_id, "started": _start_virtual(lesson_id)}
     started = runner.start(lesson_id, _lesson_roster(lesson_id, virtual))
     if started:

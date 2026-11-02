@@ -37,14 +37,12 @@ def class_lesson(*students):
     return db.lesson_for_class(c.id).id
 
 
-def test_empty_class_lesson_starts_with_virtual_students(recording):
+def test_empty_class_lesson_starts_without_recording(recording):
+    # пустой класс урок с записью не начинает: показать урок в одиночку — «Посмотреть демо»
     lesson_id = class_lesson()
-    assert client.post(f"/api/lessons/{lesson_id}/start").json() == {"lesson_id": lesson_id, "started": True}
-    roster = recording[lesson_id]
-    assert [s.id for s in roster.students] == [virtual_class.virtual_id(s.id) for s in DEMO.students]
-    assert all(s.virtual for s in roster.students)
-    # учитель — живой учитель класса, а не из записи
-    assert roster.teacher.id.startswith("m") and roster.virtual_teacher.id == "virtual-teacher"
+    client.post(f"/api/lessons/{lesson_id}/start")
+    assert recording[lesson_id].students == []
+    assert recording[lesson_id].virtual_teacher is None
 
 
 def test_class_with_students_starts_without_recording(recording):
