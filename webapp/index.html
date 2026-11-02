@@ -3,19 +3,54 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Ассистент Сферум AI</title>
+  <title>Урок в MAX</title>
+  <!-- Стартовая страница мини-приложения (#24). Открыли кнопкой бота — сразу ведёт в урок:
+       c<id> — учитель начинает урок класса, l<id> — урок, учителю панель, ученику его экран.
+       Открыли кнопкой приложения — классы человека, демо и чат с ботом. Логика — js/start.js -->
   <link rel="stylesheet" href="css/tokens.css">
-  <link rel="stylesheet" href="css/app.css">
+  <style>
+    * { box-sizing: border-box; }
+    [hidden] { display: none !important; }
+    body { margin: 0; font-family: var(--font); background: var(--bg); color: var(--ink); }
+    main { max-width: 420px; min-height: 100vh; min-height: 100dvh; margin: 0 auto; padding: 32px 20px; display: flex; flex-direction: column; }
+    .logo { height: 40px; width: auto; align-self: flex-start; margin-bottom: 24px; }
+    h1 { margin: 0 0 8px; font-size: 28px; line-height: 1.2; }
+    .text { margin: 0 0 24px; color: var(--ink-soft); font-size: 15px; line-height: 1.5; }
+    .classes { display: grid; gap: 10px; margin: 16px 0 24px; }
+    .card { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-radius: var(--radius); background: var(--surface); border: 1px solid var(--line); }
+    .card > div { flex: 1; min-width: 0; }
+    .card-name { font-weight: 600; font-size: 16px; }
+    .card-meta { font-size: 13px; color: var(--ink-soft); margin-top: 2px; }
+    .spacer { flex: 1; }
+    button { font: inherit; font-weight: 600; border: 0; cursor: pointer; border-radius: 999px; padding: 12px 20px; }
+    .card button { padding: 8px 14px; font-size: 14px; background: var(--accent); color: var(--surface); flex: none; }
+    .actions { display: grid; gap: 10px; }
+    .primary { background: var(--ink); color: var(--surface); }
+    .secondary { background: transparent; color: var(--ink); border: 1px solid var(--line-strong); }
+    .dev { display: grid; gap: 8px; margin-top: 16px; font-size: 14px; }
+    .dev a { color: var(--ink-soft); }
+  </style>
 </head>
 <body>
   <main>
-    <h1>Урок 10А, история</h1>
-    <!-- TODO(Фёдор): экран выбора роли по макету. В MAX роль придёт из данных запуска -->
-    <nav class="roles">
-      <a href="teacher.html">Я учитель</a>
-      <a href="student.html?id=artem_k">Я ученик: Артём К.</a>
-      <a href="student.html?id=alisa_n">Я ученик: Алиса Н.</a>
+    <!-- логотип появится, когда в webapp/img/ будет sferum.svg -->
+    <img class="logo" id="logo" src="img/sferum.svg" alt="Сферум" hidden onload="this.hidden = false">
+    <h1 id="title">Урок в MAX</h1>
+    <p class="text" id="text" hidden></p>
+    <section class="classes" id="classes" hidden></section>
+    <div class="spacer"></div>
+    <div class="actions" id="actions" hidden>
+      <button class="primary" id="demo">Посмотреть демо</button>
+      <button class="secondary" id="chat">Открыть чат с ботом</button>
+    </div>
+    <!-- Для разработки (DEV_AUTH=1): урок демо-класса без MAX -->
+    <nav class="dev" id="dev" hidden>
+      <a href="teacher.html">Учитель демо-класса</a>
+      <a href="student.html?id=artem_k">Ученик: Артём К.</a>
+      <a href="student.html?id=alisa_n">Ученик: Алиса Н.</a>
     </nav>
   </main>
+  <script src="https://st.max.ru/js/max-web-app.js"></script>
+  <script type="module" src="js/start.js"></script>
 </body>
 </html>

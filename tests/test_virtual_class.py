@@ -91,9 +91,10 @@ def test_api_without_recording_explains_lfs():
     response = client.post("/api/lessons/demo-x/virtual-class")
     if response.status_code == 503:
         assert "git lfs pull" in response.json()["detail"]
-    assert client.delete("/api/lessons/demo-x/virtual-class").json() == {"lesson_id": "demo-x", "stopped": False}
+    # урок не идёт: боты не играют, остановка безопасна
+    assert client.delete("/api/lessons/10a-history-05/virtual-class").json() == {"lesson_id": "10a-history-05", "stopped": False}
 
 
 def test_join_does_not_issue_tokens_for_virtual_students():
     client = TestClient(app)
-    assert client.get("/api/lessons/demo-x/join", params={"participant_id": virtual_id("artem_k")}).status_code == 404
+    assert client.get("/api/lessons/demo-x/join", params={"id": virtual_id("artem_k")}).status_code == 404
