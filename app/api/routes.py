@@ -152,6 +152,12 @@ def join(lesson_id: str, who: Seat = Depends(member)):
     )
 
 
+@router.post("/demo")
+def demo(user: User = Depends(current_user)):
+    """Свой демо-урок: вошедший — учитель, класс заходит записью. Для стартовой страницы, как «Посмотреть демо» в боте."""
+    return {"lesson_id": classes.demo_lesson(user.max_user_id, user.name or None).id}
+
+
 @router.post("/classes/{class_id}/lessons")
 def lesson_for_class(class_id: int, user: User = Depends(current_user)):
     """«Начать урок» в боте: урок класса, идущий или новый. Мини-приложение открывает его звонок."""
