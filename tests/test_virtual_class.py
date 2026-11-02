@@ -98,3 +98,9 @@ def test_api_without_recording_explains_lfs():
 def test_join_does_not_issue_tokens_for_virtual_students():
     client = TestClient(app)
     assert client.get("/api/lessons/demo-x/join", params={"id": virtual_id("artem_k")}).status_code == 404
+
+
+def test_class_lesson_keeps_live_students_next_to_virtual():
+    roster = lesson_roster(ROSTER, ROSTER, keep_class=True)
+    assert [s.id for s in roster.students if not s.virtual] == [s.id for s in ROSTER.students]
+    assert len([s for s in roster.students if s.virtual]) == len(ROSTER.students)

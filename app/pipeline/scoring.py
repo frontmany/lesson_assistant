@@ -142,6 +142,10 @@ class Scoreboard:
         self.tick(end)
         return self.level(student_id)
 
+    def add_student(self, student_id: str) -> None:
+        """Ученик вошёл в класс во время урока: шкала с первой ступени, как у всех в начале."""
+        self._students.setdefault(student_id, _Student())
+
     def extend(self, student_id: str, text: str, t: float, end: float) -> int:
         """Продолжение прошлой реплики: ученик договорил после паузы.
 

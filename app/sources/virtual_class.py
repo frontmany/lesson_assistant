@@ -41,18 +41,20 @@ def virtual_id(participant_id: str) -> str:
     return PREFIX + participant_id
 
 
-def lesson_roster(roster: Roster, demo: Roster) -> Roster:
+def lesson_roster(roster: Roster, demo: Roster, keep_class: bool = False) -> Roster:
     """Состав урока с виртуальным классом: живой учитель и ученики из записи.
 
-    Учеников класса в составе нет: в демо они не нужны, а в панели учителя
-    получилось бы 12 человек. Без этого конвейер отбросил бы ботов как
-    посторонних. Учитель из записи идёт отдельно: для конвейера он учитель,
-    а не ученик. TODO(#45): живые ученики класса и виртуальные вместе, когда
-    состав урока берётся из базы.
+    keep_class — урок настоящего класса: его ученики остаются рядом с виртуальными.
+    У демо-урока и урока из roster.json состав и есть запись, и без замены
+    в панели учителя было бы 12 человек. Без виртуальных учеников конвейер
+    отбросил бы ботов как посторонних. Учитель из записи идёт отдельно: для
+    конвейера он учитель, а не ученик. В состав класса и в норму ученики из
+    записи не попадают (db.results).
     """
     virtual = [Student(id=virtual_id(s.id), name=s.name, virtual=True) for s in demo.students]
     teacher = Student(id=virtual_id(demo.teacher.id), name=demo.teacher.name, virtual=True)
-    return roster.model_copy(update={"students": virtual, "virtual_teacher": teacher})
+    students = [*roster.students, *virtual] if keep_class else virtual
+    return roster.model_copy(update={"students": students, "virtual_teacher": teacher})
 
 
 def load_tracks(lesson_dir: Path) -> tuple[Roster, list[Path]]:
