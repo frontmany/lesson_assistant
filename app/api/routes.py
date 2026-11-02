@@ -35,12 +35,21 @@ def _roster(lesson_id: str) -> Roster:
 
 
 def _lesson_roster(lesson_id: str, virtual: bool) -> Roster:
-    """Состав урока: класс или, если урок с виртуальным классом, ученики из записи."""
+    """Состав урока. С виртуальным классом у урока класса — его ученики и ученики
+    из записи, у демо-урока — только ученики из записи."""
     roster = _roster(lesson_id)
     if not virtual:
         return roster
     demo, _ = _demo()
-    return virtual_class.lesson_roster(roster, demo)
+    lesson = classes.get_lesson(lesson_id)
+    keep_class = lesson is not None and lesson.class_id is not None
+    return virtual_class.lesson_roster(roster, demo, keep_class)
+
+
+def _empty_class(lesson_id: str) -> bool:
+    """Урок класса, в котором ещё нет учеников: его ведут с виртуальным классом (#45)."""
+    lesson = classes.get_lesson(lesson_id)
+    return lesson is not None and lesson.class_id is not None and not _roster(lesson_id).students
 
 
 def _demo() -> tuple[Roster, list]:
@@ -168,12 +177,13 @@ def lesson_for_class(class_id: int, user: User = Depends(current_user)):
 async def start(lesson_id: str, virtual: bool = False):
     """Учитель вошёл в звонок: ассистент заходит и слушает, ученики класса получают «Урок начался».
 
-    Демо-урок начинается сразу с записанным классом. virtual=true — в составе
-    урока ученики из записи: так ассистент засчитает ботов, которых заводит
-    `python -m app.cli virtual-class`.
+    Демо-урок и урок класса, где ещё нет учеников, начинаются сразу с записанным
+    классом: так учитель или жюри показывают урок в одиночку. virtual=true —
+    в составе урока ученики из записи: так ассистент засчитает ботов, которых
+    заводит `python -m app.cli virtual-class`.
     """
     lesson = classes.get_lesson(lesson_id)
-    if lesson is not None and lesson.demo:
+    if lesson is not None and (lesson.demo or _empty_class(lesson_id)):
         return {"lesson_id": lesson_id, "started": _start_virtual(lesson_id)}
     started = runner.start(lesson_id, _lesson_roster(lesson_id, virtual))
     if started:
@@ -188,7 +198,7 @@ def _start_virtual(lesson_id: str) -> bool:
     demo, tracks = _demo()
     if runner.is_running(lesson_id) and runner.roster_of(lesson_id).virtual_teacher is None:
         raise HTTPException(409, "Урок уже идёт без виртуального класса: завершите его и начните заново")
-    if runner.start(lesson_id, virtual_class.lesson_roster(_roster(lesson_id), demo)):
+    if runner.start(lesson_id, _lesson_roster(lesson_id, True)):
         runner.when_finished(lesson_id, classes.mark_ended)
     classes.mark_live(lesson_id)
     return runner.play_virtual(lesson_id, demo, tracks)
