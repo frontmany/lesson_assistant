@@ -19,7 +19,7 @@ ENV WHISPER_MODEL_TEACHER=${WHISPER_MODEL_TEACHER} \
     WHISPER_MODEL_STUDENT=${WHISPER_MODEL_STUDENT} \
     WHISPER_DOWNLOAD_ROOT=/srv/models
 RUN if [ "$PRELOAD_MODEL" = "1" ]; then \
-      python -c "from faster_whisper import WhisperModel; [WhisperModel(m, device='cpu', compute_type='int8', download_root='/srv/models') for m in {'${WHISPER_MODEL_TEACHER}', '${WHISPER_MODEL_STUDENT}'}]"; \
+      python -c "import onnx_asr; from faster_whisper import WhisperModel; [onnx_asr.load_model(m, '/srv/models/' + m) if m.startswith('gigaam') else WhisperModel(m, device='cpu', compute_type='int8', download_root='/srv/models') for m in {'${WHISPER_MODEL_TEACHER}', '${WHISPER_MODEL_STUDENT}'}]"; \
     fi
 
 COPY app ./app
