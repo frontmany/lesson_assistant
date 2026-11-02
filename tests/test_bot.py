@@ -17,8 +17,8 @@ class FakeApi:
     def send(self, user_id, text, buttons=None):
         self.sent.append((user_id, text, buttons))
 
-    def answer(self, callback_id, notification):
-        self.answers.append((callback_id, notification))
+    def answer(self, callback_id, notification=None, message=None):
+        self.answers.append((callback_id, notification or message))
 
     def to(self, user_id):
         return [(text, buttons) for u, text, buttons in self.sent if u == user_id]
@@ -263,6 +263,23 @@ def test_demo_opens_own_lesson(bot):
     assert roster.teacher.name == "Мария Смирнова"
     assert roster.teacher.max_user_id == MARIA
     assert len(roster.students) == 6
+
+
+def test_cancel_replaces_question_with_answer(bot):
+    b, api = bot
+    c = make_class(b)
+    b.handle(press(TEACHER, f"newlink:{c.id}"))
+    b.handle(press(TEACHER, payload_of(api.to(TEACHER)[-1], "Отмена")))
+    assert api.answers[-1] == ("cb", "Ссылка и код 10А остались прежними.")
+    assert db.get_class(c.id).invite_code == c.invite_code
+    b.handle(press(TEACHER, f"delete:{c.id}"))
+    b.handle(press(TEACHER, payload_of(api.to(TEACHER)[-1], "Отмена")))
+    assert api.answers[-1] == ("cb", "Класс 10А остался.")
+    join(b, IVAN, c.invite_code)
+    b.handle(press(IVAN, f"leave:{c.id}"))
+    b.handle(press(IVAN, payload_of(api.to(IVAN)[-1], "Остаться")))
+    assert api.answers[-1] == ("cb", "Вы остались в классе 10А.")
+    assert db.students_of(c.id) != []
 
 
 def test_bots_are_ignored(bot):
