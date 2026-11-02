@@ -79,7 +79,7 @@ def test_stranger_chooses_teacher_student_or_demo(bot):
 def test_teacher_creates_class_and_gets_code_and_link(bot):
     b, api = bot
     b.handle(press(TEACHER, "teacher"))
-    assert api.to(TEACHER)[-1][0] == "Создадим первый класс. Название и предмет. Например: 10А, история."
+    assert api.to(TEACHER)[-1][0] == "Создадим первый класс. Напишите название и предмет через запятую. Например: 10А, история."
     b.handle(text(TEACHER, "10А,  История "))
     c = db.classes_of(TEACHER)[0][0]
     assert (c.name, c.subject) == ("10А", "история")
@@ -233,7 +233,7 @@ def test_several_classes_are_chosen_first(bot):
     b, api = bot
     first = make_class(b)
     b.handle(press(TEACHER, "newclass"))
-    assert api.to(TEACHER)[-1][0] == "Создадим класс. Название и предмет. Например: 10А, история."
+    assert api.to(TEACHER)[-1][0] == "Создадим класс. Напишите название и предмет через запятую. Например: 10А, история."
     b.handle(text(TEACHER, "9Б, история"))
     second = db.classes_of(TEACHER)[-1][0]
     b.handle(press(TEACHER, "invite"))
