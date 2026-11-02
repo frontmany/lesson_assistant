@@ -212,7 +212,11 @@ class Bot:
             row.append(self.open_app("Начать урок", f"c{startable[0].id}"))
         elif startable:
             row.append(callback("Начать урок", "start"))
-        self.api.send(user_id, "Ваши классы:\n" + "\n".join(lines), [b for b in [
+        if startable:
+            hint = "Чтобы начать урок, нажмите «Начать урок»: откроется звонок, а ученики получат приглашение."
+        else:
+            hint = "Урок можно начать, когда в классе будет хотя бы один ученик. Позвать их — «Пригласить»."
+        self.api.send(user_id, "Ваши классы:\n" + "\n".join(lines) + "\n\n" + hint, [b for b in [
             row,
             [callback("Пригласить", "invite"), callback("Новый класс", "newclass")],
             [callback("Удалить класс", "delete")],
@@ -264,7 +268,8 @@ class Bot:
             user_id,
             f"Ссылка для учеников: {self.link(c.invite_code)}\nКод класса: {c.invite_code}\n"
             "Отправьте ссылку классу или продиктуйте код на уроке. "
-            "Ссылка и код работают, пока вы не создадите новые.",
+            "Ссылка и код работают, пока вы не создадите новые.\n"
+            "Когда ученик войдёт, я напишу, и урок можно будет начать.",
             [[callback("Новая ссылка", f"newlink:{c.id}")]],
         )
 
@@ -276,7 +281,8 @@ class Bot:
         if not self.teaches(user_id, class_id):
             return
         c = db.new_code(class_id)
-        self.api.send(user_id, f"Новая ссылка для {c.name}: {self.link(c.invite_code)}\nНовый код: {c.invite_code}")
+        self.api.send(user_id, f"Новая ссылка для {c.name}: {self.link(c.invite_code)}\nНовый код: {c.invite_code}\n"
+                               "Отправьте её тем, кого ещё нет в классе. Кто уже вошёл, остаётся.")
 
     def ask_delete(self, user_id: int, class_id: int) -> None:
         c = db.get_class(class_id)
@@ -357,8 +363,9 @@ class Bot:
         if new:
             # шаг 6: учителю
             teacher = db.teacher_of(class_id)
-            self.api.send(teacher.max_user_id, f"{db.short_name(member.name)} теперь в классе {c.name}.",
-                          [[callback("Убрать из класса", f"kick:{member.id}")]])
+            # с первым учеником урок становится возможен: кнопка тут же, а не только в меню
+            self.api.send(teacher.max_user_id, f"{db.short_name(member.name)} теперь в классе {c.name}. Можно начинать урок.",
+                          [[self.open_app("Начать урок", f"c{class_id}")], [callback("Убрать из класса", f"kick:{member.id}")]])
         lesson = db.live_lesson(class_id)
         if lesson is not None:
             self.lesson_started(user_id, c, lesson.id)
