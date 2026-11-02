@@ -139,6 +139,14 @@ def test_socket_without_session_is_closed(lesson):
             ws.receive_json()
 
 
+def test_demo_from_start_page(lesson):
+    headers = sign_in(MARIA, first="Мария", last="Смирнова")
+    lesson_id = client.post("/api/demo", headers=headers).json()["lesson_id"]
+    assert client.get(f"/api/lessons/{lesson_id}/me", headers=headers).json() == {
+        "participant_id": "teacher", "name": "Мария Смирнова", "role": "teacher"}
+    assert client.post("/api/demo").status_code == 401
+
+
 def test_demo_lesson_teacher_is_who_asked(lesson):
     demo = db.demo_lesson(MARIA, "Мария Смирнова")
     me = client.get(f"/api/lessons/{demo.id}/me", headers=sign_in(MARIA)).json()

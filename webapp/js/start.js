@@ -22,7 +22,19 @@ try {
     const me = await api(`/api/lessons/${lesson}/me`);
     go(me.role === "teacher" ? "teacher.html" : "student.html", lesson);
   } else if (window.WebApp?.initData) {
-    say("Урок открывается из чата с ботом", "Нажмите «Начать урок» или «Войти в урок» в сообщении бота");
+    // Открыли не кнопкой урока, а кнопкой приложения: вместо тупика — демо-урок
+    say("Урок открывается из чата с ботом", "Нажмите «Начать урок» или «Войти в урок» в сообщении бота. "
+      + "Или посмотрите демо: вы учитель, а класс заходит записью урока истории.");
+    $("demo").hidden = false;
+    $("demoLink").onclick = async (e) => {
+      e.preventDefault();
+      try {
+        const { lesson_id: lesson } = await api("/api/demo", { method: "POST" });
+        go("teacher.html", lesson);
+      } catch (err) {
+        say("Не удалось открыть демо", err.message);
+      }
+    };
   } else {
     say("Урок открывается в MAX", "Откройте чат с ботом и нажмите «Войти в урок»");
     $("dev").hidden = false;
