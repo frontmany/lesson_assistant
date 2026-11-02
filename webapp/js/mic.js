@@ -11,6 +11,11 @@ const REASON = "Ассистенту урока нужно слышать ваш
 const MAX_SETTINGS = ["app_permission_denied", "mic_app_permission_denied"];
 const SYSTEM_SETTINGS = ["system_permission_denied", "mic_system_permission_denied"];
 const REINIT = ["not_inited", "not_found"];
+// PermissionsManager по документации есть только на Android и в веб-клиенте MAX
+const SUPPORTED = ["android", "web"];
+// Мост не ответил за это время — считаем, что микрофона в MAX нет. Так бывает в MAX web,
+// когда страница открыта не с адреса, привязанного к боту: ответы MAX до неё не доходят
+const ASK_TIMEOUT_MS = 6000;
 
 // Внутри MAX у страницы есть данные запуска; в обычном браузере их нет
 export function inMax() {
@@ -23,7 +28,9 @@ export function inMax() {
 // "browser" — открыть урок в браузере
 export async function micAccess() {
   if (!inMax()) return "ok";
-  const access = await ask(window.WebApp.PermissionsManager);
+  const supported = SUPPORTED.includes(window.WebApp.platform);
+  const timeout = new Promise((resolve) => setTimeout(() => resolve("browser"), ASK_TIMEOUT_MS));
+  const access = supported ? await Promise.race([ask(window.WebApp.PermissionsManager), timeout]) : "browser";
   // Ссылку в браузер готовим заранее: MAX откроет её только сразу по нажатию,
   // а запрос к серверу внутри нажатия этот жест теряет
   if (access !== "ok") link = await browserLink().catch(() => location.href);
@@ -52,8 +59,15 @@ export function openSystemSettings() {
 // Данных запуска в браузере нет, поэтому в ссылке одноразовый вход (#24)
 let link = null;
 
+// Ссылка, которую можно показать текстом и скопировать, если открыть не получилось
+export function browserUrl() {
+  return link ?? location.href;
+}
+
 export function openInBrowser() {
-  window.WebApp.openLink(link ?? location.href);
+  // MAX web — это уже браузер: новая вкладка надёжнее моста
+  if (window.WebApp.platform === "web") window.open(browserUrl(), "_blank", "noopener");
+  else window.WebApp.openLink(browserUrl());
 }
 
 async function request(pm) {

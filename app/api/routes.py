@@ -152,6 +152,12 @@ def join(lesson_id: str, who: Seat = Depends(member)):
     )
 
 
+@router.get("/app")
+def app_info():
+    """Что мини-приложению нужно знать о боте: ссылка «Вернуться в чат» ведёт в его чат."""
+    return {"bot": settings.max_bot_name}
+
+
 @router.post("/demo")
 def demo(user: User = Depends(current_user)):
     """Свой демо-урок: вошедший — учитель, класс заходит записью. Для стартовой страницы, как «Посмотреть демо» в боте."""
