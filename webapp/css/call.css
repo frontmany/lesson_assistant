@@ -293,3 +293,10 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 /* «Урок завершён» по центру экрана */
 .lobby.ended { justify-content: center; align-items: center; }
 /* сам блок по центру, а внутри всё по левому краю, как было */
+
+/* Полосы прокрутки страницы в цветах темы, а не белые системные */
+html { scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--line-strong); border-radius: 3px; }
+.lobby-text { min-width: 0; overflow-wrap: anywhere; }
