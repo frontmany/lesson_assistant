@@ -106,8 +106,9 @@ def test_student_joins_by_link_and_teacher_is_notified(bot):
     b.handle(press(IVAN, payload_of(question, "Это я")))
     assert api.to(IVAN)[-1][0] == "Готово, вы в классе 10А. Когда начнётся урок, я напишу."
     note = api.to(TEACHER)[-1]
-    assert note[0] == "Иван И. теперь в классе 10А."
-    assert [x["text"] for x in buttons(note)] == ["Убрать из класса"]
+    assert note[0] == "Иван И. теперь в классе 10А. Можно начинать урок."
+    assert [x["text"] for x in buttons(note)] == ["Начать урок", "Убрать из класса"]
+    assert buttons(note)[0]["payload"] == f"c{c.id}"
 
 
 def test_student_types_code_with_russian_lookalikes(bot):
@@ -136,7 +137,7 @@ def test_student_can_change_name(bot):
     assert api.to(IVAN)[-1][0] == "Напишите имя и фамилию."
     b.handle(text(IVAN, "Ваня Петров"))
     assert db.students_of(c.id)[0].name == "Ваня Петров"
-    assert api.to(TEACHER)[-1][0] == "Ваня П. теперь в классе 10А."
+    assert api.to(TEACHER)[-1][0].startswith("Ваня П. теперь в классе 10А.")
 
 
 def test_teacher_removes_and_returns_student(bot):
@@ -218,12 +219,12 @@ def test_known_teacher_sees_classes_and_starts_lesson(bot):
     c = make_class(b)
     b.handle(text(TEACHER, "привет"))
     empty = api.to(TEACHER)[-1]
-    assert empty[0] == "Ваши классы:\n10А, история — 0 учеников"
+    assert empty[0].startswith("Ваши классы:\n10А, история — 0 учеников\n\nУрок можно начать, когда в классе")
     assert "Начать урок" not in [x["text"] for x in buttons(empty)]  # в пустом классе урок не начать
     join(b, IVAN, c.invite_code)
     b.handle(text(TEACHER, "привет"))
     menu = api.to(TEACHER)[-1]
-    assert menu[0] == "Ваши классы:\n10А, история — 1 ученик"
+    assert menu[0].startswith("Ваши классы:\n10А, история — 1 ученик\n\nЧтобы начать урок")
     start = next(x for x in buttons(menu) if x["text"] == "Начать урок")
     assert start == {"type": "open_app", "text": "Начать урок", "web_app": BOT, "payload": f"c{c.id}"}
 
