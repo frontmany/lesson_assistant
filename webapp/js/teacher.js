@@ -4,7 +4,7 @@
 
 import { DisconnectReason, joinCall } from "./call.js";
 import { LESSON_ID, api, loadRoster, signIn, subscribe, whoAmI } from "./lesson.js";
-import { inMax, micAccess, openInBrowser, openMaxSettings, openSystemSettings } from "./mic.js";
+import { browserUrl, inMax, micAccess, openInBrowser, openMaxSettings, openSystemSettings } from "./mic.js";
 
 const { RoomEvent, Track } = window.LivekitClient;
 
@@ -57,11 +57,19 @@ function lobby(kind = "ready", detail = "") {
   if (kind === "connecting") {
     setLobbyText("Подключаемся к уроку", "Обычно это занимает 3–5 секунд");
     actions.append(button("primary", "Подключаемся…", null, true, true));
+  } else if (kind === "checking") {
+    setLobbyText("Проверяем микрофон", "Это занимает несколько секунд");
+    actions.append(button("primary", "Проверяем…", null, true, true));
   } else if (kind in NOMIC) {
     const [text, action, run] = NOMIC[kind];
     setLobbyText("Нет доступа к микрофону", `${text}. Без микрофона ученики вас не услышат`);
     if (action) actions.append(button("primary", action, run));
-    actions.append(button(action ? "secondary" : "primary", "Попробовать снова", () => enter()));
+    if (run === openInBrowser) {
+      // если браузер не открылся сам, ссылку можно скопировать и открыть вручную
+      actions.append(button("secondary", "Скопировать ссылку", copyLink));
+    } else {
+      actions.append(button(action ? "secondary" : "primary", "Попробовать снова", () => enter()));
+    }
     actions.append(button("link", "Войти без микрофона", () => enter({ mic: false })));
   } else {
     setLobbyText("Готовы войти?", detail || "Проверьте микрофон и камеру");
@@ -70,6 +78,16 @@ function lobby(kind = "ready", detail = "") {
   }
   setIconButton($("pvMic"), kind in NOMIC ? false : prefs.mic, "mic", "микрофон");
   setIconButton($("pvCam"), prefs.cam, "cam", "камеру");
+}
+
+async function copyLink() {
+  try {
+    await navigator.clipboard.writeText(browserUrl());
+    $("lobbyText").textContent = "Ссылка скопирована. Вставьте её в адресную строку браузера: она работает один раз и 10 минут";
+  } catch {
+    // буфер обмена недоступен: показываем ссылку, её можно выделить
+    $("lobbyText").textContent = browserUrl();
+  }
 }
 
 function setLobbyText(title, text) {
@@ -90,6 +108,7 @@ $("pvCam").onclick = () => {
 
 async function enter({ mic = prefs.mic } = {}) {
   if (mic) {
+    lobby("checking");
     const access = await micAccess();
     if (access !== "ok") return lobby(access);
   }
@@ -431,7 +450,14 @@ $("btnLeave").onclick = async () => {
   api(`/api/lessons/${LESSON_ID}/end`, { method: "POST" }).catch((err) => console.warn("урок не завершился на сервере", err));
 };
 
-$("backToChat").onclick = () => window.WebApp?.close?.();
+// Закрыть мини-приложение и вернуться в чат. Десктопный MAX close() не выполняет,
+// поэтому следом открываем чат с ботом: если приложение закрылось, до этого не дойдёт
+let botName = null;
+api("/api/app").then((info) => (botName = info.bot), () => {});
+$("backToChat").onclick = () => {
+  window.WebApp?.close?.();
+  if (botName) window.WebApp?.openMaxLink?.(`https://max.ru/${botName}`);
+};
 
 // ---------- общее ----------
 
