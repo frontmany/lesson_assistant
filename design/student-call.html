@@ -5,8 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Макет: звонок ученика</title>
   <!-- Макет экрана ученика в звонке (issue #8). Телефон, 375 px; на широком окне экран стоит по центру.
-       Состояния задаются в адресе: ?level=1…4 (ступень шкалы, по умолчанию 2), ?mic=0 (микрофон выключен).
-       Без адреса показаны все четыре ступени подряд: ?all=1.
+       Состояния задаются в адресе: ?level=1…4 (ступень шкалы, по умолчанию 2), ?mic=0 (микрофон выключен),
+       ?ana=off (аналитика выключена, шкалы нет), ?scale=hidden|shown (шкала скрыта или показана).
+       Все четыре ступени подряд: ?all=1.
        Прототип: нажатие на ступень выше текущей поднимает шкалу, на ступень ниже ничего не делает (шкала только растёт).
        Цвета и тени берём из токенов, своих значений здесь нет. Тёмная тема включается системной. -->
   <link rel="stylesheet" href="../webapp/css/tokens.css">
@@ -41,7 +42,7 @@
     .ana .i { width: 16px; height: 16px; }
     .timer { font-size: 13px; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
 
-    /* Видео: учитель на весь блок, своя плитка в углу. Других учеников на экране нет */
+    /* Видео: учитель на весь блок, своя плитка в углу. Ниже лента одноклассников без шкал: говорящий обведён */
     .stage { position: relative; margin: 0 16px; flex: 1; min-height: 240px; }
     .tile {
       position: absolute; overflow: hidden; border-radius: 16px; border: 1px solid var(--line);
@@ -49,11 +50,11 @@
     }
     .tile.main { inset: 0; }
     .tile.me { right: 10px; bottom: 10px; width: 92px; height: 122px; border-radius: 12px; border: 2px solid var(--surface); }
-    .tile .person::before {
+    .person::before {
       content: ""; position: absolute; left: 50%; top: 22%; width: 26%; aspect-ratio: 1;
       transform: translateX(-50%); border-radius: 50%; background: var(--figure);
     }
-    .tile .person::after {
+    .person::after {
       content: ""; position: absolute; left: 50%; bottom: -18%; width: 62%; height: 50%;
       transform: translateX(-50%); border-radius: 50% 50% 0 0; background: var(--figure);
     }
@@ -69,10 +70,35 @@
     }
     .micoff .i { width: 14px; height: 14px; }
 
+    .strip { display: flex; gap: 8px; margin: 8px 16px 0; overflow-x: auto; scrollbar-width: none; flex: none; }
+    .strip::-webkit-scrollbar { display: none; }
+    .mini {
+      position: relative; flex: none; width: 84px; height: 84px; border-radius: 12px; overflow: hidden;
+      background: hsl(var(--h) 22% 72%); display: grid; place-items: center;
+    }
+    .mini.nocam { background: var(--surface-muted); border: 1px solid var(--line); }
+    .mini.speaking { outline: 3px solid var(--accent); outline-offset: -3px; }
+    .mini .avatar {
+      width: 36px; height: 36px; border-radius: 50%; background: var(--accent-tint); color: var(--accent);
+      display: grid; place-items: center; font-weight: 700; font-size: 14px;
+    }
+    .mini .name {
+      position: absolute; left: 4px; right: 4px; bottom: 4px; padding: 1px 6px; border-radius: 6px;
+      background: var(--scrim); color: var(--on-scrim); font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .mini.speaking .name::before { content: "● "; color: var(--accent-on-scrim); }
+    .mini .micoff { top: 4px; right: 4px; width: 20px; height: 20px; }
+    .mini .micoff .i { width: 12px; height: 12px; }
+
+    /* Аналитика выключена: индикатор нейтральный, шкалы нет */
+    .ana.off { background: var(--surface-muted); color: var(--ink-soft); }
+    .scale.off .scale-head { margin-bottom: 4px; }
+    .off-text { margin: 0; font-size: 14px; color: var(--ink-soft); }
+
     /* Своя шкала */
     .scale { margin: 12px 16px 12px; padding: 14px 16px 12px; border-radius: var(--radius); background: var(--surface); border: 1px solid var(--line); }
-    .scale-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
-    .scale-head h2 { margin: 0; font-size: 16px; }
+    .scale-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+    .scale-head h2 { flex: 1; margin: 0; font-size: 16px; }
     .scale-head .of { font-size: 13px; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
 
     .steps { margin: 0; padding: 0; list-style: none; }
@@ -108,6 +134,19 @@
     .step.done button { color: var(--ink); }
     .step.now button { background: var(--accent-tint); color: var(--ink); font-weight: 700; }
     .step.now .mark { box-shadow: 0 0 0 4px var(--surface); }
+
+    /* Шкалу можно скрыть: остаётся строка с названием и кнопкой «Показать» */
+    .toggle {
+      display: inline-flex; align-items: center; gap: 4px; min-height: 44px; margin: -10px -8px -10px 0; padding: 0 8px;
+      border-radius: 10px; font-size: 14px; font-weight: 600; color: var(--ink-soft);
+    }
+    .toggle .i { width: 20px; height: 20px; transition: transform .3s; }
+    .scale.collapsed .toggle .i { transform: rotate(180deg); }
+    .fold { display: grid; grid-template-rows: 1fr; transition: grid-template-rows .35s; }
+    .fold > div { overflow: hidden; min-height: 0; }
+    .scale.collapsed .fold { grid-template-rows: 0fr; }
+    .scale.collapsed .scale-head { margin-bottom: 0; }
+    .scale.collapsed .fold > div { visibility: hidden; transition: visibility 0s .35s; }
 
     .scale-note { margin: 10px 0 0; padding-top: 10px; border-top: 1px solid var(--line); font-size: 13px; color: var(--ink-soft); }
 
@@ -145,6 +184,7 @@
     <symbol id="chat" viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/></symbol>
     <symbol id="leave" viewBox="0 0 24 24"><path d="M3 14c5-5 13-5 18 0l-2.5 3-3.5-1.5v-3c-2-.7-4-.7-6 0v3L5.500 17z"/></symbol>
     <symbol id="pulse" viewBox="0 0 24 24"><path d="M3 12h4l3-8 4 16 3-8h4"/></symbol>
+    <symbol id="pulse-off" viewBox="0 0 24 24"><path d="M3 12h4l3-8 4 16 3-8h4M4 4l16 16"/></symbol>
     <symbol id="check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
   </svg>
 
@@ -155,6 +195,17 @@
     const LABELS = ["Пока тихо", "Есть ответ", "Участвуешь", "Активно на уроке"];
     const micOn = P.get("mic") !== "0";
     const all = P.get("all") === "1";
+    const anaOff = P.get("ana") === "off";
+    const PEOPLE = [
+      { name: "Иван И.", h: 150, cam: 1, mic: 1, speaking: 1 },
+      { name: "Мария С.", h: 20, cam: 1, mic: 1 },
+      { name: "Артём К.", cam: 0, mic: 0 },
+      { name: "Софья Л.", h: 330, cam: 1, mic: 0 },
+      { name: "Алиса Н.", cam: 0, mic: 1 },
+    ];
+    let hiddenSaved = false;
+    try { hiddenSaved = localStorage.getItem("scaleHidden") === "1"; } catch {}
+    const hiddenWanted = P.get("scale") ? P.get("scale") === "hidden" : hiddenSaved;
     const NOTE = "Видна только тебе. Шкала не опускается";
     const icon = (id) => `<svg class="i"><use href="#${id}"/></svg>`;
 
@@ -167,10 +218,33 @@
       }).join("");
     }
 
-    function screenHTML(level) {
+    const initials = (n) => n.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase();
+    function miniHTML(p) {
+      const body = p.cam ? `<span class="person"></span>` : `<span class="avatar">${initials(p.name)}</span>`;
+      return `<div class="mini ${p.cam ? "" : "nocam"} ${p.speaking ? "speaking" : ""}" style="--h:${p.h || 0}" aria-label="${p.speaking ? "Говорит: " : ""}${p.name}">
+        ${body}${p.mic ? "" : `<span class="micoff">${icon("mic-off")}</span>`}<span class="name">${p.name}</span></div>`;
+    }
+
+    function scaleHTML(level, idx) {
+      if (anaOff) return `<div class="scale off"><div class="scale-head"><h2>Твоё участие</h2></div>
+        <p class="off-text">Аналитика выключена. Шкала не ведётся.</p></div>`;
+      return `<div class="scale ${hiddenWanted ? "collapsed" : ""}">
+          <div class="scale-head"><h2>Твоё участие</h2><span class="of">ступень <b class="cur">${level}</b> из 4</span>
+            <button type="button" class="toggle" aria-expanded="${!hiddenWanted}" aria-controls="fold${idx}">
+              <span class="toggle-text">${hiddenWanted ? "Показать" : "Скрыть"}</span><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 15l7-7 7 7"/></svg></button></div>
+          <div class="fold" id="fold${idx}"><div>
+            <ol class="steps">${stepsHTML(level)}</ol>
+            <p class="scale-note">${NOTE}</p>
+          </div></div>
+          <p class="sr" aria-live="polite" role="status"></p>
+        </div>`;
+    }
+
+    function screenHTML(level, idx) {
       return `<section class="screen" data-level="${level}" aria-label="Звонок, экран ученика">
         <div class="top">
-          <span class="ana" title="Аналитика активна">${icon("pulse")}Аналитика активна</span>
+          ${anaOff ? `<span class="ana off" title="Аналитика выключена">${icon("pulse-off")}Аналитика выключена</span>`
+                   : `<span class="ana" title="Аналитика активна">${icon("pulse")}Аналитика активна</span>`}
           <span class="timer">12:40</span>
         </div>
         <div class="stage">
@@ -178,12 +252,8 @@
           <div class="tile me" style="--h:260"><span class="person"></span>
             ${micOn ? "" : `<span class="micoff">${icon("mic-off")}</span>`}<span class="name">Вы</span></div>
         </div>
-        <div class="scale">
-          <div class="scale-head"><h2>Твоё участие</h2><span class="of">ступень <b class="cur">${level}</b> из 4</span></div>
-          <ol class="steps">${stepsHTML(level)}</ol>
-          <p class="scale-note">${NOTE}</p>
-          <p class="sr" aria-live="polite" role="status"></p>
-        </div>
+        <div class="strip" aria-label="Одноклассники в звонке">${PEOPLE.map(miniHTML).join("")}</div>
+        ${scaleHTML(level, idx)}
         <footer class="controls">
           <button class="cbtn ${micOn ? "" : "off"}" aria-label="${micOn ? "Выключить микрофон" : "Включить микрофон"}">${icon(micOn ? "mic" : "mic-off")}</button>
           <button class="cbtn" aria-label="Выключить камеру">${icon("cam")}</button>
@@ -197,8 +267,16 @@
     const page = document.getElementById("page");
     page.classList.toggle("single", !all);
     page.innerHTML = `<h1>Экран ученика в звонке</h1>
-      <p class="lead">Телефон, 375 px. Ученик видит только свою шкалу: чужих шкал и мест в рейтинге на экране нет, шкала только растёт.</p>
-      <div class="gallery">${levels.map((l) => `<div class="item"><h2>Ступень ${l}: ${LABELS[l - 1]}</h2>${screenHTML(l)}</div>`).join("")}</div>`;
+      <p class="lead">Телефон, 375 px. Ученик видит одноклассников в звонке, но только свою шкалу: чужих шкал и мест в рейтинге на экране нет, шкала только растёт.</p>
+      <div class="gallery">${levels.map((l, i) => `<div class="item"><h2>${anaOff ? "Аналитика выключена" : `Ступень ${l}: ${LABELS[l - 1]}`}</h2>${screenHTML(l, i)}</div>`).join("")}</div>`;
+
+    // Скрыть и показать шкалу: выбор помним на устройстве
+    document.querySelectorAll(".toggle").forEach((btn) => btn.addEventListener("click", () => {
+      const c = btn.closest(".scale").classList.toggle("collapsed");
+      btn.setAttribute("aria-expanded", !c);
+      btn.querySelector(".toggle-text").textContent = c ? "Показать" : "Скрыть";
+      try { localStorage.setItem("scaleHidden", c ? "1" : "0"); } catch {}
+    }));
 
     // Прототип: нажатие на ступень выше текущей поднимает шкалу, ниже — ничего не меняет
     document.querySelectorAll(".screen").forEach((screen) => {
