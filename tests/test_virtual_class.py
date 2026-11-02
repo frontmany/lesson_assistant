@@ -63,7 +63,7 @@ def test_virtual_teacher_is_teacher_for_pipeline():
     teacher = np.concatenate([silence(0.3), vowel(1.5), silence(5)])
     student = np.concatenate([silence(2.5), vowel(2), silence(2.3)])
 
-    def by_length(pcm):
+    def by_length(pcm, role):
         return "Артём, что Пётр сделал с флотом?" if len(pcm) < 2.2 * 16000 else "Ну, там флот строили."
 
     events = []

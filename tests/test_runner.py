@@ -5,6 +5,7 @@ import dataclasses
 import json
 import threading
 import time
+import wave
 
 import numpy as np
 import pytest
@@ -35,7 +36,7 @@ def run_all(tracks: dict[str, np.ndarray], transcribe=None) -> list:
     events = []
     heard = []
 
-    def fake_transcribe(pcm: np.ndarray) -> str:
+    def fake_transcribe(pcm: np.ndarray, role: str) -> str:
         heard.append(len(pcm))
         return f"фраза {len(heard)}"
 
@@ -85,7 +86,7 @@ def test_students_are_recognized_before_teacher():
     # фразы распознаётся ученик: учитель нужен только как контекст
     order = []
 
-    def slow_transcribe(pcm: np.ndarray) -> str:
+    def slow_transcribe(pcm: np.ndarray, role: str) -> str:
         seconds = len(pcm) / 16000
         order.append(seconds)
         time.sleep(0.2)
@@ -118,7 +119,7 @@ def test_end_finishes_queue_and_closes_lesson(monkeypatch):
     from app.sources import call
     from app.ws import lesson as ws
 
-    talk = as_int16(np.concatenate([silence(0.5), vowel(1.5), silence(0.5), vowel(1)]))
+    talk = as_int16(np.concatenate([silence(0.5), vowel(1.5), silence(1), vowel(1)]))
     finished = []
 
     async def fake_listen(lesson_id, stop, **kwargs):
@@ -127,7 +128,7 @@ def test_end_finishes_queue_and_closes_lesson(monkeypatch):
             yield "artem_k", talk[i : i + FRAME].tobytes()
         await stop.wait()
 
-    def slow_transcribe(pcm):
+    def slow_transcribe(pcm, *args):
         time.sleep(0.3)
         return "текст"
 
@@ -135,7 +136,7 @@ def test_end_finishes_queue_and_closes_lesson(monkeypatch):
         finished.append((lesson_id, utterances))
 
     monkeypatch.setattr(call, "listen", fake_listen)
-    monkeypatch.setattr(asr, "model", lambda: None)
+    monkeypatch.setattr(asr, "model", lambda role: None)
     monkeypatch.setattr(asr, "transcribe", slow_transcribe)
     monkeypatch.setattr(runner, "finish_lesson", fake_finish)
 
@@ -179,7 +180,7 @@ def test_teacher_question_is_recognized_before_answer_and_counts():
     teacher = np.concatenate([silence(0.3), vowel(1.5), silence(5)])
     student = np.concatenate([silence(2.5), vowel(2), silence(2.3)])
 
-    def by_length(pcm: np.ndarray) -> str:
+    def by_length(pcm: np.ndarray, role: str) -> str:
         return "Артём, что Пётр сделал с флотом?" if len(pcm) < 2.2 * 16000 else "Ну, там флот строили."
 
     events = run_all({ROSTER.teacher.id: teacher, "artem_k": student}, by_length)
@@ -202,7 +203,7 @@ def test_utterances_keep_end_and_kind():
     out = []
 
     async def scenario():
-        out.extend(await transcribe_stream(frames({"artem_k": talk}), ROSTER, lambda e: None, lambda pcm: "Флот.", norm=4.5))
+        out.extend(await transcribe_stream(frames({"artem_k": talk}), ROSTER, lambda e: None, lambda pcm, role: "Флот.", norm=4.5))
 
     asyncio.run(scenario())
     assert len(out) == 1
@@ -226,7 +227,7 @@ def test_long_silence_flag_appears_without_new_replies(monkeypatch):
             yield "artem_k", as_int16(silence(0.03)).tobytes()
             await asyncio.sleep(0.02)
 
-    asyncio.run(transcribe_stream(quiet_frames(), ROSTER, events.append, lambda pcm: "", norm=4.5))
+    asyncio.run(transcribe_stream(quiet_frames(), ROSTER, events.append, lambda pcm, role: "", norm=4.5))
     flagged = {e.student_id for e in events if e.type == "scale" and "long_silence" in e.flags}
     assert flagged == {s.id for s in ROSTER.students}
 
@@ -246,7 +247,7 @@ def test_answer_in_several_phrases_counts_once():
     teacher = np.concatenate([silence(0.3), vowel(1.5), silence(9)])
     student = np.concatenate([silence(2.5), vowel(1.2), silence(0.8), vowel(1.2), silence(0.8), vowel(1.2), silence(3)])
 
-    def by_length(pcm: np.ndarray) -> str:
+    def by_length(pcm: np.ndarray, role: str) -> str:
         return "Артём, что Пётр сделал с флотом?" if len(pcm) > 2 * 16000 else "Флот строили."
 
     events = run_all({ROSTER.teacher.id: teacher, "artem_k": student}, by_length)
@@ -262,7 +263,7 @@ def test_failing_phrase_does_not_stop_lesson():
     talk = np.concatenate([silence(0.5), vowel(1.5), silence(1), vowel(1.5), silence(1), vowel(1.5), silence(1)])
     calls = []
 
-    def flaky(pcm: np.ndarray) -> str:
+    def flaky(pcm: np.ndarray, role: str) -> str:
         calls.append(len(pcm))
         if len(calls) == 2:
             raise RuntimeError("модель упала")
@@ -302,7 +303,7 @@ def test_end_does_not_hang_after_failure(monkeypatch):
             yield "artem_k", talk[i : i + FRAME].tobytes()
         await stop.wait()
 
-    def broken(pcm):
+    def broken(pcm, *args):
         calls.append(1)
         if len(calls) == 1:
             raise RuntimeError("модель упала")
@@ -312,7 +313,7 @@ def test_end_does_not_hang_after_failure(monkeypatch):
         finished.append(utterances)
 
     monkeypatch.setattr(call, "listen", fake_listen)
-    monkeypatch.setattr(asr, "model", lambda: None)
+    monkeypatch.setattr(asr, "model", lambda role: None)
     monkeypatch.setattr(asr, "transcribe", broken)
     monkeypatch.setattr(runner, "finish_lesson", fake_finish)
 
@@ -328,3 +329,63 @@ def test_end_does_not_hang_after_failure(monkeypatch):
 
 def test_no_history_means_default_norm(tmp_path):
     assert load_history(tmp_path / "нет.json") == []
+
+
+def test_transcribe_gets_speaker_role():
+    roles = {}
+
+    def by_role(pcm: np.ndarray, role: str) -> str:
+        roles[role] = roles.get(role, 0) + 1
+        return "текст"
+
+    talk = np.concatenate([silence(0.5), vowel(1.5), silence(1)])
+    run_all({ROSTER.teacher.id: talk, "artem_k": talk, "stranger": talk}, by_role)
+    assert roles == {"teacher": 1, "student": 1}
+
+
+def test_default_transcribe_gives_names_only_to_teacher(monkeypatch):
+    from app.pipeline import asr
+
+    calls = []
+
+    def fake(pcm, role, hotwords=None):
+        calls.append((role, hotwords))
+        return "текст"
+
+    monkeypatch.setattr(asr, "model", lambda role: None)
+    monkeypatch.setattr(asr, "transcribe", fake)
+    talk = np.concatenate([silence(0.5), vowel(1.5), silence(1)])
+    asyncio.run(
+        transcribe_stream(frames({ROSTER.teacher.id: talk, "artem_k": talk}), ROSTER, lambda e: None, norm=4.5)
+    )
+    by_role = dict(calls)
+    assert "Артём" in by_role["teacher"]
+    assert by_role["student"] is None
+
+
+def test_phrases_are_saved_only_by_flag(monkeypatch, tmp_path):
+    from app.pipeline import runner
+
+    talk = np.concatenate([silence(0.5), vowel(1.5), silence(1)])
+
+    run({"artem_k": talk})
+    assert list(tmp_path.iterdir()) == []  # выключено по умолчанию
+
+    monkeypatch.setattr(runner, "settings", dataclasses.replace(runner.settings, save_phrases_dir=str(tmp_path)))
+    run({"artem_k": talk})
+    wavs = list(tmp_path.rglob("*.wav"))
+    assert len(wavs) == 1 and "artem_k" in wavs[0].name
+    assert (wavs[0].parent / f"{wavs[0].stem}.txt").read_text(encoding="utf-8") == "фраза 1"
+    with wave.open(str(wavs[0])) as saved:
+        assert (saved.getframerate(), saved.getnchannels(), saved.getsampwidth()) == (16000, 1, 2)
+        assert saved.getnframes() / 16000 == pytest.approx(1.5 + 2 * PAD_MS / 1000, abs=0.2)
+
+
+def test_failing_save_does_not_lose_phrase(monkeypatch, tmp_path):
+    from app.pipeline import runner
+
+    blocker = tmp_path / "файл"
+    blocker.write_text("")
+    monkeypatch.setattr(runner, "settings", dataclasses.replace(runner.settings, save_phrases_dir=str(blocker)))
+    talk = np.concatenate([silence(0.5), vowel(1.5), silence(1)])
+    assert [e.text for e in run({"artem_k": talk})] == ["фраза 1"]
