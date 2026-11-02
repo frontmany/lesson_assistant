@@ -152,6 +152,24 @@ def join(lesson_id: str, who: Seat = Depends(member)):
     )
 
 
+@router.get("/me/classes")
+def my_classes(user: User = Depends(current_user)):
+    """Классы вошедшего для стартовой страницы: учителю — «Начать урок», ученику — идущий урок.
+
+    lesson — идущий урок класса (учитель уже в звонке), иначе null.
+    """
+    if user.max_user_id is None:
+        return []
+    out = []
+    for c, m in classes.classes_of(user.max_user_id):
+        live = classes.live_lesson(c.id)
+        out.append({
+            "id": c.id, "name": c.name, "subject": c.subject, "role": m.role,
+            "students": len(classes.students_of(c.id)), "lesson": live.id if live else None,
+        })
+    return out
+
+
 @router.get("/app")
 def app_info():
     """Что мини-приложению нужно знать о боте: ссылка «Вернуться в чат» ведёт в его чат."""
