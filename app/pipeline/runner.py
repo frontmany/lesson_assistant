@@ -5,7 +5,6 @@
 
 import asyncio
 import bisect
-import json
 import logging
 import time
 import wave
@@ -142,8 +141,13 @@ async def run_call(lesson_id: str, lesson: _Lesson) -> None:
     5 минут (sources.call.EMPTY_ROOM_S). Тогда ассистент выходит из комнаты,
     виртуальный класс тоже, конвейер дораспознаёт очередь и вызывает finish_lesson.
     """
+    from app.db import results
+    from app.pipeline.scoring import Scoreboard, lesson_norm
     from app.sources.call import listen
     from app.ws import lesson as ws
+
+    history = await asyncio.get_running_loop().run_in_executor(None, results.history_for, lesson_id)
+    board = Scoreboard([s.id for s in lesson.roster.students], lesson_norm(history), settings.lesson_minutes * 60)
 
     def find_student(participant_id: str) -> Student | None:
         from app.db.classes import lesson_roster
@@ -158,22 +162,45 @@ async def run_call(lesson_id: str, lesson: _Lesson) -> None:
             lesson.roster,
             lambda event: ws.publish(lesson_id, event),
             find_student=find_student,
+            board=board,
         )
     finally:
         ws.set_live(lesson_id, False)
         await stop_virtual(lesson_id)
-    await finish_lesson(lesson_id, lesson.roster, utterances)
+    await finish_lesson(lesson_id, lesson.roster, utterances, board)
 
 
-async def finish_lesson(lesson_id: str, roster: Roster, utterances: list[dict]) -> None:
+async def finish_lesson(lesson_id: str, roster: Roster, utterances: list[dict], board) -> None:
     """Урок закончен, ассистент вышел, все реплики распознаны.
 
-    Единственная точка конца урока: отсюда #23 строит сводку и пишет урок
-    в БД, а бот рассылает сводку учителю и карточки ученикам (#21).
+    Единственная точка конца урока: итоги урока пишутся в базу (db.results),
+    отсюда же строится сводка, а бот рассылает её учителю и карточки ученикам (#21).
     utterances — реплики урока по времени: {"student_id", "t", "end", "text"}
-    и "kind" у учеников (см. transcribe_stream).
+    и "kind" у учеников (см. transcribe_stream); board — шкала урока (scoring.Scoreboard).
     """
-    log.info("урок %s завершён, реплик: %d", lesson_id, len(utterances))
+    from app.db import results
+    from app.pipeline.summary import build_summary
+
+    loop = asyncio.get_running_loop()
+    ended = max((u["end"] for u in utterances), default=0.0)
+    levels = {
+        s.id: (board.level(s.id), board.score(s.id), board.flags(s.id, ended)) for s in roster.students
+    }
+    saved = await loop.run_in_executor(
+        None, results.save_lesson, lesson_id, utterances, levels,
+        board.activity(), board.base_norm, board.quiet(), roster.virtual_teacher is not None,
+    )
+    log.info(
+        "урок %s завершён, реплик: %d, %s", lesson_id, len(utterances),
+        "итоги в базе" if saved else "урока нет в базе, итоги не сохранены",
+    )
+    if not saved:
+        return
+    try:
+        summary = build_summary(lesson_id, utterances, {sid: level for sid, (level, _, _) in levels.items()})
+    except NotImplementedError:
+        return  # TODO(Фёдор, #21): сводка через LLM и рассылка ботом
+    await loop.run_in_executor(None, results.save_summary, lesson_id, summary)
 
 
 @dataclass
@@ -221,20 +248,6 @@ def save_phrase(directory: Path, job: _Job, text: str) -> None:
         log.exception("не удалось сохранить фразу %s", job.who)
 
 
-def load_history(path: Path | None = None) -> list[float]:
-    """Активность прошлых уроков класса, от старых к новым: для нормы урока.
-
-    Урок в history_seed.json: {"date": "2026-10-01", "activity": 5.5, "quiet": false},
-    activity — баллы на ученика (scoring.lesson_activity). «Тихие» уроки в норму не идут.
-    TODO(#23): прошлые уроки этого класса из БД, history_seed.json — для нового класса.
-    """
-    path = path or settings.demo_lesson_dir / "history_seed.json"
-    if not path.exists():
-        return []  # истории нет — норма по умолчанию (scoring.lesson_norm)
-    lessons = json.loads(path.read_text(encoding="utf-8")).get("lessons", [])
-    return [float(lesson["activity"]) for lesson in lessons if not lesson.get("quiet")]
-
-
 async def transcribe_stream(
     frames: AsyncIterator[tuple[str, bytes]],
     roster: Roster,
@@ -242,6 +255,7 @@ async def transcribe_stream(
     transcribe: Callable[[np.ndarray, str], str] | None = None,
     norm: float | None = None,
     find_student: Callable[[str], Student | None] | None = None,
+    board=None,
 ) -> list[dict]:
     """Кадры участников → фразы → текст → тип реплики и шкала → события.
 
@@ -253,7 +267,8 @@ async def transcribe_stream(
 
     Когда кадры кончились, недоговорённые фразы дораспознаются, и функция
     возвращает реплики урока по времени: {"student_id", "t", "end", "text"}
-    и "kind" у учеников. norm — норма урока, по умолчанию из прошлых уроков.
+    и "kind" у учеников. board — шкала урока (scoring.Scoreboard); без неё
+    шкала строится здесь с нормой norm, по умолчанию из history_seed.json.
 
     find_student(id) ищет в составе урока того, чьих кадров не ждали: ученик
     мог войти в класс уже во время урока. Найденный добавляется в roster.students
@@ -261,6 +276,7 @@ async def transcribe_stream(
     """
     from app.pipeline import asr
     from app.pipeline.classify import CONTINUE_S, classify
+    from app.db.results import seed_history
     from app.pipeline.scoring import Scoreboard, lesson_norm
     from app.pipeline.vad import Phrase, PhraseDetector
 
@@ -290,11 +306,12 @@ async def transcribe_stream(
     def lesson_time() -> float:
         return time.monotonic() - started
 
-    board = Scoreboard(
-        students,
-        norm if norm is not None else lesson_norm(load_history()),
-        settings.lesson_minutes * 60,
-    )
+    if board is None:
+        board = Scoreboard(
+            students,
+            norm if norm is not None else lesson_norm(seed_history()),
+            settings.lesson_minutes * 60,
+        )
     shown: dict[str, tuple[int, list]] = {}  # что сейчас на шкале у каждого ученика
 
     def show_scale(now: float) -> None:

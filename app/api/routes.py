@@ -17,7 +17,7 @@ from app.auth import User, current_user
 from app.bot import max_bot
 from app.call import participant_token
 from app.config import settings
-from app.db import classes
+from app.db import classes, results
 from app.models import AnalyticsState, JoinInfo, Roster, StudentCard, Summary
 from app.pipeline import runner
 from app.sources import virtual_class
@@ -256,8 +256,8 @@ async def end(lesson_id: str):
 
 @router.get("/lessons/{lesson_id}/summary", response_model=Summary, dependencies=[Depends(teacher)])
 def summary(lesson_id: str):
-    # TODO(Ярослав, Фёдор): заменить мок на pipeline.summary.build_summary
-    return mocks.load("summary.json")
+    # сводка из базы, когда #21 её строит; до тех пор и для урока не из базы — мок
+    return results.get_summary(lesson_id) or mocks.load("summary.json")
 
 
 @router.get("/lessons/{lesson_id}/cards/{student_id}", response_model=StudentCard)
