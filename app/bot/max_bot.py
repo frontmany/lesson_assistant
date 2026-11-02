@@ -83,9 +83,15 @@ class MaxApi:
             body["attachments"] = [{"type": "inline_keyboard", "payload": {"buttons": buttons}}]
         self.http.post("/messages", params={"user_id": user_id}, json=body).raise_for_status()
 
-    def answer(self, callback_id: str, notification: str) -> None:
-        """Ответить на нажатие кнопки всплывающим уведомлением."""
-        self.http.post("/answers", params={"callback_id": callback_id}, json={"notification": notification}).raise_for_status()
+    def answer(self, callback_id: str, notification: str | None = None, message: str | None = None) -> None:
+        """Ответить на нажатие кнопки: всплывающим уведомлением или заменой сообщения с кнопкой.
+
+        message — новый текст того сообщения, где нажали кнопку; кнопки из него убираются.
+        """
+        body: dict = {"notification": notification} if notification else {}
+        if message is not None:
+            body["message"] = {"text": message, "attachments": []}
+        self.http.post("/answers", params={"callback_id": callback_id}, json=body).raise_for_status()
 
 
 def callback(text: str, payload: str) -> dict:
@@ -169,8 +175,10 @@ class Bot:
             "restore": lambda: self.restore(user_id, int(arg)),
             "start": lambda: self.pick_lesson(user_id),
             "class": lambda: self.student_class(user_id, int(arg)),
-            "cancel": lambda: None,
         }.get(action)
+        if action == "cancel":
+            # «Отмена» и «Остаться»: вопрос в чате меняется на ответ, кнопки исчезают
+            return self.api.answer(callback_id, message=self.cancelled(arg))
         self.api.answer(callback_id, "Готово" if handler else "Эта кнопка больше не нужна")
         if handler is None:
             return self.greet(user_id)
@@ -262,7 +270,7 @@ class Bot:
 
     def ask_new_link(self, user_id: int, class_id: int) -> None:
         self.api.send(user_id, "Создать новую ссылку и код? Старые перестанут работать.",
-                      [[callback("Создать ссылку", f"newlink_yes:{class_id}"), callback("Отмена", "cancel")]])
+                      [[callback("Создать ссылку", f"newlink_yes:{class_id}"), callback("Отмена", f"cancel:newlink-{class_id}")]])
 
     def new_link(self, user_id: int, class_id: int) -> None:
         if not self.teaches(user_id, class_id):
@@ -273,7 +281,7 @@ class Bot:
     def ask_delete(self, user_id: int, class_id: int) -> None:
         c = db.get_class(class_id)
         self.api.send(user_id, f"Удалить класс {c.name}? Ученики потеряют доступ.",
-                      [[callback("Удалить класс", f"delete_yes:{class_id}"), callback("Отмена", "cancel")]])
+                      [[callback("Удалить класс", f"delete_yes:{class_id}"), callback("Отмена", f"cancel:delete-{class_id}")]])
 
     def delete(self, user_id: int, class_id: int) -> None:
         if not self.teaches(user_id, class_id):
@@ -291,6 +299,18 @@ class Bot:
             self.api.send(user_id, f"Класс {c.name} снова с вами: ученики и ссылка остались прежними.")
         else:
             self.api.send(user_id, f"Вернуть {c.name} уже нельзя: прошло {db.RESTORE_DAYS} дней.")
+
+    def cancelled(self, what: str) -> str:
+        """Чем заменить вопрос, на который ответили «Отмена» или «Остаться»."""
+        action, _, class_id = what.partition("-")
+        c = db.get_class(int(class_id)) if class_id.isdigit() else None
+        if c is None:
+            return "Хорошо, ничего не меняем."
+        return {
+            "newlink": f"Ссылка и код {c.name} остались прежними.",
+            "delete": f"Класс {c.name} остался.",
+            "leave": f"Вы остались в классе {c.name}.",
+        }.get(action, "Хорошо, ничего не меняем.")
 
     def teaches(self, user_id: int, class_id: int) -> bool:
         m = db.membership(class_id, user_id)
@@ -365,7 +385,7 @@ class Bot:
     def ask_leave(self, user_id: int, class_id: int) -> None:
         c = db.get_class(class_id)
         self.api.send(user_id, f"Выйти из класса {c.name}?",
-                      [[callback("Выйти", f"leave_yes:{class_id}"), callback("Остаться", "cancel")]])
+                      [[callback("Выйти", f"leave_yes:{class_id}"), callback("Остаться", f"cancel:leave-{class_id}")]])
 
     def leave(self, user_id: int, class_id: int) -> None:
         m = db.membership(class_id, user_id)
