@@ -22,3 +22,8 @@ def test_ws_streams_mock_events():
         first = ws.receive_json()
     assert first["type"] == "scale"
     assert "after" not in first
+
+
+def test_webapp_files_are_revalidated():
+    # иначе MAX берёт из кэша старый скрипт к новой странице
+    assert client.get("/js/start.js").headers["cache-control"] == "no-cache"
