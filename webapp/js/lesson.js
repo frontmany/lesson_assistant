@@ -26,6 +26,9 @@ export const LEVEL_LABELS = {
 const json = { "Content-Type": "application/json" };
 let session = null;
 
+// Вошёл ли человек: по данным MAX или по одноразовой ссылке в браузере
+export const signedIn = () => Boolean(session);
+
 function stored() {
   try {
     return sessionStorage.getItem("session");

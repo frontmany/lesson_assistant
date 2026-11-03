@@ -3,7 +3,7 @@
 // человека: учителю «Начать урок», ученику «Войти в урок», если урок идёт; всем —
 // демо и чат с ботом, где создают класс и входят в него.
 
-import { api, signIn } from "./lesson.js";
+import { api, signedIn, signIn } from "./lesson.js";
 
 const $ = (id) => document.getElementById(id);
 const inMax = Boolean(window.WebApp?.initData);
@@ -40,18 +40,34 @@ function card(c) {
     const b = Object.assign(document.createElement("button"), { textContent: text });
     b.onclick = () => onclick().catch((err) => say(err.message));
     el.append(b);
+    return b;
   };
   if (c.role === "teacher") {
-    meta.textContent = c.students
-      ? `${c.students} ${plural(c.students, "ученик", "ученика", "учеников")}`
-      : "Пока никого: пригласите учеников в чате с ботом";
+    meta.textContent = `${c.students} ${plural(c.students, "ученик", "ученика", "учеников")}`;
     if (c.lesson) action("Вернуться в урок", async () => go("teacher.html", c.lesson));
     else if (c.students) action("Начать урок", () => startLesson(c.id));
+    else {
+      // пустой класс: кнопка неактивна, а почему — объясняем только по нажатию
+      const b = action("Начать урок", async () => hint(el, "Урок начинается, когда в классе есть хотя бы один ученик. Пригласите учеников в чате с ботом"));
+      b.classList.add("off");
+      b.setAttribute("aria-disabled", "true");
+    }
   } else {
     meta.textContent = c.lesson ? "Урок идёт" : "Урок пока не идёт";
     if (c.lesson) action("Войти в урок", async () => go("student.html", c.lesson));
   }
   return el;
+}
+
+function hint(card, text) {
+  let p = card.querySelector(".card-hint");
+  if (!p) {
+    p = Object.assign(document.createElement("p"), { className: "card-hint" });
+    card.append(p);
+  }
+  p.textContent = text;
+  clearTimeout(p.timer);
+  p.timer = setTimeout(() => p.remove(), 5000);
 }
 
 async function home() {
@@ -69,14 +85,6 @@ async function home() {
       say(err.message);
     }
   };
-  const { bot } = await api("/api/app").catch(() => ({}));
-  $("chat").hidden = !bot;
-  $("chat").onclick = () => {
-    const url = `https://max.ru/${bot}`;
-    // MAX web — это браузер: новая вкладка надёжнее моста; в приложении MAX — его ссылка
-    if (!inMax || window.WebApp.platform === "web") window.open(url, "_blank", "noopener");
-    else window.WebApp.openMaxLink(url);
-  };
 }
 
 try {
@@ -88,7 +96,7 @@ try {
     const lesson = start.slice(1);
     const me = await api(`/api/lessons/${lesson}/me`);
     go(me.role === "teacher" ? "teacher.html" : "student.html", lesson);
-  } else if (inMax) {
+  } else if (inMax || signedIn()) {
     await home();
   } else {
     say("Откройте мини-приложение в MAX: в чате с ботом «Идея фикс».");
