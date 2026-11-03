@@ -35,8 +35,8 @@ class Settings:
     dev_auth: bool = os.getenv("DEV_AUTH", "0") == "1"
 
     whisper_model_teacher: str = os.getenv("WHISPER_MODEL_TEACHER", "small")
-    # TODO(#55): выбрать по сравнению на живых фразах (analytics/compare_asr.py)
-    whisper_model_student: str = os.getenv("WHISPER_MODEL_STUDENT", "small")
+    # GigaAM: на живых фразах меньше ошибок и почти все «?», в разы быстрее Whisper (analytics/README.md)
+    whisper_model_student: str = os.getenv("WHISPER_MODEL_STUDENT", "gigaam-v3-e2e-ctc")
     whisper_compute_type: str = os.getenv("WHISPER_COMPUTE_TYPE", "int8")
     whisper_download_root: str = os.getenv("WHISPER_DOWNLOAD_ROOT", str(ROOT / "models"))
 

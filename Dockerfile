@@ -13,7 +13,7 @@ RUN pip install -r requirements.txt
 # и запуск контейнера не зависит от сети.
 # TODO(Ярослав): включить по умолчанию, когда появится pipeline/asr.py
 ARG WHISPER_MODEL_TEACHER=small
-ARG WHISPER_MODEL_STUDENT=small
+ARG WHISPER_MODEL_STUDENT=gigaam-v3-e2e-ctc
 ARG PRELOAD_MODEL=0
 ENV WHISPER_MODEL_TEACHER=${WHISPER_MODEL_TEACHER} \
     WHISPER_MODEL_STUDENT=${WHISPER_MODEL_STUDENT} \
