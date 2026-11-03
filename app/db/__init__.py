@@ -5,8 +5,7 @@
 PostgreSQL. Таблицы создаются при старте сервера (init), без миграций:
 схема описана в моделях SQLAlchemy.
 
-TODO(Ярослав): таблицы utterances, levels, summaries со ссылкой на lessons.id
-и members.id; загрузка data/demo_lesson/history_seed.json для нормы урока.
+Итоги уроков — реплики, ступени, норма, сводки — в results.py.
 """
 
 from collections.abc import Iterator
@@ -39,7 +38,7 @@ _sessions = sessionmaker(engine, expire_on_commit=False)
 
 def init(bind=None) -> None:
     """Создать таблицы, которых ещё нет."""
-    from app.db import classes  # noqa: F401 — модели регистрируются в Base
+    from app.db import classes, results  # noqa: F401 — модели регистрируются в Base
 
     Base.metadata.create_all(bind or engine)
 
