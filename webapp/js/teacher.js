@@ -460,19 +460,13 @@ $("btnLeave").onclick = async () => {
   show("ended");
   $("duration").textContent = `${minutes} ${plural(minutes, "минута", "минуты", "минут")}`;
   $("studentsCount").textContent = `Учеников: ${roster.students.length}`;
-  $("backToChat").hidden = !inMax();
   // ассистент дораспознаёт очередь и выходит, сводку отправит бот (#21)
   api(`/api/lessons/${LESSON_ID}/end`, { method: "POST" }).catch((err) => console.warn("урок не завершился на сервере", err));
 };
 
-// Закрыть мини-приложение и вернуться в чат. Десктопный MAX close() не выполняет,
-// поэтому следом открываем чат с ботом: если приложение закрылось, до этого не дойдёт
-let botName = null;
-api("/api/app").then((info) => (botName = info.bot), () => {});
-$("backToChat").onclick = () => {
-  window.WebApp?.close?.();
-  if (botName) window.WebApp?.openMaxLink?.(`https://max.ru/${botName}`);
-};
+// После урока — обратно к классам на стартовую страницу. Закрыть мини-приложение
+// или открыть чат нельзя: в MAX web и на десктопе мост эти команды не выполняет
+$("backToClasses").onclick = () => location.replace(`index.html${location.hash}`);
 
 // ---------- общее ----------
 
