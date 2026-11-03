@@ -21,6 +21,9 @@
     .card > div { flex: 1; min-width: 0; }
     .card-name { font-weight: 600; font-size: 16px; }
     .card-meta { font-size: 13px; color: var(--ink-soft); margin-top: 2px; }
+    .card { flex-wrap: wrap; }
+    .card button.off { background: var(--surface-muted); color: var(--ink-soft); cursor: default; }
+    .card-hint { flex-basis: 100%; margin: 4px 0 0; font-size: 13px; color: var(--ink-soft); }
     .spacer { flex: 1; }
     button { font: inherit; font-weight: 600; border: 0; cursor: pointer; border-radius: 999px; padding: 12px 20px; }
     .card button { padding: 8px 14px; font-size: 14px; background: var(--accent); color: var(--surface); flex: none; }
@@ -41,7 +44,6 @@
     <div class="spacer"></div>
     <div class="actions" id="actions" hidden>
       <button class="primary" id="demo">Посмотреть демо</button>
-      <button class="secondary" id="chat">Открыть чат с ботом</button>
     </div>
     <!-- Для разработки (DEV_AUTH=1): урок демо-класса без MAX -->
     <nav class="dev" id="dev" hidden>
