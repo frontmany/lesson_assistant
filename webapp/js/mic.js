@@ -59,8 +59,8 @@ export function openSystemSettings() {
 // Данных запуска в браузере нет, поэтому в ссылке одноразовый вход (#24)
 let link = null;
 
-// Ссылка, которую можно показать текстом и скопировать, если открыть не получилось
-export function browserUrl() {
+// Ссылка на этот же урок для браузера: с одноразовым входом, если успели его получить
+function browserUrl() {
   return link ?? location.href;
 }
 
