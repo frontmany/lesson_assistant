@@ -142,6 +142,13 @@ class Scoreboard:
         self.tick(end)
         return self.level(student_id)
 
+    def forget(self, student_id: str) -> None:
+        """Учитель выключил ученику аналитику: его баллы и ступень не ведутся и не идут в итоги."""
+        self._students.pop(student_id, None)
+
+    def students(self) -> set[str]:
+        return set(self._students)
+
     def add_student(self, student_id: str) -> None:
         """Ученик вошёл в класс во время урока: шкала с первой ступени, как у всех в начале."""
         self._students.setdefault(student_id, _Student())

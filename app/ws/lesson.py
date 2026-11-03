@@ -25,7 +25,7 @@ _live: set[str] = set()  # уроки, в которых работает кон
 # Снимок идущего урока: последнее событие каждого типа по каждому ученику.
 # Его получает клиент при подключении, иначе после перезагрузки шкалы пустые
 _snapshots: dict[str, dict[tuple[str, str], dict]] = {}
-SNAPSHOT_TYPES = {"scale", "utterance"}
+SNAPSHOT_TYPES = {"scale", "utterance", "analytics"}
 
 
 def set_live(lesson_id: str, live: bool) -> None:

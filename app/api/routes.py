@@ -131,8 +131,14 @@ def auth_browser(body: Ticket):
 
 @router.get("/lessons/{lesson_id}/me")
 def me(lesson_id: str, who: Seat = Depends(member)):
-    """Кто я в этом уроке: мини-приложение открывает экран учителя или ученика."""
-    return {"participant_id": who.participant_id, "name": who.name, "role": who.role}
+    """Кто я в этом уроке: мини-приложение открывает экран учителя или ученика.
+
+    analytics — ведётся ли аналитика этого участника (учитель может выключить её ученику).
+    """
+    return {
+        "participant_id": who.participant_id, "name": who.name, "role": who.role,
+        "analytics": who.role == "teacher" or not runner.analytics_off(lesson_id, who.participant_id),
+    }
 
 
 # ---------- урок ----------
@@ -264,5 +270,20 @@ def card(lesson_id: str, student_id: str, who: Seat = Depends(member)):
 
 @router.post("/lessons/{lesson_id}/analytics", response_model=AnalyticsState, dependencies=[Depends(teacher)])
 def set_analytics(lesson_id: str, state: AnalyticsState):
-    # TODO(Ярослав): запомнить состояние и разослать его по WebSocket
+    """Учитель выключил или включил аналитику ученику (student_id) или всему классу (null).
+
+    Выключенный ученик не попадает ни в шкалы, ни в итоги урока; ему и учителю
+    уходит событие analytics.
+    """
+    runner.set_analytics(lesson_id, state.enabled, state.student_id)
+    from app.ws import lesson as ws
+
+    ws.publish(lesson_id, state)
     return state
+
+
+@router.get("/lessons/{lesson_id}/analytics", dependencies=[Depends(teacher)])
+def analytics_state(lesson_id: str):
+    """У кого в уроке выключена аналитика: панель учителя восстанавливает выключатели после перезагрузки."""
+    off = runner.analytics_off_list(lesson_id)
+    return {"all_off": runner.ALL in off, "off": [sid for sid in off if sid != runner.ALL]}
