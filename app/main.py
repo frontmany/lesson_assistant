@@ -40,4 +40,17 @@ app.include_router(api_router, prefix="/api")
 app.include_router(ws_router)
 
 # Мини-приложение монтируется последним, чтобы не перекрывать /api и /ws
-app.mount("/", StaticFiles(directory=ROOT / "webapp", html=True), name="webapp")
+class Webapp(StaticFiles):
+    """Файлы мини-приложения: браузер сверяет их с сервером при каждом открытии.
+
+    Без этого MAX брал из кэша старый скрипт к новой странице, и она падала.
+    Неизменённый файл заново не качается: на проверку сервер отвечает 304 по ETag.
+    """
+
+    def file_response(self, *args, **kwargs):
+        response = super().file_response(*args, **kwargs)
+        response.headers["Cache-Control"] = "no-cache"
+        return response
+
+
+app.mount("/", Webapp(directory=ROOT / "webapp", html=True), name="webapp")
