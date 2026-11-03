@@ -34,8 +34,9 @@ class Settings:
     # разработка: участника можно назвать в адресе (?id=), без данных запуска MAX
     dev_auth: bool = os.getenv("DEV_AUTH", "0") == "1"
 
-    whisper_model_teacher: str = os.getenv("WHISPER_MODEL_TEACHER", "small")
-    # GigaAM: на живых фразах меньше ошибок и почти все «?», в разы быстрее Whisper (analytics/README.md)
+    # GigaAM у всех: на живых фразах меньше ошибок и почти все «?», в разы быстрее Whisper,
+    # а на демо-уроке и у учителя точнее small, имена без подсказок слышит (analytics/README.md)
+    whisper_model_teacher: str = os.getenv("WHISPER_MODEL_TEACHER", "gigaam-v3-e2e-ctc")
     whisper_model_student: str = os.getenv("WHISPER_MODEL_STUDENT", "gigaam-v3-e2e-ctc")
     whisper_compute_type: str = os.getenv("WHISPER_COMPUTE_TYPE", "int8")
     whisper_download_root: str = os.getenv("WHISPER_DOWNLOAD_ROOT", str(ROOT / "models"))
