@@ -2,7 +2,6 @@
 
 import asyncio
 import dataclasses
-import json
 import threading
 import time
 import wave
@@ -14,7 +13,7 @@ pytest.importorskip("faster_whisper")
 
 from app import mocks  # noqa: E402
 from app.models import Roster  # noqa: E402
-from app.pipeline.runner import _Job, load_history, next_job, transcribe_stream  # noqa: E402
+from app.pipeline.runner import _Job, next_job, transcribe_stream  # noqa: E402
 from app.pipeline.vad import PAD_MS  # noqa: E402
 from tests.test_vad import FRAME, as_int16, silence, vowel  # noqa: E402
 
@@ -132,7 +131,7 @@ def test_end_finishes_queue_and_closes_lesson(monkeypatch):
         time.sleep(0.3)
         return "текст"
 
-    async def fake_finish(lesson_id, roster, utterances):
+    async def fake_finish(lesson_id, roster, utterances, board):
         finished.append((lesson_id, utterances))
 
     monkeypatch.setattr(call, "listen", fake_listen)
@@ -232,15 +231,6 @@ def test_long_silence_flag_appears_without_new_replies(monkeypatch):
     assert flagged == {s.id for s in ROSTER.students}
 
 
-def test_history_skips_quiet_lessons(tmp_path):
-    seed = tmp_path / "history_seed.json"
-    seed.write_text(json.dumps({"lessons": [
-        {"date": "2026-10-01", "activity": 5},
-        {"date": "2026-10-03", "activity": 1, "quiet": True},
-        {"date": "2026-10-08", "activity": 7},
-    ]}), encoding="utf-8")
-    assert load_history(seed) == [5, 7]
-
 
 def test_answer_in_several_phrases_counts_once():
     # Артём отвечает на обращение тремя фразами с паузами: это одна реплика
@@ -309,7 +299,7 @@ def test_end_does_not_hang_after_failure(monkeypatch):
             raise RuntimeError("модель упала")
         return "вторая фраза"
 
-    async def fake_finish(lesson_id, roster, utterances):
+    async def fake_finish(lesson_id, roster, utterances, board):
         finished.append(utterances)
 
     monkeypatch.setattr(call, "listen", fake_listen)
@@ -325,10 +315,6 @@ def test_end_does_not_hang_after_failure(monkeypatch):
 
     asyncio.run(scenario())
     assert [[u["text"] for u in lesson] for lesson in finished] == [["вторая фраза"]]
-
-
-def test_no_history_means_default_norm(tmp_path):
-    assert load_history(tmp_path / "нет.json") == []
 
 
 def test_transcribe_gets_speaker_role():
