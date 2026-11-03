@@ -304,4 +304,6 @@ html { scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
 /* До входа: заголовок отделён от кнопок, даже когда пояснения под ним нет; шаг между кнопками ровный */
 .lobby .lobby-text h1 { margin-bottom: 12px; }
 .lobby .lobby-text .actions { margin-top: 24px; gap: 12px; }
+/* под строкой пояснения кнопкам хватает её отступа */
+.lobby .lobby-text p:not([hidden]) + .actions { margin-top: 8px; }
 .lobby .lobby-text .link { margin-top: 4px; }

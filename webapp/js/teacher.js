@@ -13,13 +13,13 @@ const FLAG_RANK = { long_silence: 0, quiet_but_precise: 1 };
 const COMPACT_FROM = 9; // с девяти учеников строки панели сжаты, над списком фильтры
 const TOAST_MS = 4000;
 
-// Что предложить, если микрофона нет: зависит от того, что ответил MAX или браузер (js/mic.js)
+// Что предложить, если микрофона нет: одна строка пояснения и кнопка (js/mic.js)
 const NOMIC = {
-  "max-settings": ["Открыть настройки MAX", openMaxSettings],
-  "system-settings": ["Открыть настройки телефона", openSystemSettings],
-  update: ["Открыть в браузере", openInBrowser],
-  browser: ["Открыть в браузере", openInBrowser],
-  denied: [null, null],
+  "max-settings": ["Разрешите микрофон для урока в настройках MAX", "Открыть настройки MAX", openMaxSettings],
+  "system-settings": ["Разрешите MAX доступ к микрофону в настройках телефона", "Открыть настройки телефона", openSystemSettings],
+  update: ["Обновите MAX или откройте урок в браузере", "Открыть в браузере", openInBrowser],
+  browser: ["В браузере микрофон работает", "Открыть в браузере", openInBrowser],
+  denied: ["Разрешите микрофон в настройках браузера", null, null],
 };
 
 const $ = (id) => document.getElementById(id);
@@ -61,9 +61,8 @@ function lobby(kind = "ready", detail = "") {
     setLobbyText("Проверяем микрофон", "Это занимает несколько секунд");
     actions.append(button("primary", "Проверяем…", null, true, true));
   } else if (kind in NOMIC) {
-    const [action, run] = NOMIC[kind];
-    // без пояснений мелким текстом: что делать, говорят кнопки
-    setLobbyText("Нет доступа к микрофону", "");
+    const [text, action, run] = NOMIC[kind];
+    setLobbyText("Нет доступа к микрофону", text);
     if (action) actions.append(button("primary", action, run));
     if (run === openInBrowser) {
       // если браузер не открылся сам, ссылку можно скопировать и открыть вручную
