@@ -375,3 +375,21 @@ def test_failing_save_does_not_lose_phrase(monkeypatch, tmp_path):
     monkeypatch.setattr(runner, "settings", dataclasses.replace(runner.settings, save_phrases_dir=str(blocker)))
     talk = np.concatenate([silence(0.5), vowel(1.5), silence(1)])
     assert [e.text for e in run({"artem_k": talk})] == ["фраза 1"]
+
+
+def test_student_with_analytics_off_is_not_counted():
+    # #22: учитель выключил аналитику Артёму — его речь остаётся контекстом, но не считается
+    talk = np.concatenate([silence(0.5), vowel(1.5), silence(1)])
+    events = []
+
+    async def go():
+        return await transcribe_stream(
+            frames({"artem_k": talk, "ivan_i": talk}), ROSTER, events.append,
+            lambda pcm, role: "Флот строили сами.", norm=4.5, off=lambda sid: sid == "artem_k",
+        )
+
+    utterances = asyncio.run(go())
+    ids = {e.student_id for e in events}
+    assert "artem_k" not in ids and "ivan_i" in ids  # ни реплик, ни шкалы Артёма
+    artem = [u for u in utterances if u["student_id"] == "artem_k"]
+    assert artem and all(u.get("off") for u in artem)

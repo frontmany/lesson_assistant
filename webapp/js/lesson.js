@@ -103,6 +103,10 @@ export function subscribe(onEvent) {
   if (DEV_ID) url.searchParams.set("id", DEV_ID);
   const ws = new WebSocket(url);
   ws.onmessage = (msg) => onEvent(JSON.parse(msg.data));
+  // Связь оборвалась: переподключаемся, сервер пришлёт снимок заново. 4403 — не участник, ждать нечего
+  ws.onclose = (e) => {
+    if (e.code !== 4403) setTimeout(() => subscribe(onEvent), 2000);
+  };
   return ws;
 }
 
