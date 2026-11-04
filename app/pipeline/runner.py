@@ -206,8 +206,10 @@ async def finish_lesson(lesson_id: str, roster: Roster, utterances: list[dict], 
     utterances — реплики урока по времени: {"student_id", "t", "end", "text"}
     и "kind" у учеников (см. transcribe_stream); board — шкала урока (scoring.Scoreboard).
     """
+    from app.bot import max_bot
     from app.db import results
-    from app.pipeline.summary import build_summary
+    from app.db.classes import lesson_roster
+    from app.pipeline import summary
 
     loop = asyncio.get_running_loop()
     # у кого аналитика выключена, тех нет ни в репликах, ни в ступенях урока (#22)
@@ -228,11 +230,27 @@ async def finish_lesson(lesson_id: str, roster: Roster, utterances: list[dict], 
     )
     if not saved:
         return
+
+    def report() -> None:
+        # запросы к базе, GigaChat и боту блокирующие: целиком в отдельном потоке
+        nonlocal roster
+        # кто вошёл в класс во время урока, того нет в составе на начало урока
+        fresh = lesson_roster(lesson_id)
+        known = {s.id for s in roster.students}
+        if fresh:
+            roster = roster.model_copy(update={"students": roster.students + [s for s in fresh.students if s.id not in known]})
+        streaks = results.silent_streaks(lesson_id, list(levels))
+        teacher_summary = summary.build_summary(roster, utterances, levels, streaks)
+        cards = summary.build_cards(roster, utterances, levels)
+        results.save_summary(lesson_id, teacher_summary)
+        results.save_cards(lesson_id, cards)
+        log.info("сводка урока %s готова, карточек: %d", lesson_id, len(cards))
+        max_bot.lesson_finished(roster, teacher_summary, cards, max(1, round(ended / 60)))
+
     try:
-        summary = build_summary(lesson_id, utterances, {sid: level for sid, (level, _, _) in levels.items()})
-    except NotImplementedError:
-        return  # TODO(Фёдор, #21): сводка через LLM и рассылка ботом
-    await loop.run_in_executor(None, results.save_summary, lesson_id, summary)
+        await loop.run_in_executor(None, report)
+    except Exception:
+        log.exception("сводка урока %s не собрана", lesson_id)
 
 
 @dataclass
