@@ -26,7 +26,8 @@ $FailsToRestart = 3           # столько проверок подряд б�
 $Ports = @{ app = $AppPort; livekit = $LiveKitPort }
 $ConfigRepo = "frontmany/sferum-ai"
 
-if ($UpdateConfig -and ((gh api "repos/$ConfigRepo" --jq .permissions.push 2>$null) -ne "true")) {
+$CanPush = (gh api "repos/$ConfigRepo" --jq .permissions.push 2>$null) -eq "true"
+if ($UpdateConfig -and -not $CanPush) {
     throw "-UpdateConfig: нужен gh с правом записи в $ConfigRepo (gh auth login)"
 }
 
@@ -65,7 +66,7 @@ $Fails = @{}
 function Start-Tunnel($name) {
     $port = $Ports[$name]
     $log = Join-Path $State "$name.log"
-    if (Test-Path $log) { Remove-Item $log }
+    if (Test-Path $log) { Move-Item $log "$log.prev" -Force }  # лог упавшего туннеля — чтобы понять, почему упал
     if ($InDocker) {
         docker rm -f "lesson-tunnel-$name" 2>$null | Out-Null
         $argList = "run --rm --name lesson-tunnel-$name --add-host host.docker.internal:host-gateway $Image " +
@@ -135,6 +136,7 @@ function Show-Addresses {
     } else {
         Write-Host "Строка для config.js в репозитории sferum-ai:"
         Write-Host "window.APP_URL = `"$($Url.app)/`";"
+        if ($CanPush) { Write-Host "(доступ к $ConfigRepo есть: с -UpdateConfig скрипт впишет её сам)" }
     }
     Write-Host ""
 }
@@ -169,10 +171,11 @@ try {
         foreach ($name in "app", "livekit") {
             if (Test-Tunnel $name) { $Fails[$name] = 0; continue }
             $Fails[$name]++
-            $dead = $Proc[$name].HasExited -or
-                (Select-String -Path (Join-Path $State "$name.log") -Pattern 'tunnel not found' -Quiet)
-            if (-not $dead -and $Fails[$name] -lt $FailsToRestart) { continue }
-            Write-Host "$(Get-Date -Format HH:mm:ss) туннель $name пропал, поднимаю заново"
+            if ($Proc[$name].HasExited) { $reason = "cloudflared завершился" }
+            elseif (Select-String -Path (Join-Path $State "$name.log") -Pattern 'tunnel not found' -Quiet) { $reason = "Cloudflare: Tunnel not found" }
+            elseif ($Fails[$name] -ge $FailsToRestart) { $reason = "не отвечает $($Fails[$name]) проверки подряд" }
+            else { continue }
+            Write-Host "$(Get-Date -Format HH:mm:ss) туннель $name пропал ($reason), поднимаю заново; прошлый лог — $State\$name.log.prev"
             Stop-Tunnel $name
             while (-not (Start-Tunnel $name)) { Start-Sleep $CheckEverySec }  # нет сети — пробуем, пока не появится
             if ($name -eq "livekit") { Set-LiveKitUrl; Restart-App }

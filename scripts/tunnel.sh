@@ -32,7 +32,9 @@ case "${1:-}" in
     "") ;;
     *) echo "Неизвестный параметр: $1 (есть только --update-config)" >&2; exit 1 ;;
 esac
-if [ "$UPDATE_CONFIG" = 1 ] && ! gh api "repos/$CONFIG_REPO" --jq .permissions.push 2>/dev/null | grep -q true; then
+CAN_PUSH=0
+gh api "repos/$CONFIG_REPO" --jq .permissions.push 2>/dev/null | grep -q true && CAN_PUSH=1
+if [ "$UPDATE_CONFIG" = 1 ] && [ "$CAN_PUSH" = 0 ]; then
     echo "--update-config: нужен gh с правом записи в $CONFIG_REPO (gh auth login)" >&2
     exit 1
 fi
@@ -75,6 +77,7 @@ declare -A PID URL FAILS
 start_tunnel() {
     # $1 — имя (app, livekit), $2 — порт. Ждёт адрес *.trycloudflare.com в логе
     local name=$1 port=$2 log="$STATE/$1.log" url=""
+    [ -f "$log" ] && mv "$log" "$log.prev"  # лог упавшего туннеля — чтобы понять, почему упал
     run_cloudflared "$name" "$port" > "$log" 2>&1 &
     PID[$name]=$!
     for _ in $(seq 60); do
@@ -139,6 +142,7 @@ announce() {
     else
         echo "Строка для config.js в репозитории sferum-ai:"
         echo "window.APP_URL = \"${URL[app]}/\";"
+        [ "$CAN_PUSH" = 1 ] && echo "(доступ к $CONFIG_REPO есть: с --update-config скрипт впишет её сам)"
     fi
     echo
 }
@@ -195,9 +199,16 @@ while true; do
             continue
         fi
         FAILS[$name]=$(( FAILS[$name] + 1 ))
-        kill -0 "${PID[$name]}" 2>/dev/null && ! grep -qi 'tunnel not found' "$STATE/$name.log" \
-            && [ "${FAILS[$name]}" -lt "$FAILS_TO_RESTART" ] && continue
-        echo "$(date +%H:%M:%S) туннель $name пропал, поднимаю заново"
+        if ! kill -0 "${PID[$name]}" 2>/dev/null; then
+            reason="cloudflared завершился"
+        elif grep -qi 'tunnel not found' "$STATE/$name.log"; then
+            reason="Cloudflare: Tunnel not found"
+        elif [ "${FAILS[$name]}" -ge "$FAILS_TO_RESTART" ]; then
+            reason="не отвечает ${FAILS[$name]} проверки подряд"
+        else
+            continue
+        fi
+        echo "$(date +%H:%M:%S) туннель $name пропал ($reason), поднимаю заново; прошлый лог — $STATE/$name.log.prev"
         stop_tunnel "$name"
         until start_tunnel "$name" "$([ "$name" = app ] && echo $APP_PORT || echo $LIVEKIT_PORT)"; do
             sleep "$CHECK_EVERY_S"  # нет сети — пробуем, пока не появится
