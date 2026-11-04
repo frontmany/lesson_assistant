@@ -31,3 +31,6 @@ design/**/*.fig
 
 # фразы для набора замеров (SAVE_PHRASES_DIR)
 saved_phrases/
+
+# логи туннелей scripts/tunnel.sh
+.tunnel/
