@@ -51,7 +51,8 @@ def lesson_roster(roster: Roster, demo: Roster, keep_class: bool = False) -> Ros
     конвейера он учитель, а не ученик. В состав класса и в норму ученики из
     записи не попадают (db.results).
     """
-    virtual = [Student(id=virtual_id(s.id), name=s.name, virtual=True) for s in demo.students]
+    # full_name — фамилии для обращения по фамилии (#76), если они есть в roster.json записи
+    virtual = [Student(id=virtual_id(s.id), name=s.name, full_name=s.full_name, virtual=True) for s in demo.students]
     teacher = Student(id=virtual_id(demo.teacher.id), name=demo.teacher.name, virtual=True)
     students = [*roster.students, *virtual] if keep_class else virtual
     return roster.model_copy(update={"students": students, "virtual_teacher": teacher})

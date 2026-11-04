@@ -4,7 +4,7 @@ import csv
 import json
 from pathlib import Path
 
-from app.models import Roster
+from app.models import Roster, Student
 from app.pipeline.classify import classify
 
 DEMO = Path(__file__).parent.parent / "data" / "demo_lesson"
@@ -128,3 +128,67 @@ def test_demo_lesson_matches_ground_truth():
     assert total == 10
     assert hits / total >= 0.7
     assert hits == total
+
+
+# ---------- обращение по фамилии и тёзки (#76) ----------
+
+CLASS = Roster(
+    lesson_id="7b",
+    class_name="7Б",
+    subject="история",
+    topic="",
+    teacher=Student(id="teacher", name="Марина Сергеевна"),
+    students=[
+        Student(id="petrov", name="Иван П.", full_name="Иван Петров"),
+        Student(id="sidorov", name="Иван С.", full_name="Иван Сидоров"),
+        Student(id="smirnova", name="Ольга С.", full_name="Ольга Смирнова"),
+        Student(id="ivanov", name="Пётр И.", full_name="Пётр Иванов"),
+        Student(id="maria", name="Мария К.", full_name="Мария Котова"),
+    ],
+)
+
+
+def in_class(text: str, who: str, teacher_says: str) -> str:
+    return classify(text, who, 6, CLASS, [said("teacher", 0, 5, teacher_says)])
+
+
+def test_surname_in_any_case_is_response():
+    assert in_class("В Индию.", "sidorov", "Сидоров, куда плыл Колумб?") == "response"
+    assert in_class("В Индию.", "sidorov", "Спросим Сидорова.") == "response"
+    assert in_class("В Индию.", "smirnova", "Что скажет Смирнова? Смирновой слово.") == "response"
+
+
+def test_surname_of_namesake_takes_the_address():
+    # звали Сидорова: Петров отвечает не на обращение к себе
+    assert in_class("В Индию.", "petrov", "Сидоров, куда плыл Колумб?") != "response"
+    assert in_class("В Индию.", "sidorov", "Иван Сидоров, куда плыл Колумб?") == "response"
+    assert in_class("В Индию.", "petrov", "Иван Сидоров, куда плыл Колумб?") != "response"
+
+
+def test_name_alone_with_namesakes_goes_to_who_answered():
+    assert in_class("В Индию.", "petrov", "Иван, куда плыл Колумб?") == "response"
+    assert in_class("В Индию.", "sidorov", "Ваня, куда плыл Колумб?") == "response"
+
+
+def test_surname_made_from_name_does_not_call_the_name():
+    # «Иванов» — фамилия Петра, а не обращение к Иванам
+    assert in_class("В Индию.", "ivanov", "Иванов, куда плыл Колумб?") == "response"
+    assert in_class("В Индию.", "petrov", "Иванов, куда плыл Колумб?") != "response"
+
+
+def test_name_cases_and_lookalike_words():
+    assert in_class("Да.", "maria", "Спросим Марию.") == "response"
+    # «Маша» не прячется в «машине», «Ваня» — в «ванне»
+    assert in_class("Да.", "maria", "Какую машину построил Леонардо?") != "response"
+    assert in_class("Да.", "petrov", "Что такое ванна Архимеда?") != "response"
+
+
+def test_class_roster_has_full_names_but_api_does_not_show_them():
+    from app.db import classes
+
+    c = classes.create_class(1, "Марина Сергеевна", "7Б", "история")
+    classes.join(c.id, 10, "Иван Петров")
+    lesson = classes.lesson_for_class(c.id)
+    roster = classes.lesson_roster(lesson.id)
+    assert (roster.students[0].name, roster.students[0].full_name) == ("Иван П.", "Иван Петров")
+    assert "full_name" not in roster.model_dump()["students"][0]
