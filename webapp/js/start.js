@@ -42,8 +42,12 @@ function card(c) {
     el.append(b);
     return b;
   };
+  // подписи как в design/start.html: идёт урок — это важнее числа учеников
+  if (c.lesson) meta.classList.add("live");
   if (c.role === "teacher") {
-    meta.textContent = `${c.students} ${plural(c.students, "ученик", "ученика", "учеников")}`;
+    if (c.lesson) meta.textContent = "Урок идёт";
+    else if (c.students) meta.textContent = `${c.students} ${plural(c.students, "ученик", "ученика", "учеников")}`;
+    else meta.textContent = "Пока нет учеников";
     if (c.lesson) action("Вернуться в урок", async () => go("teacher.html", c.lesson));
     else if (c.students) action("Начать урок", () => startLesson(c.id));
     else {
@@ -74,7 +78,7 @@ async function home() {
   const mine = await api("/api/me/classes").catch(() => []);
   $("classes").replaceChildren(...mine.map(card));
   $("classes").hidden = mine.length === 0;
-  if (!mine.length) say("Создать класс или войти в него по коду можно в чате с ботом. А как идёт урок, покажет демо.");
+  if (!mine.length) say("Классов пока нет. Создайте класс или войдите по коду в чате с ботом.");
   $("actions").hidden = false;
 
   $("demo").onclick = async () => {

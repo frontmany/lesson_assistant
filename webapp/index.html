@@ -21,6 +21,8 @@
     .card > div { flex: 1; min-width: 0; }
     .card-name { font-weight: 600; font-size: 16px; }
     .card-meta { font-size: 13px; color: var(--ink-soft); margin-top: 2px; }
+    /* урок идёт: точка перед подписью, как в design/start.html */
+    .card-meta.live::before { content: ""; display: inline-block; width: 8px; height: 8px; margin-right: 6px; border-radius: 50%; background: var(--accent); }
     .card { flex-wrap: wrap; }
     .card button.off { background: var(--surface-muted); color: var(--ink-soft); cursor: default; }
     .card-hint { flex-basis: 100%; margin: 4px 0 0; font-size: 13px; color: var(--ink-soft); }
