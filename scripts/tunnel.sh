@@ -158,6 +158,13 @@ alive() {
 
 OLD_LIVEKIT_URL=$(env_get LIVEKIT_PUBLIC_URL)
 OLD_DEV_AUTH=$(env_get DEV_AUTH)
+OLD_CONFIG_URL=check.html
+if [ "$UPDATE_CONFIG" = 1 ]; then
+    # прежний адрес из config.js: его вернём после Ctrl+C
+    OLD_CONFIG_URL=$(gh api "repos/$CONFIG_REPO/contents/config.js" --jq .content | base64 -d \
+        | sed -n 's|^window.APP_URL = "\(.*\)";|\1|p')
+    OLD_CONFIG_URL=${OLD_CONFIG_URL:-check.html}
+fi
 
 cleanup() {
     trap - EXIT
@@ -169,8 +176,8 @@ cleanup() {
     env_set DEV_AUTH "${OLD_DEV_AUTH:-0}"
     restart_app
     if [ "$UPDATE_CONFIG" = 1 ]; then
-        # туннеля больше нет: бот откроет проверку микрофона, а не мёртвую ссылку
-        set_config_url "check.html" "туннель закрыт" || echo "Верните в config.js \"check.html\" вручную" >&2
+        # туннеля больше нет: возвращаем адрес, который был до запуска
+        set_config_url "$OLD_CONFIG_URL" "туннель закрыт" || echo "Верните в config.js \"$OLD_CONFIG_URL\" вручную" >&2
     else
         echo "Верните в config.js прежний адрес, иначе бот откроет мёртвую ссылку"
     fi

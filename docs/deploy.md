@@ -54,7 +54,7 @@ turn:
 powershell -ExecutionPolicy Bypass -File scripts\tunnel.ps1  # Windows
 ```
 
-С `--update-config` (в PowerShell `-UpdateConfig`) скрипт сам пушит адрес приложения в `config.js` репозитория `sferum-ai` — при запуске и после каждого обрыва, а после Ctrl+C ставит туда `check.html`. Нужен `gh`, вошедший под аккаунтом с правом записи в `sferum-ai`. Это публикация: бот открывает `config.js` всем, кто нажал кнопку.
+С `--update-config` (в PowerShell `-UpdateConfig`) скрипт сам пушит адрес приложения в `config.js` репозитория `sferum-ai` — при запуске и после каждого обрыва, а после Ctrl+C возвращает адрес, который был там до запуска. Нужен `gh`, вошедший под аккаунтом с правом записи в `sferum-ai`. Это публикация: бот открывает `config.js` всем, кто нажал кнопку.
 
 Что делает скрипт:
 

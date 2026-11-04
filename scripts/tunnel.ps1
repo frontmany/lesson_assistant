@@ -1,4 +1,4 @@
-# Показ без сервера: урок из MAX через туннели Cloudflare на локальный стек (#75).
+﻿# Показ без сервера: урок из MAX через туннели Cloudflare на локальный стек (#75).
 #
 #   powershell -ExecutionPolicy Bypass -File scripts\tunnel.ps1                 # строку для config.js вписать вручную
 #   powershell -ExecutionPolicy Bypass -File scripts\tunnel.ps1 -UpdateConfig   # скрипт сам пушит адрес в config.js (нужен gh)
@@ -14,7 +14,10 @@
 
 param([switch]$UpdateConfig)
 
-$ErrorActionPreference = "Stop"
+# Не "Stop": Windows PowerShell 5.1 считает ошибкой любую строку stderr у docker и gh,
+# даже при успехе, а docker compose пишет туда ход работы. Ошибки ловим по $LASTEXITCODE.
+# Файл в UTF-8 с BOM: без него 5.1 читает его в кодировке Windows и не может разобрать
+$ErrorActionPreference = "Continue"
 Set-Location (Join-Path $PSScriptRoot "..")
 
 $AppPort = 8000
@@ -41,13 +44,14 @@ if (-not (Select-String -Path .env -Pattern '^MAX_BOT_TOKEN=.+' -Quiet)) {
 New-Item -ItemType Directory -Force $State | Out-Null
 
 function Get-EnvValue($key) {
-    $line = Get-Content .env | Where-Object { $_.StartsWith("$key=") } | Select-Object -First 1
+    $line = Get-Content .env -Encoding UTF8 | Where-Object { $_.StartsWith("$key=") } | Select-Object -First 1
     if ($line) { $line.Substring($key.Length + 1) } else { $null }
 }
 
 function Set-EnvValue($key, $value) {
-    # заменить строку KEY=… или дописать её; UTF-8 без BOM, иначе compose прочтёт первый ключ с мусором
-    $lines = @(Get-Content .env)
+    # заменить строку KEY=… или дописать её; UTF-8 без BOM, иначе compose прочтёт первый ключ с мусором.
+    # Читаем тоже как UTF-8: 5.1 по умолчанию читает в кодировке Windows и портит русские комментарии
+    $lines = @(Get-Content .env -Encoding UTF8)
     $found = $false
     $lines = foreach ($line in $lines) {
         if ($line.StartsWith("$key=")) { "$key=$value"; $found = $true } else { $line }
@@ -105,7 +109,7 @@ function Restart-App {
     # env_file читается при создании контейнера, поэтому пересоздаём
     docker compose up -d --force-recreate app 2>$null | Out-Null
     for ($i = 0; $i -lt 60; $i++) {
-        try { Invoke-WebRequest "http://localhost:$AppPort/api/health" -UseBasicParsing -TimeoutSec 3 | Out-Null; return }
+        try { Invoke-WebRequest "http://localhost:$AppPort/api/health" -UseBasicParsing -TimeoutSec 3 -ErrorAction Stop | Out-Null; return }
         catch { Start-Sleep 1 }
     }
     Write-Warning "Приложение не ответило после перезапуска: docker compose logs app"
@@ -113,10 +117,22 @@ function Restart-App {
 
 function Set-LiveKitUrl { Set-EnvValue "LIVEKIT_PUBLIC_URL" ($Url.livekit -replace '^https://', 'wss://') }
 
+function Get-ConfigFile {
+    $file = gh api "repos/$ConfigRepo/contents/config.js" | ConvertFrom-Json
+    if ($LASTEXITCODE -ne 0) { throw "gh не смог прочитать config.js" }
+    $file | Add-Member text ([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String(($file.content -replace '\s', ''))))
+    $file
+}
+
+function Get-ConfigUrl {
+    # прежний адрес из config.js: его вернём после Ctrl+C
+    if ((Get-ConfigFile).text -match '(?m)^window\.APP_URL = "(.*)";') { $Matches[1] } else { "check.html" }
+}
+
 function Set-ConfigUrl($url, $reason) {
     # заменить адрес в config.js репозитория sferum-ai через API GitHub; Pages пересобирается за минуту
-    $file = gh api "repos/$ConfigRepo/contents/config.js" | ConvertFrom-Json
-    $old = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String(($file.content -replace '\s', '')))
+    $file = Get-ConfigFile
+    $old = $file.text
     $new = $old -replace '(?m)^window\.APP_URL = ".*";', "window.APP_URL = `"$url`";"
     if ($new -eq $old) { return }
     $encoded = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($new))
@@ -146,15 +162,17 @@ function Test-Tunnel($name) {
     if ($Proc[$name].HasExited) { return $false }
     if (Select-String -Path (Join-Path $State "$name.log") -Pattern 'tunnel not found' -Quiet) { return $false }
     $path = if ($name -eq "app") { "/api/health" } else { "/" }
-    try { Invoke-WebRequest "$($Url[$name])$path" -UseBasicParsing -TimeoutSec 10 | Out-Null; return $true }
+    try { Invoke-WebRequest "$($Url[$name])$path" -UseBasicParsing -TimeoutSec 10 -ErrorAction Stop | Out-Null; return $true }
     catch { return $false }
 }
 
 $OldLiveKitUrl = Get-EnvValue "LIVEKIT_PUBLIC_URL"
 $OldDevAuth = Get-EnvValue "DEV_AUTH"
+$OldConfigUrl = if ($UpdateConfig) { Get-ConfigUrl } else { $null }
 
 try {
     docker compose up -d 2>$null | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw "docker compose up не прошёл: запущен ли Docker?" }
     Write-Host "Поднимаю туннели…"
     foreach ($name in "app", "livekit") {
         if (-not (Start-Tunnel $name)) { throw "Туннель $name не поднялся" }
@@ -193,8 +211,8 @@ finally {
     Set-EnvValue "DEV_AUTH" $(if ($OldDevAuth) { $OldDevAuth } else { "0" })
     Restart-App
     if ($UpdateConfig) {
-        # туннеля больше нет: бот откроет проверку микрофона, а не мёртвую ссылку
-        try { Set-ConfigUrl "check.html" "туннель закрыт" } catch { Write-Warning "Верните в config.js `"check.html`" вручную" }
+        # туннеля больше нет: возвращаем адрес, который был до запуска
+        try { Set-ConfigUrl $OldConfigUrl "туннель закрыт" } catch { Write-Warning "Верните в config.js `"$OldConfigUrl`" вручную" }
     } else {
         Write-Host "Верните в config.js прежний адрес, иначе бот откроет мёртвую ссылку"
     }
