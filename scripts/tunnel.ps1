@@ -26,6 +26,9 @@ if (-not (Test-Path .env)) { throw "Нет .env: скопируйте .env.examp
 if (-not (Select-String -Path .env -Pattern '^LIVEKIT_NODE_IP=.+' -Quiet)) {
     throw "В .env нет LIVEKIT_NODE_IP — без него в звонке не будет звука"
 }
+if (-not (Select-String -Path .env -Pattern '^MAX_BOT_TOKEN=.+' -Quiet)) {
+    throw "В .env нет MAX_BOT_TOKEN — без него сервер не проверит вход из MAX и ответит «Не удалось проверить данные MAX»"
+}
 New-Item -ItemType Directory -Force $State | Out-Null
 
 function Get-EnvValue($key) {
