@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Показ без сервера: урок из MAX через туннели Cloudflare на локальный стек (#75).
 #
-#   ./scripts/tunnel.sh
+#   ./scripts/tunnel.sh                  # строку для config.js вписать вручную
+#   ./scripts/tunnel.sh --update-config  # скрипт сам пушит адрес в config.js (нужен gh с доступом к sferum-ai)
 #
 # Поднимает два быстрых туннеля Cloudflare — на приложение (localhost:8000) и на
 # LiveKit (localhost:7880), пишет адрес LiveKit в .env, выключает DEV_AUTH,
@@ -21,8 +22,20 @@ APP_PORT=8000
 LIVEKIT_PORT=7880
 IMAGE=cloudflare/cloudflared:2025.11.1
 STATE=.tunnel           # логи туннелей, в git не идёт
+CONFIG_REPO=frontmany/sferum-ai
 CHECK_EVERY_S=15
 FAILS_TO_RESTART=3      # столько проверок подряд без ответа — туннель поднимаем заново
+
+UPDATE_CONFIG=0
+case "${1:-}" in
+    --update-config) UPDATE_CONFIG=1 ;;
+    "") ;;
+    *) echo "Неизвестный параметр: $1 (есть только --update-config)" >&2; exit 1 ;;
+esac
+if [ "$UPDATE_CONFIG" = 1 ] && ! gh api "repos/$CONFIG_REPO" --jq .permissions.push 2>/dev/null | grep -q true; then
+    echo "--update-config: нужен gh с правом записи в $CONFIG_REPO (gh auth login)" >&2
+    exit 1
+fi
 
 [ -f .env ] || { echo "Нет .env: cp .env.example .env и впишите LIVEKIT_NODE_IP" >&2; exit 1; }
 grep -q '^LIVEKIT_NODE_IP=..*' .env || { echo "В .env нет LIVEKIT_NODE_IP — без него в звонке не будет звука" >&2; exit 1; }
@@ -103,13 +116,30 @@ apply_livekit() {
     env_set LIVEKIT_PUBLIC_URL "wss://${URL[livekit]#https://}"
 }
 
+set_config_url() {
+    # заменить адрес в config.js репозитория sferum-ai через API GitHub; Pages пересобирается за минуту
+    local sha old new
+    sha=$(gh api "repos/$CONFIG_REPO/contents/config.js" --jq .sha)
+    old=$(gh api "repos/$CONFIG_REPO/contents/config.js" --jq .content | base64 -d)
+    new=$(printf '%s\n' "$old" | sed "s|^window.APP_URL = \".*\";|window.APP_URL = \"$1\";|")
+    [ "$new" = "$old" ] && return 0
+    gh api -X PUT "repos/$CONFIG_REPO/contents/config.js" \
+        -f message="Временно: адрес туннеля ($2)" \
+        -f content="$(printf '%s\n' "$new" | base64 -w0)" -f sha="$sha" >/dev/null
+    echo "config.js в $CONFIG_REPO: $1 — бот откроет его через минуту"
+}
+
 announce() {
     echo
     echo "Приложение: ${URL[app]}/"
     echo "LiveKit:    wss://${URL[livekit]#https://}"
     echo
-    echo "Строка для config.js в репозитории sferum-ai:"
-    echo "window.APP_URL = \"${URL[app]}/\";"
+    if [ "$UPDATE_CONFIG" = 1 ]; then
+        set_config_url "${URL[app]}/" "scripts/tunnel.sh" || echo "Не удалось обновить config.js, впишите вручную" >&2
+    else
+        echo "Строка для config.js в репозитории sferum-ai:"
+        echo "window.APP_URL = \"${URL[app]}/\";"
+    fi
     echo
 }
 
@@ -134,7 +164,12 @@ cleanup() {
     env_set LIVEKIT_PUBLIC_URL "${OLD_LIVEKIT_URL:-ws://localhost:$LIVEKIT_PORT}"
     env_set DEV_AUTH "${OLD_DEV_AUTH:-0}"
     restart_app
-    echo "Верните в config.js прежний адрес, иначе бот откроет мёртвую ссылку"
+    if [ "$UPDATE_CONFIG" = 1 ]; then
+        # туннеля больше нет: бот откроет проверку микрофона, а не мёртвую ссылку
+        set_config_url "check.html" "туннель закрыт" || echo "Верните в config.js \"check.html\" вручную" >&2
+    else
+        echo "Верните в config.js прежний адрес, иначе бот откроет мёртвую ссылку"
+    fi
 }
 # Ctrl+C выходит из скрипта, а уборка — на выходе. Если вызвать её прямо по INT,
 # bash после неё вернётся в цикл слежения и снова поднимет туннели
@@ -172,6 +207,6 @@ while true; do
             restart_app
         fi
         announce
-        [ "$name" = app ] && echo "Адрес приложения сменился: обновите config.js"
+        [ "$name" = app ] && [ "$UPDATE_CONFIG" = 0 ] && echo "Адрес приложения сменился: обновите config.js"
     done
 done

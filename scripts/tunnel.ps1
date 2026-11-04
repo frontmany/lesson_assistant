@@ -1,6 +1,7 @@
 # Показ без сервера: урок из MAX через туннели Cloudflare на локальный стек (#75).
 #
-#   powershell -ExecutionPolicy Bypass -File scripts\tunnel.ps1
+#   powershell -ExecutionPolicy Bypass -File scripts\tunnel.ps1                 # строку для config.js вписать вручную
+#   powershell -ExecutionPolicy Bypass -File scripts\tunnel.ps1 -UpdateConfig   # скрипт сам пушит адрес в config.js (нужен gh)
 #
 # То же, что scripts/tunnel.sh: два быстрых туннеля Cloudflare — на приложение
 # (localhost:8000) и на LiveKit (localhost:7880), адрес LiveKit в .env, DEV_AUTH=0,
@@ -10,6 +11,8 @@
 # cloudflared берётся из системы (winget install Cloudflare.cloudflared),
 # а если его нет — из Docker-образа. Звук идёт мимо туннеля, напрямую на
 # LIVEKIT_NODE_IP: только в той же Wi-Fi-сети.
+
+param([switch]$UpdateConfig)
 
 $ErrorActionPreference = "Stop"
 Set-Location (Join-Path $PSScriptRoot "..")
@@ -21,6 +24,11 @@ $State = ".tunnel"            # логи туннелей, в git не идёт
 $CheckEverySec = 15
 $FailsToRestart = 3           # столько проверок подряд без ответа — туннель поднимаем заново
 $Ports = @{ app = $AppPort; livekit = $LiveKitPort }
+$ConfigRepo = "frontmany/sferum-ai"
+
+if ($UpdateConfig -and ((gh api "repos/$ConfigRepo" --jq .permissions.push 2>$null) -ne "true")) {
+    throw "-UpdateConfig: нужен gh с правом записи в $ConfigRepo (gh auth login)"
+}
 
 if (-not (Test-Path .env)) { throw "Нет .env: скопируйте .env.example в .env и впишите LIVEKIT_NODE_IP" }
 if (-not (Select-String -Path .env -Pattern '^LIVEKIT_NODE_IP=.+' -Quiet)) {
@@ -104,13 +112,30 @@ function Restart-App {
 
 function Set-LiveKitUrl { Set-EnvValue "LIVEKIT_PUBLIC_URL" ($Url.livekit -replace '^https://', 'wss://') }
 
+function Set-ConfigUrl($url, $reason) {
+    # заменить адрес в config.js репозитория sferum-ai через API GitHub; Pages пересобирается за минуту
+    $file = gh api "repos/$ConfigRepo/contents/config.js" | ConvertFrom-Json
+    $old = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String(($file.content -replace '\s', '')))
+    $new = $old -replace '(?m)^window\.APP_URL = ".*";', "window.APP_URL = `"$url`";"
+    if ($new -eq $old) { return }
+    $encoded = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($new))
+    gh api -X PUT "repos/$ConfigRepo/contents/config.js" -f "message=Временно: адрес туннеля ($reason)" `
+        -f "content=$encoded" -f "sha=$($file.sha)" | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw "gh не смог обновить config.js" }
+    Write-Host "config.js в ${ConfigRepo}: $url — бот откроет его через минуту"
+}
+
 function Show-Addresses {
     Write-Host ""
     Write-Host "Приложение: $($Url.app)/"
     Write-Host "LiveKit:    $($Url.livekit -replace '^https://', 'wss://')"
     Write-Host ""
-    Write-Host "Строка для config.js в репозитории sferum-ai:"
-    Write-Host "window.APP_URL = `"$($Url.app)/`";"
+    if ($UpdateConfig) {
+        try { Set-ConfigUrl "$($Url.app)/" "scripts/tunnel.ps1" } catch { Write-Warning "Не удалось обновить config.js, впишите вручную" }
+    } else {
+        Write-Host "Строка для config.js в репозитории sferum-ai:"
+        Write-Host "window.APP_URL = `"$($Url.app)/`";"
+    }
     Write-Host ""
 }
 
@@ -152,7 +177,7 @@ try {
             while (-not (Start-Tunnel $name)) { Start-Sleep $CheckEverySec }  # нет сети — пробуем, пока не появится
             if ($name -eq "livekit") { Set-LiveKitUrl; Restart-App }
             Show-Addresses
-            if ($name -eq "app") { Write-Host "Адрес приложения сменился: обновите config.js" }
+            if ($name -eq "app" -and -not $UpdateConfig) { Write-Host "Адрес приложения сменился: обновите config.js" }
         }
     }
 }
@@ -164,5 +189,10 @@ finally {
     Set-EnvValue "LIVEKIT_PUBLIC_URL" $(if ($OldLiveKitUrl) { $OldLiveKitUrl } else { "ws://localhost:$LiveKitPort" })
     Set-EnvValue "DEV_AUTH" $(if ($OldDevAuth) { $OldDevAuth } else { "0" })
     Restart-App
-    Write-Host "Верните в config.js прежний адрес, иначе бот откроет мёртвую ссылку"
+    if ($UpdateConfig) {
+        # туннеля больше нет: бот откроет проверку микрофона, а не мёртвую ссылку
+        try { Set-ConfigUrl "check.html" "туннель закрыт" } catch { Write-Warning "Верните в config.js `"check.html`" вручную" }
+    } else {
+        Write-Host "Верните в config.js прежний адрес, иначе бот откроет мёртвую ссылку"
+    }
 }
