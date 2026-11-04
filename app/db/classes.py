@@ -336,7 +336,7 @@ def lesson_roster(lesson_id: str) -> Roster | None:
         topic="",
         teacher=Student(id=teacher.participant_id, name=teacher.name, max_user_id=teacher.max_user_id),
         students=[
-            Student(id=m.participant_id, name=short_name(m.name), max_user_id=m.max_user_id)
+            Student(id=m.participant_id, name=short_name(m.name), full_name=m.name, max_user_id=m.max_user_id)
             for m in students_of(c.id)
         ],
     )
