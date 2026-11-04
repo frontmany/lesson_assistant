@@ -47,6 +47,33 @@ class _Lesson:
 
 _lessons: dict[str, _Lesson] = {}
 
+# Выключатель аналитики (#22): у кого в уроке она выключена. ALL — у всего класса.
+# Живёт, пока урок не закончится: учитель может выключить и до входа в звонок
+ALL = "*"
+_off: dict[str, set[str]] = {}
+
+
+def set_analytics(lesson_id: str, enabled: bool, student_id: str | None = None) -> None:
+    off = _off.setdefault(lesson_id, set())
+    if student_id is None:
+        # выключить у класса — ни у кого не считать; включить у класса — у всех снова считать
+        off.clear()
+        if not enabled:
+            off.add(ALL)
+    elif enabled:
+        off.discard(student_id)
+    else:
+        off.add(student_id)
+
+
+def analytics_off(lesson_id: str, student_id: str) -> bool:
+    off = _off.get(lesson_id, ())
+    return ALL in off or student_id in off
+
+
+def analytics_off_list(lesson_id: str) -> list[str]:
+    return sorted(_off.get(lesson_id, ()))
+
 
 def start(lesson_id: str, roster: Roster) -> bool:
     """Запустить конвейер урока в фоне. False — он уже работает."""
@@ -163,6 +190,7 @@ async def run_call(lesson_id: str, lesson: _Lesson) -> None:
             lambda event: ws.publish(lesson_id, event),
             find_student=find_student,
             board=board,
+            off=lambda student_id: analytics_off(lesson_id, student_id),
         )
     finally:
         ws.set_live(lesson_id, False)
@@ -182,9 +210,13 @@ async def finish_lesson(lesson_id: str, roster: Roster, utterances: list[dict], 
     from app.pipeline.summary import build_summary
 
     loop = asyncio.get_running_loop()
+    # у кого аналитика выключена, тех нет ни в репликах, ни в ступенях урока (#22)
+    utterances = [u for u in utterances if not u.get("off")]
+    _off.pop(lesson_id, None)
     ended = max((u["end"] for u in utterances), default=0.0)
     levels = {
-        s.id: (board.level(s.id), board.score(s.id), board.flags(s.id, ended)) for s in roster.students
+        s.id: (board.level(s.id), board.score(s.id), board.flags(s.id, ended))
+        for s in roster.students if s.id in board.students()
     }
     saved = await loop.run_in_executor(
         None, results.save_lesson, lesson_id, utterances, levels,
@@ -256,6 +288,7 @@ async def transcribe_stream(
     norm: float | None = None,
     find_student: Callable[[str], Student | None] | None = None,
     board=None,
+    off: Callable[[str], bool] = lambda student_id: False,
 ) -> list[dict]:
     """Кадры участников → фразы → текст → тип реплики и шкала → события.
 
@@ -273,6 +306,10 @@ async def transcribe_stream(
     find_student(id) ищет в составе урока того, чьих кадров не ждали: ученик
     мог войти в класс уже во время урока. Найденный добавляется в roster.students
     и на шкалу; посторонних по-прежнему отбрасываем.
+
+    off(id) — выключена ли аналитика ученика (#22). Его речь распознаётся только
+    как контекст для правил: события, шкала и итоги урока его не касаются, а в
+    возвращаемых репликах он помечен "off" и снят со шкалы урока.
     """
     from app.pipeline import asr
     from app.pipeline.classify import CONTINUE_S, classify
@@ -317,6 +354,11 @@ async def transcribe_stream(
     def show_scale(now: float) -> None:
         """Разослать ступени и флаги, которые изменились с прошлого раза."""
         for sid in students:
+            if off(sid):
+                board.forget(sid)
+                shown.pop(sid, None)
+                continue
+            board.add_student(sid)  # аналитику включили снова: шкала с первой ступени
             level, flags = board.level(sid), board.flags(sid, now)
             if shown.get(sid) != (level, flags):
                 shown[sid] = (level, flags)
@@ -428,7 +470,12 @@ async def transcribe_stream(
         )
         who = job.who if job.who in is_student else roster.teacher.id
         item = {"student_id": who, "t": job.t, "end": job.end, "text": text}
-        if job.who in is_student:
+        if job.who in is_student and off(job.who):
+            # аналитика выключена: реплика остаётся контекстом для правил, но не считается
+            item["off"] = True
+            board.forget(job.who)
+        elif job.who in is_student:
+            board.add_student(job.who)
             kind = classify(text, job.who, job.t, roster, context)
             item["kind"] = kind
             emit(Utterance(student_id=job.who, t=job.t, text=text, kind=kind, addressed=kind == "response"))
