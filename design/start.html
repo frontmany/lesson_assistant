@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Макет: стартовая страница</title>
+  <!-- Макет стартовой страницы мини-приложения «Урок в MAX» (issue #77).
+       Без адреса показаны все экраны, один экран: ?screen=teacher|student|new|dark.
+       Тёмную тему на любом экране включает &theme=dark. Без параметров тема системная.
+       Тексты прошли ru-text, неразрывные пробелы (&nbsp;) нужно сохранить. Цвета берём из токенов.
+       Экран рассчитан на 375 px, на широком окне стоит по центру.
+       Логотип: design/bot/sferum-logo.png, пока в webapp/img/ нет официального sferum.svg. -->
+  <link rel="stylesheet" href="../webapp/css/tokens.css">
+  <style>
+    [data-theme="dark"] {
+      color: var(--ink); --bg: #141b27; --surface: #1c2535; --surface-muted: #263044; --ink: #eef0f3; --ink-soft: #aab3c2;
+      --accent: #a6b58a; --accent-soft: #6f7f52; --accent-tint: #2c3527; --warn-tint: #3a2f1f; --warn-ink: #e7c58f;
+      --line: #2d3749; --line-strong: #738098; --shadow-float: 0 2px 8px rgba(0, 0, 0, 0.35);
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: var(--font); background: var(--bg); color: var(--ink); line-height: 1.4; }
+    button { font: inherit; color: inherit; border: 0; background: none; padding: 0; cursor: pointer; }
+
+    .page { max-width: 1240px; margin: 0 auto; padding: 32px 16px 64px; }
+    .page > h1 { margin: 0 0 4px; font-size: 24px; }
+    .lead { margin: 0 0 32px; color: var(--ink-soft); max-width: 62ch; }
+    .gallery { display: grid; gap: 40px 32px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 375px), 1fr)); align-items: start; }
+    .item h2 { margin: 0 0 12px; font-size: 17px; }
+    .item .note { max-width: 375px; margin: 12px 0 0; font-size: 13px; color: var(--ink-soft); }
+    body.single .page { padding: 0; max-width: none; }
+    body.single .page > h1, body.single .lead, body.single .item h2, body.single .item .note { display: none; }
+    body.single .item { display: none; }
+    body.single .item.on { display: block; }
+    body.single .screen { margin: 0; max-width: 375px; height: 100vh; min-height: 560px; border-radius: 0; border: 0; box-shadow: none; }
+
+    /* Экран мини-приложения */
+    .screen { position: relative; width: 100%; max-width: 375px; height: 700px; display: flex; flex-direction: column; overflow: hidden;
+              background: var(--bg); border: 1px solid var(--line); border-radius: 24px; box-shadow: var(--shadow-float); padding: 28px 20px 20px; }
+    .brand { display: flex; align-items: center; gap: 10px; margin-bottom: 28px; }
+    .brand img { width: 32px; height: 32px; padding: 3px; border-radius: 9px; background: #fff; object-fit: contain; flex: none; }
+    .brand span { font-weight: 700; font-size: 18px; letter-spacing: 0.01em; }
+    h2.title, .screen h3 { margin: 0 0 4px; font-size: 28px; line-height: 1.2; }
+    .sub { margin: 0; color: var(--ink-soft); font-size: 15px; }
+
+    .classes { display: grid; gap: 10px; margin: 24px 0 0; padding: 0; list-style: none; }
+    .card { display: flex; align-items: center; gap: 12px; padding: 14px 14px 14px 16px; min-height: 68px; border-radius: var(--radius);
+            background: var(--surface); border: 1px solid var(--line); }
+    .card .main { flex: 1; min-width: 0; }
+    .card .name { display: block; font-weight: 600; font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .card .meta { display: block; margin-top: 2px; font-size: 13px; color: var(--ink-soft); }
+    .card .live::before { content: ""; display: inline-block; width: 8px; height: 8px; margin-right: 6px; border-radius: 50%; background: var(--accent); }
+    .go { flex: none; min-height: 44px; padding: 0 16px; border-radius: 999px; font-weight: 600; font-size: 14px; background: var(--accent); color: var(--surface); }
+    .go.outline { background: transparent; color: var(--accent); border: 1.5px solid var(--accent); }
+    .go.off { background: var(--surface-muted); color: var(--ink-soft); cursor: default; }
+    [data-theme="dark"] .go:not(.off):not(.outline) { color: #141b27; }
+    @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .go:not(.off):not(.outline) { color: #141b27; } }
+    .go:focus-visible, .demo:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+    .spacer { flex: 1; }
+    .demo { min-height: 52px; border-radius: 999px; font-weight: 600; font-size: 16px; background: var(--ink); color: var(--bg); }
+    .empty { margin-top: 24px; padding: 20px 0; color: var(--ink-soft); font-size: 15px; max-width: 30ch; }
+  </style>
+</head>
+<body>
+<div class="page">
+  <h1>Стартовая страница мини-приложения</h1>
+  <p class="lead">Первый экран после кнопки приложения в боте. Учитель видит свои классы, ученик — уроки, в которые можно войти. Демо — всегда внизу.</p>
+  <div class="gallery">
+
+    <section class="item" data-screen="teacher">
+      <h2>Учитель с классами</h2>
+      <div class="screen">
+        <div class="brand"><img src="bot/sferum-logo.png" alt=""><span>Сферум</span></div>
+        <h3>Урок в&nbsp;MAX</h3>
+        <ul class="classes">
+          <li class="card"><div class="main"><span class="name">10А, история</span><span class="meta live">Урок идёт</span></div><button class="go">Вернуться в&nbsp;урок</button></li>
+          <li class="card"><div class="main"><span class="name">9Б, обществознание</span><span class="meta">24 ученика</span></div><button class="go outline">Начать урок</button></li>
+          <li class="card"><div class="main"><span class="name">8В, история</span><span class="meta">Пока нет учеников</span></div><button class="go off" aria-disabled="true">Начать урок</button></li>
+        </ul>
+        <div class="spacer"></div>
+        <button class="demo">Посмотреть демо</button>
+      </div>
+      <p class="note">Урок идёт — кнопка закрашена, «Начать урок» — с контуром. У пустого класса кнопка неактивна, причину показываем по нажатию.</p>
+    </section>
+
+    <section class="item" data-screen="student">
+      <h2>Ученик</h2>
+      <div class="screen">
+        <div class="brand"><img src="bot/sferum-logo.png" alt=""><span>Сферум</span></div>
+        <h3>Урок в&nbsp;MAX</h3>
+        <ul class="classes">
+          <li class="card"><div class="main"><span class="name">10А, история</span><span class="meta live">Урок идёт</span></div><button class="go">Войти в&nbsp;урок</button></li>
+          <li class="card"><div class="main"><span class="name">10А, литература</span><span class="meta">Урок пока не&nbsp;идёт</span></div></li>
+        </ul>
+        <div class="spacer"></div>
+        <button class="demo">Посмотреть демо</button>
+      </div>
+      <p class="note">Кнопка «Войти в урок» есть, только когда урок идёт. Без урока карточка без кнопки.</p>
+    </section>
+
+    <section class="item" data-screen="new">
+      <h2>Новый человек, классов нет</h2>
+      <div class="screen">
+        <div class="brand"><img src="bot/sferum-logo.png" alt=""><span>Сферум</span></div>
+        <h3>Урок в&nbsp;MAX</h3>
+        <p class="empty">Классов пока нет. Создайте класс или&nbsp;войдите по&nbsp;коду в&nbsp;чате с&nbsp;ботом.</p>
+        <div class="spacer"></div>
+        <button class="demo">Посмотреть демо</button>
+      </div>
+      <p class="note">Пустой список не показываем: вместо него одна строка и демо.</p>
+    </section>
+
+    <section class="item" data-screen="dark">
+      <h2>Тёмная тема, учитель</h2>
+      <div class="screen" data-theme="dark">
+        <div class="brand"><img src="bot/sferum-logo.png" alt=""><span>Сферум</span></div>
+        <h3>Урок в&nbsp;MAX</h3>
+        <ul class="classes">
+          <li class="card"><div class="main"><span class="name">10А, история</span><span class="meta live">Урок идёт</span></div><button class="go">Вернуться в&nbsp;урок</button></li>
+          <li class="card"><div class="main"><span class="name">9Б, обществознание</span><span class="meta">24 ученика</span></div><button class="go outline">Начать урок</button></li>
+          <li class="card"><div class="main"><span class="name">8В, история</span><span class="meta">Пока нет учеников</span></div><button class="go off" aria-disabled="true">Начать урок</button></li>
+        </ul>
+        <div class="spacer"></div>
+        <button class="demo">Посмотреть демо</button>
+      </div>
+    </section>
+
+  </div>
+</div>
+<script>
+  (function () {
+    var q = new URLSearchParams(location.search);
+    var name = q.get("screen");
+    var item = name && document.querySelector('.item[data-screen="' + name + '"]');
+    if (item) { document.body.classList.add("single"); item.classList.add("on"); }
+    if (q.get("theme") === "dark" || name === "dark") document.documentElement.setAttribute("data-theme", "dark");
+  })();
+</script>
+</body>
+</html>
