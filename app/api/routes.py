@@ -256,7 +256,7 @@ async def end(lesson_id: str):
 
 @router.get("/lessons/{lesson_id}/summary", response_model=Summary, dependencies=[Depends(teacher)])
 def summary(lesson_id: str):
-    # сводка из базы, когда #21 её строит; до тех пор и для урока не из базы — мок
+    # сводка из базы (#21); для урока, который ещё идёт или не из базы, — мок
     return results.get_summary(lesson_id) or mocks.load("summary.json")
 
 
@@ -264,7 +264,12 @@ def summary(lesson_id: str):
 def card(lesson_id: str, student_id: str, who: Seat = Depends(member)):
     if who.role != "teacher" and who.participant_id != student_id:
         raise HTTPException(403, "Это карточка другого ученика")
-    # TODO(Ярослав, Фёдор): заменить мок на pipeline.summary.build_card
+    card = results.get_card(lesson_id, student_id)
+    if card is not None:
+        return card
+    if results.get_summary(lesson_id) is not None:
+        # сводка есть, а карточки нет: аналитика была выключена или сказать нечего
+        raise HTTPException(404, "Карточки по этому уроку нет")
     return next(c for c in mocks.load("cards.json") if c["student_id"] == student_id)
 
 

@@ -77,8 +77,10 @@ class MaxApi:
         response.raise_for_status()
         return response.json()
 
-    def send(self, user_id: int, text: str, buttons: list[list[dict]] | None = None) -> None:
+    def send(self, user_id: int, text: str, buttons: list[list[dict]] | None = None, markdown: bool = False) -> None:
         body: dict = {"text": text}
+        if markdown:
+            body["format"] = "markdown"  # **жирный** — названия блоков сводки
         if buttons:
             body["attachments"] = [{"type": "inline_keyboard", "payload": {"buttons": buttons}}]
         self.http.post("/messages", params={"user_id": user_id}, json=body).raise_for_status()
@@ -440,12 +442,69 @@ class Bot:
             [[self.open_app("Открыть демо", f"l{lesson.id}")]],
         )
 
+    def summary(self, user_id: int, text: str, class_id: int | None) -> None:
+        """Сводка учителю после урока (#21): под ней «Начать урок» следующего урока класса."""
+        buttons = [[self.open_app("Начать урок", f"c{class_id}")]] if class_id is not None else None
+        self.api.send(user_id, text, buttons, markdown=True)
+
+    def card(self, user_id: int, text: str) -> None:
+        """Карточка ученику: кнопок нет, её читают и закрывают."""
+        self.api.send(user_id, text, markdown=True)
+
     def open_app(self, text: str, payload: str) -> dict:
         """Кнопка, которая открывает мини-приложение бота; payload приходит в start_param.
 
         c<id> — учитель начинает урок класса, l<id> — открыть урок.
         """
         return {"type": "open_app", "text": text, "web_app": self.bot_name, "payload": payload}
+
+
+# ---------- сводка и карточка: тексты по design/bot-summary.html ----------
+
+MAX_NAMES = 4  # дальше «и ещё N»: полный список — в мини-приложении
+
+
+def _names(ids: list[str], names: dict[str, str]) -> str:
+    shown = [names[i] for i in ids if i in names]
+    rest = len(shown) - MAX_NAMES
+    return ", ".join(shown[:MAX_NAMES]) + (f" и ещё {rest}" if rest > 0 else "")
+
+
+def _title(roster) -> str:
+    subject = roster.subject[:1].lower() + roster.subject[1:]
+    return f"{roster.class_name}, {subject}"
+
+
+def summary_text(roster, summary, minutes: int) -> str:
+    """Сводка учителю одним сообщением: пустые блоки не показываем, «кого спросить» — внизу, ближе к кнопке."""
+    names = {s.id: s.name for s in roster.students}
+    about = [roster.topic] if roster.topic else []
+    about += [f"{minutes} {plural(minutes, 'минута', 'минуты', 'минут')}", students_count(len(roster.students))]
+    blocks = [f"**Итоги урока: {_title(roster)}**\n" + ", ".join(about)]
+    if summary.carried:
+        blocks.append(f"**Вытянули урок**\n{_names(summary.carried, names)}")
+    if summary.dropped:
+        blocks.append(f"**Выпали**\n{_names(summary.dropped, names)}")
+    if summary.weak_topics:
+        blocks.append("**Класс не уверен**\n" + ", ".join(summary.weak_topics))
+    asks = [a for a in summary.ask_next if a.student_id in names]
+    for i, a in enumerate(asks):
+        head = "**Спросить в следующий раз**\n" if i == 0 else ""
+        blocks.append(f"{head}{names[a.student_id]} — {a.topic}\n«{a.question}»")
+    if len(blocks) == 1:
+        blocks.append("Для сводки данных пока мало: нужны хотя бы несколько реплик учеников.")
+    return "\n\n".join(blocks)
+
+
+def card_text(roster, card) -> str:
+    """Карточка ученика: про него на «ты», без ступени — в карточке она читалась бы как оценка."""
+    blocks = [f"**Твоя карточка: {_title(roster)}**" + (f"\n{roster.topic}" if roster.topic else "")]
+    if card.went_well:
+        blocks.append("**Что получилось**\n" + "\n".join(card.went_well))
+    if card.to_repeat:
+        blocks.append("**Что повторить**\n" + "\n".join(card.to_repeat))
+    blocks.append("Карточка не показывается классу.")
+    return "\n\n".join(blocks)
 
 
 def full_name(user: dict) -> str:
@@ -471,6 +530,30 @@ def lesson_started(lesson_id: str) -> None:
             _bot.lesson_started(m.max_user_id, c, lesson_id)
         except httpx.HTTPError as exc:
             log.warning("не позвал %s на урок: %s", m.max_user_id, exc)
+
+
+def lesson_finished(roster, summary, cards, minutes: int) -> None:
+    """Урок закончен: учителю — сводка, каждому ученику — только его карточка. Без бота — ничего.
+
+    Ученики из записи (виртуальные) аккаунта MAX не имеют: им карточки не уходят.
+    """
+    if _bot is None:
+        return
+    lesson = db.get_lesson(roster.lesson_id)
+    class_id = lesson.class_id if lesson else None
+    if roster.teacher.max_user_id:
+        try:
+            _bot.summary(roster.teacher.max_user_id, summary_text(roster, summary, minutes), class_id)
+        except httpx.HTTPError as exc:
+            log.warning("не отправил сводку урока %s: %s", roster.lesson_id, exc)
+    accounts = {s.id: s.max_user_id for s in roster.students if s.max_user_id}
+    for card in cards:
+        if card.student_id not in accounts:
+            continue
+        try:
+            _bot.card(accounts[card.student_id], card_text(roster, card))
+        except httpx.HTTPError as exc:
+            log.warning("не отправил карточку %s: %s", card.student_id, exc)
 
 
 def run_polling(stop: threading.Event | None = None) -> None:

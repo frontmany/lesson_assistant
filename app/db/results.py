@@ -22,7 +22,7 @@ from app import db
 from app.config import settings
 from app.db import Base
 from app.db.classes import Lesson, now
-from app.models import Summary
+from app.models import StudentCard, Summary
 
 
 class UtteranceRow(Base):
@@ -75,6 +75,16 @@ class SummaryRow(Base):
     lesson_id: Mapped[str] = mapped_column(ForeignKey("lessons.id"), primary_key=True)
     payload: Mapped[str] = mapped_column(Text)  # Summary в JSON
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+
+
+class CardRow(Base):
+    """Карточка ученика после урока (#21): её видит только сам ученик."""
+
+    __tablename__ = "cards"
+
+    lesson_id: Mapped[str] = mapped_column(ForeignKey("lessons.id"), primary_key=True)
+    participant_id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    payload: Mapped[str] = mapped_column(Text)  # StudentCard в JSON
 
 
 def member_id(participant_id: str) -> int | None:
@@ -179,6 +189,50 @@ def history_for(lesson_id: str) -> list[float]:
     return history or seed_history()
 
 
+def silent_streaks(lesson_id: str, student_ids: list[str], lessons: int = 5) -> dict[str, int]:
+    """Сколько прошлых уроков подряд, от последнего назад, ученик не дал засчитанной реплики.
+
+    Для «спросить в следующий раз» в сводке. Смотрим не больше `lessons` уроков:
+    у класса — его уроки, которые идут в норму, у демо — history_seed.json
+    (поле replied, id без приставки virtual-). Ученика без истории в ответе нет.
+    """
+    with db.session() as s:
+        lesson = s.get(Lesson, lesson_id)
+        class_id = lesson.class_id if lesson else None
+        past: list[set[str] | None] = []  # по урокам от нового к старому: кто ответил
+        present: list[set[str]] = []  # кто был на уроке
+        if class_id is not None:
+            ids = s.scalars(
+                select(LessonResult.lesson_id)
+                .join(Lesson, Lesson.id == LessonResult.lesson_id)
+                .where(Lesson.class_id == class_id, Lesson.id != lesson_id, LessonResult.counts_for_norm)
+                .order_by(LessonResult.finished_at.desc())
+                .limit(lessons)
+            ).all()
+            for past_id in ids:
+                rows = s.scalars(select(LevelRow).where(LevelRow.lesson_id == past_id)).all()
+                past.append({r.participant_id for r in rows if r.level >= 2})
+                present.append({r.participant_id for r in rows})
+    if class_id is None:
+        path = settings.demo_lesson_dir / "history_seed.json"
+        seeded = json.loads(path.read_text(encoding="utf-8")).get("lessons", []) if path.exists() else []
+        for item in reversed(seeded[-lessons:]):
+            if "replied" in item:
+                past.append(set(item["replied"]))
+                present.append(None)  # в файле состав не записан: считаем, что были все
+    streaks: dict[str, int] = {}
+    for sid in student_ids:
+        key = sid.removeprefix("virtual-") if class_id is None else sid
+        n = 0
+        for replied, was_there in zip(past, present):
+            if (was_there is not None and key not in was_there) or key in replied:
+                break
+            n += 1
+        if past and (present[0] is None or key in present[0]):
+            streaks[sid] = n
+    return streaks
+
+
 def save_summary(lesson_id: str, summary: Summary) -> None:
     with db.session() as s:
         row = s.get(SummaryRow, lesson_id)
@@ -192,6 +246,18 @@ def get_summary(lesson_id: str) -> Summary | None:
     with db.session() as s:
         row = s.get(SummaryRow, lesson_id)
         return Summary.model_validate_json(row.payload) if row else None
+
+
+def save_cards(lesson_id: str, cards: list[StudentCard]) -> None:
+    with db.session() as s:
+        s.execute(delete(CardRow).where(CardRow.lesson_id == lesson_id))
+        s.add_all(CardRow(lesson_id=lesson_id, participant_id=c.student_id, payload=c.model_dump_json()) for c in cards)
+
+
+def get_card(lesson_id: str, student_id: str) -> StudentCard | None:
+    with db.session() as s:
+        row = s.get(CardRow, (lesson_id, student_id))
+        return StudentCard.model_validate_json(row.payload) if row else None
 
 
 def lesson_utterances(lesson_id: str) -> list[UtteranceRow]:

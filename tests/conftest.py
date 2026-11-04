@@ -35,6 +35,14 @@ def use_settings(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def no_llm(monkeypatch):
+    # тесты не ходят в GigaChat, даже если LLM_API_KEY есть в .env; тесты LLM подменяют ответ сами
+    from app.pipeline import llm
+
+    monkeypatch.setattr(llm, "settings", dataclasses.replace(settings, llm_api_key=""))
+
+
+@pytest.fixture(autouse=True)
 def dev_auth(use_settings):
     # старые тесты API называют участника в адресе, как при разработке; тесты входа выключают это сами
     use_settings(dev_auth=True)
