@@ -34,6 +34,14 @@ def test_lesson_roster_has_only_recorded_students():
     assert roster.virtual_teacher.id == virtual_id("teacher") and roster.virtual_teacher.virtual
 
 
+
+def test_recorded_students_keep_full_names_for_surname_address():
+    # второй демо-урок (#84) зовёт учеников по фамилии: полное имя из roster.json не теряется (#76)
+    named = [s.model_copy(update={"full_name": f"{s.name[:-3]} Тестов"}) for s in ROSTER.students]
+    demo = ROSTER.model_copy(update={"students": named})
+    roster = lesson_roster(ROSTER, demo)
+    assert [s.full_name for s in roster.students] == [s.full_name for s in named]
+
 def test_lfs_pointers_are_not_tracks(tmp_path):
     (tmp_path / "roster.json").write_text(ROSTER.model_dump_json(), encoding="utf-8")
     (tmp_path / "tracks").mkdir()

@@ -8,8 +8,10 @@
 
 Правила проверяются по порядку, срабатывает первое:
 1. response — в последней реплике учителя, закончившейся не раньше чем за
-   ADDRESS_WINDOW_S секунд до начала реплики ученика, есть имя этого ученика,
-   и между ними не говорил другой ученик;
+   ADDRESS_WINDOW_S секунд до начала реплики ученика, есть имя или фамилия
+   этого ученика в любом падеже, и между ними не говорил другой ученик.
+   Фамилию берём из полного имени в базе (#76); при тёзках и прозвучавшей
+   фамилии одного из них отклик только у него;
 2. initiative — реплика вопрос (см. «Вопрос» ниже) или начинается с обращения
    к учителю по имени-отчеству;
 3. answer — реплика начинается не позже чем через ADDRESS_WINDOW_S секунд
@@ -41,7 +43,7 @@ context — реплики урока по порядку: {"student_id", "t", "
 
 import re
 
-from app.models import Roster, UtteranceKind
+from app.models import Roster, Student, UtteranceKind
 
 # Сколько секунд после конца реплики учителя ответ ещё считается ответом на неё
 ADDRESS_WINDOW_S = 8.0
@@ -50,6 +52,13 @@ TURN_GAP_S = 2.0
 # Пауза, после которой реплика того же ученика всё ещё продолжение прошлой
 CONTINUE_S = 3.0
 ANSWER_MIN_WORDS = 4
+# Обращение: основа имени или фамилии не короче MIN_STEM букв и падежное окончание.
+# Именно окончание, а не «любые буквы»: иначе «Маша» нашлась бы в «машине», «Катя» — в «катере»
+MIN_STEM = 3
+ENDINGS = {
+    "", "а", "я", "у", "ю", "е", "и", "ы", "ой", "ей", "ом", "ем", "ым", "им", "ою", "ею",
+    "ого", "его", "ому", "ему", "ая", "яя", "ую", "юю", "ий", "ый", "ие", "ые", "ых", "их", "ов", "ев",
+}
 
 # Краткие формы имён: учитель редко зовёт ученика полным именем
 SHORT_NAMES = {
@@ -91,15 +100,54 @@ def _words(text: str) -> list[str]:
     return _WORD.findall(_norm(text))
 
 
-def _names(full_name: str) -> list[str]:
-    """«Артём К.» → ["артем", "тема"]: имя без фамилии и его краткие формы."""
-    first = _norm(full_name.split()[0])
+def _names(student: Student) -> list[str]:
+    """«Иван Петров» → ["иван", "ваня"]: имя без фамилии и его краткие формы."""
+    first = _norm((student.full_name or student.name).split()[0])
     return [first, *SHORT_NAMES.get(first, [])]
 
 
-def _mentions(text: str, names: list[str]) -> bool:
-    # «Артём», «Артёма», «Артёму»: имя с окончанием до двух букв
-    return any(w.startswith(n) and len(w) - len(n) <= 2 for w in _words(text) for n in names)
+def _surname(student: Student) -> str | None:
+    """«Иван Петров» → «петров». У «Иван П.» фамилии нет: в составе урока только инициал."""
+    words = (student.full_name or student.name).split()
+    last = _norm(words[-1]).rstrip(".") if len(words) > 1 else ""
+    return last if len(last) >= MIN_STEM else None
+
+
+def _stems(word: str) -> list[str]:
+    """Основы для падежей: «петрова» → «петров», «мария» → «мари»,
+    «дмитрий» → «дмитри» (Дмитрия), «чайковский» → «чайковск» (Чайковского)."""
+    stems = [word]
+    if word[-1] in "аеиоуыэюяйь":
+        stems.append(word[:-1])
+    if word[-2:] in ("ий", "ый", "ой", "ая", "яя"):
+        stems.append(word[:-2])
+    return [s for s in stems if len(s) >= MIN_STEM]
+
+
+def _fits(word: str, base: str) -> bool:
+    # «Петров», «Петрова», «Петровым», «Марию», «Чайковского»: основа и падежное окончание
+    return any(word.startswith(s) and word[len(s):] in ENDINGS for s in _stems(base))
+
+
+def _addressed(text: str, student: Student, students: list[Student]) -> bool:
+    """Учитель обратился к ученику: по фамилии или по имени (#76).
+
+    Слово, похожее на чью-то фамилию, — обращение по фамилии, а не по имени:
+    «Иванов» не зовёт Ивана. Если в классе тёзки и прозвучала фамилия одного
+    из них, по имени зовут его, а не остальных. Одно имя без фамилии при
+    тёзках — отклик тому, кто ответил.
+    """
+    words = _words(text)
+    surnames = {s.id: sn for s in students if (sn := _surname(s))}
+    called = {sid for w in words for sid, sn in surnames.items() if _fits(w, sn)}
+    if student.id in called:
+        return True
+    by_name = [w for w in words if not any(_fits(w, sn) for sn in surnames.values())]
+    names = _names(student)
+    if not any(_fits(w, n) for w in by_name for n in names):
+        return False
+    namesakes = {s.id for s in students if s.id != student.id and set(_names(s)) & set(names)}
+    return not namesakes & called
 
 
 def _is_question(text: str) -> bool:
@@ -148,8 +196,8 @@ def classify(text: str, student_id: str, t: float, roster: Roster, context: list
     in_window = turn_end is not None and t - turn_end <= ADDRESS_WINDOW_S
     turn_text = " ".join(item["text"] for item in turn)
 
-    # 1. Отклик: учитель назвал ученика по имени
-    if in_window and not others_spoke and student and _mentions(turn_text, _names(student.name)):
+    # 1. Отклик: учитель назвал ученика по имени или по фамилии
+    if in_window and not others_spoke and student and _addressed(turn_text, student, roster.students):
         return "response"
 
     # 2. Инициатива: свой вопрос или обращение к учителю
