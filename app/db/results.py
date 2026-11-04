@@ -160,7 +160,8 @@ def seed_history(path: Path | None = None) -> list[float]:
     """Прошлые уроки из history_seed.json — для класса, у которого своих ещё нет.
 
     Урок в файле: {"date": "2026-10-01", "activity": 5.5, "quiet": false},
-    activity — баллы на ученика. «Тихие» уроки в норму не идут.
+    activity — баллы на ученика. «Тихие» уроки в норму не идут. Поля topic и
+    replied (кто из демо-класса ответил) — для сводки, норма их не читает.
     """
     path = path or settings.demo_lesson_dir / "history_seed.json"
     if not path.exists():
