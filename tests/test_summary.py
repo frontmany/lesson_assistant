@@ -192,6 +192,28 @@ def test_finished_lesson_is_saved_and_sent(monkeypatch):
     assert not [m for m in api.sent if m[0] == 11]  # у Артёма тема пуста и реплик нет: карточки нет
 
 
+def test_demo_summary_counts_only_recorded_class(monkeypatch):
+    """В демо ученики урока — запись с приставкой virtual-; состав класса без неё на уроке не был."""
+    api = FakeApi()
+    monkeypatch.setattr(max_bot, "_bot", max_bot.Bot(api, "ideya_bot"))
+    lesson = classes.demo_lesson(1, "Елена Викторовна")
+    base = classes.lesson_roster(lesson.id)
+    students = [s.model_copy(update={"id": f"virtual-{s.id}", "virtual": True}) for s in base.students]
+    roster = base.model_copy(update={"students": students})
+    ivan = students[0].id
+    board = Scoreboard([s.id for s in students], 4.5, 2400)
+    utterances = [{"student_id": ivan, "t": 4.0, "end": 9.0, "text": "Искал союзников против Османской империи.", "kind": "answer"}]
+    board.add(ivan, "answer", utterances[0]["text"], 4.0, 9.0)
+
+    asyncio.run(runner.finish_lesson(lesson.id, roster, utterances, board))
+
+    (to_teacher,) = api.sent  # ученикам из записи карточки не уходят
+    assert to_teacher[0] == 1
+    assert "6 учеников" in to_teacher[1]
+    assert "**Выпали**\nМария С., Артём К., Софья Л., Алиса Н. и ещё 1" in to_teacher[1]
+    assert to_teacher[2] is None  # у демо нет класса: кнопки «Начать урок» нет
+
+
 def test_card_api_gives_stored_card_or_404(monkeypatch):
     from fastapi.testclient import TestClient
 
