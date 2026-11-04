@@ -2,23 +2,76 @@
 <html lang="ru">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Урок: ученик</title>
+  <!-- Экран ученика в звонке (#22) по макету design/student-call.html (#8). Логика — js/student.js.
+       Экран до входа и без микрофона — общий с учителем (css/call.css) -->
   <link rel="stylesheet" href="css/tokens.css">
-  <link rel="stylesheet" href="css/app.css">
+  <link rel="stylesheet" href="css/call.css">
+  <link rel="stylesheet" href="css/student.css">
 </head>
 <body>
-  <main>
-    <h1 id="title">Твоё участие</h1>
-    <div class="toolbar">
-      <span class="indicator">Аналитика активна</span>
-      <button id="join">Войти в урок</button>
-      <button id="mic" hidden>Выключить микрофон</button>
-      <span id="state" class="state"></span>
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <symbol id="mic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></symbol>
+    <symbol id="mic-off" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3M4 4l16 16"/></symbol>
+    <symbol id="cam" viewBox="0 0 24 24"><rect x="3" y="6" width="12" height="12" rx="2"/><path d="M15 10l6-3v10l-6-3"/></symbol>
+    <symbol id="cam-off" viewBox="0 0 24 24"><rect x="3" y="6" width="12" height="12" rx="2"/><path d="M15 10l6-3v10l-6-3M4 4l16 16"/></symbol>
+    <symbol id="leave" viewBox="0 0 24 24"><path d="M3 14c5-5 13-5 18 0l-2.5 3-3.5-1.5v-3c-2-.7-4-.7-6 0v3L5.5 17z"/></symbol>
+    <symbol id="pulse" viewBox="0 0 24 24"><path d="M3 12h4l3-8 4 16 3-8h4"/></symbol>
+    <symbol id="pulse-off" viewBox="0 0 24 24"><path d="M3 12h4l3-8 4 16 3-8h4M4 4l16 16"/></symbol>
+    <symbol id="check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
+  </svg>
+
+  <div class="app">
+    <!-- До входа, подключение и нет микрофона -->
+    <div class="lobby" id="lobby">
+      <div class="preview tile" id="preview">
+        <span class="avatar" id="previewAvatar"></span>
+        <div class="pv-ctrl">
+          <button class="cbtn" id="pvMic" aria-label="Выключить микрофон"><svg class="i"><use href="#mic"/></svg></button>
+          <button class="cbtn off" id="pvCam" aria-label="Включить камеру"><svg class="i"><use href="#cam-off"/></svg></button>
+        </div>
+      </div>
+      <div class="lobby-text">
+        <h1 id="lobbyTitle">Войти в&nbsp;урок?</h1>
+        <p id="lobbyText" hidden></p>
+        <div class="actions" id="lobbyActions"></div>
+      </div>
     </div>
-    <!-- TODO(Фёдор): экран ученика по макету Варвары. Только своя шкала, шкала не падает -->
-    <section class="scale" id="scale"></section>
-  </main>
+
+    <!-- В уроке -->
+    <section class="st-screen" id="call" hidden aria-label="Звонок, экран ученика">
+      <div class="st-top">
+        <span class="st-ana" id="ana"><svg class="i"><use href="#pulse"/></svg><span id="anaText">Аналитика активна</span></span>
+        <span class="st-timer" id="timer">0:00</span>
+      </div>
+      <div class="banner" id="banner" hidden><span class="spin"></span>Связь пропала. Переподключаемся…</div>
+      <div class="st-stage" id="stage"></div>
+      <div class="st-strip" id="strip" aria-label="Одноклассники в звонке"></div>
+      <div class="st-scale" id="scale">
+        <div class="scale-head">
+          <h2>Твоё участие</h2>
+          <span class="of" id="of">ступень <b id="cur">1</b> из 4</span>
+          <button type="button" class="toggle" id="toggle" aria-expanded="true" aria-controls="fold">
+            <span id="toggleText">Скрыть</span><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 15l7-7 7 7"/></svg>
+          </button>
+        </div>
+        <div class="fold" id="fold"><div>
+          <ol class="steps" id="steps"></ol>
+          <p class="scale-note">Видна только тебе. Шкала не опускается</p>
+        </div></div>
+        <p class="off-text" id="offText" hidden>Аналитика выключена. Шкала не ведётся.</p>
+        <p class="sr" aria-live="polite" role="status" id="status"></p>
+      </div>
+      <div class="toast" id="toast" hidden></div>
+      <footer class="st-controls">
+        <button class="cbtn" id="btnMic" aria-label="Выключить микрофон"><svg class="i"><use href="#mic"/></svg></button>
+        <button class="cbtn" id="btnCam" aria-label="Включить камеру"><svg class="i"><use href="#cam-off"/></svg></button>
+        <button class="cbtn leave" id="btnLeave" aria-label="Выйти из урока"><svg class="i"><use href="#leave"/></svg></button>
+      </footer>
+    </section>
+  </div>
+
   <script src="https://st.max.ru/js/max-web-app.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/livekit-client@2.22.3/dist/livekit-client.umd.js"></script>
   <script type="module" src="js/student.js"></script>

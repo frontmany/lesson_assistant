@@ -79,7 +79,7 @@ def test_student_joins_only_as_self(lesson):
     ivan = db.students_of(lesson[0].id)[0]
     headers = sign_in(IVAN)
     me = client.get(f"/api/lessons/{lesson_id}/me", headers=headers).json()
-    assert me == {"participant_id": ivan.participant_id, "name": "Иван И.", "role": "student"}
+    assert me == {"participant_id": ivan.participant_id, "name": "Иван И.", "role": "student", "analytics": True}
     # чужой id в адресе ничего не меняет: участника сервер берёт из сессии
     join = client.get(f"/api/lessons/{lesson_id}/join", params={"id": "m999"}, headers=headers).json()
     assert join["participant_id"] == ivan.participant_id
@@ -153,7 +153,7 @@ def test_demo_from_start_page(lesson):
     headers = sign_in(MARIA, first="Мария", last="Смирнова")
     lesson_id = client.post("/api/demo", headers=headers).json()["lesson_id"]
     assert client.get(f"/api/lessons/{lesson_id}/me", headers=headers).json() == {
-        "participant_id": "teacher", "name": "Мария Смирнова", "role": "teacher"}
+        "participant_id": "teacher", "name": "Мария Смирнова", "role": "teacher", "analytics": True}
     assert client.post("/api/demo").status_code == 401
 
 
@@ -162,3 +162,17 @@ def test_demo_lesson_teacher_is_who_asked(lesson):
     me = client.get(f"/api/lessons/{demo.id}/me", headers=sign_in(MARIA)).json()
     assert me["role"] == "teacher"
     assert client.get(f"/api/lessons/{demo.id}/me", headers=sign_in(IVAN)).status_code == 403
+
+
+def test_analytics_switch_is_kept_and_sent_to_student(lesson):
+    c, lesson_id = lesson
+    ivan = db.students_of(c.id)[0].participant_id
+    teacher = sign_in(TEACHER)
+    state = {"type": "analytics", "enabled": False, "student_id": ivan}
+    assert client.post(f"/api/lessons/{lesson_id}/analytics", json=state, headers=teacher).status_code == 200
+    assert client.get(f"/api/lessons/{lesson_id}/analytics", headers=teacher).json() == {"all_off": False, "off": [ivan]}
+    me = client.get(f"/api/lessons/{lesson_id}/me", headers=sign_in(IVAN)).json()
+    assert me["analytics"] is False
+    assert client.get(f"/api/lessons/{lesson_id}/analytics", headers=sign_in(IVAN)).status_code == 403
+    client.post(f"/api/lessons/{lesson_id}/analytics", json={**state, "enabled": True}, headers=teacher)
+    assert client.get(f"/api/lessons/{lesson_id}/me", headers=sign_in(IVAN)).json()["analytics"] is True

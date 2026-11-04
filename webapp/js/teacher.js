@@ -45,6 +45,11 @@ let reconnecting = false;
 const videos = new Map(); // sid дорожки → <video>, чтобы не пересоздавать видео при каждой перерисовке
 
 document.title = `Урок: ${roster.class_name}, ${roster.subject.toLowerCase()}`;
+// выключатели аналитики, если учитель ставил их до перезагрузки страницы (#22)
+api(`/api/lessons/${LESSON_ID}/analytics`).then(({ all_off: allOff, off }) => {
+  for (const s of roster.students) if (allOff || off.includes(s.id)) students[s.id].off = true;
+  if (room) renderPanel();
+}, () => {});
 $("previewAvatar").textContent = initials(roster.teacher.name);
 resetStudents();
 
