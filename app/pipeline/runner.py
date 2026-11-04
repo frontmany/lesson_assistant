@@ -234,11 +234,14 @@ async def finish_lesson(lesson_id: str, roster: Roster, utterances: list[dict], 
     def report() -> None:
         # запросы к базе, GigaChat и боту блокирующие: целиком в отдельном потоке
         nonlocal roster
-        # кто вошёл в класс во время урока, того нет в составе на начало урока
+        # кто вошёл в класс во время урока, того нет в составе на начало урока. Берём
+        # только тех, кто был на шкале: в демо состав класса — записанные ученики
+        # без приставки virtual-, на уроке их не было
         fresh = lesson_roster(lesson_id)
         known = {s.id for s in roster.students}
         if fresh:
-            roster = roster.model_copy(update={"students": roster.students + [s for s in fresh.students if s.id not in known]})
+            joined = [s for s in fresh.students if s.id not in known and s.id in levels]
+            roster = roster.model_copy(update={"students": roster.students + joined})
         streaks = results.silent_streaks(lesson_id, list(levels))
         teacher_summary = summary.build_summary(roster, utterances, levels, streaks)
         cards = summary.build_cards(roster, utterances, levels)
