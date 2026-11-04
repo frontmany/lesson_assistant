@@ -26,6 +26,7 @@ FAILS_TO_RESTART=3      # столько проверок подряд без о
 
 [ -f .env ] || { echo "Нет .env: cp .env.example .env и впишите LIVEKIT_NODE_IP" >&2; exit 1; }
 grep -q '^LIVEKIT_NODE_IP=..*' .env || { echo "В .env нет LIVEKIT_NODE_IP — без него в звонке не будет звука" >&2; exit 1; }
+grep -q '^MAX_BOT_TOKEN=..*' .env || { echo "В .env нет MAX_BOT_TOKEN — без него сервер не проверит вход из MAX и ответит «Не удалось проверить данные MAX»" >&2; exit 1; }
 mkdir -p "$STATE"
 
 env_get() { grep -m1 "^$1=" .env | cut -d= -f2- || true; }
