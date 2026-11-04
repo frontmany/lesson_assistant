@@ -13,7 +13,10 @@
     [hidden] { display: none !important; }
     body { margin: 0; font-family: var(--font); background: var(--bg); color: var(--ink); }
     main { max-width: 420px; min-height: 100vh; min-height: 100dvh; margin: 0 auto; padding: 32px 20px; display: flex; flex-direction: column; }
-    .logo { height: 40px; width: auto; align-self: flex-start; margin-bottom: 24px; }
+    /* логотип Сферума на белой плашке, чтобы читался и на тёмном фоне: как в design/start.html */
+    .brand { display: flex; align-items: center; gap: 10px; margin-bottom: 28px; }
+    .brand img { width: 32px; height: 32px; padding: 3px; border-radius: 9px; background: #fff; object-fit: contain; flex: none; }
+    .brand span { font-weight: 700; font-size: 18px; letter-spacing: 0.01em; }
     h1 { margin: 0 0 8px; font-size: 28px; line-height: 1.2; }
     .text { margin: 0 0 24px; color: var(--ink-soft); font-size: 15px; line-height: 1.5; }
     .classes { display: grid; gap: 10px; margin: 16px 0 24px; }
@@ -21,6 +24,8 @@
     .card > div { flex: 1; min-width: 0; }
     .card-name { font-weight: 600; font-size: 16px; }
     .card-meta { font-size: 13px; color: var(--ink-soft); margin-top: 2px; }
+    /* урок идёт: точка перед подписью, как в design/start.html */
+    .card-meta.live::before { content: ""; display: inline-block; width: 8px; height: 8px; margin-right: 6px; border-radius: 50%; background: var(--accent); }
     .card { flex-wrap: wrap; }
     .card button.off { background: var(--surface-muted); color: var(--ink-soft); cursor: default; }
     .card-hint { flex-basis: 100%; margin: 4px 0 0; font-size: 13px; color: var(--ink-soft); }
@@ -36,8 +41,9 @@
 </head>
 <body>
   <main>
-    <!-- логотип появится, когда в webapp/img/ будет sferum.svg -->
-    <img class="logo" id="logo" src="img/sferum.svg" alt="Сферум" hidden onload="this.hidden = false">
+    <!-- шар Сферума из design/bot/sferum-logo.png, 128 px для чётких экранов. Не официальный файл:
+         будет SVG из брендбука — заменить img/sferum.png -->
+    <div class="brand"><img src="img/sferum.png" alt="" width="32" height="32"><span>Сферум</span></div>
     <h1 id="title">Урок в MAX</h1>
     <p class="text" id="text" hidden></p>
     <section class="classes" id="classes" hidden></section>
