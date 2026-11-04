@@ -13,7 +13,7 @@
     [hidden] { display: none !important; }
     body { margin: 0; font-family: var(--font); background: var(--bg); color: var(--ink); }
     main { max-width: 420px; min-height: 100vh; min-height: 100dvh; margin: 0 auto; padding: 32px 20px; display: flex; flex-direction: column; }
-    .logo { height: 40px; width: auto; align-self: flex-start; margin-bottom: 24px; }
+    .logo { width: 48px; height: 48px; border-radius: 12px; align-self: flex-start; margin-bottom: 24px; }
     h1 { margin: 0 0 8px; font-size: 28px; line-height: 1.2; }
     .text { margin: 0 0 24px; color: var(--ink-soft); font-size: 15px; line-height: 1.5; }
     .classes { display: grid; gap: 10px; margin: 16px 0 24px; }
@@ -38,8 +38,8 @@
 </head>
 <body>
   <main>
-    <!-- логотип появится, когда в webapp/img/ будет sferum.svg -->
-    <img class="logo" id="logo" src="img/sferum.svg" alt="Сферум" hidden onload="this.hidden = false">
+    <!-- наш знак: иконка мини-приложения из design/bot/miniapp-icon.png (#81), 160 px для чётких экранов -->
+    <img class="logo" src="img/logo.png" alt="" width="48" height="48">
     <h1 id="title">Урок в MAX</h1>
     <p class="text" id="text" hidden></p>
     <section class="classes" id="classes" hidden></section>
