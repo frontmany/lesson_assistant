@@ -4,7 +4,7 @@
 
 import { DisconnectReason, joinCall } from "./call.js";
 import { LESSON_ID, api, loadRoster, signIn, subscribe, whoAmI } from "./lesson.js";
-import { browserUrl, inMax, micAccess, openInBrowser, openMaxSettings, openSystemSettings } from "./mic.js";
+import { inMax, micAccess, openInBrowser, openMaxSettings, openSystemSettings } from "./mic.js";
 
 const { RoomEvent, Track } = window.LivekitClient;
 
@@ -69,12 +69,8 @@ function lobby(kind = "ready", detail = "") {
     const [text, action, run] = NOMIC[kind];
     setLobbyText("Нет доступа к микрофону", text);
     if (action) actions.append(button("primary", action, run));
-    if (run === openInBrowser) {
-      // если браузер не открылся сам, ссылку можно скопировать и открыть вручную
-      actions.append(button("secondary", "Скопировать ссылку", copyLink));
-    } else {
-      actions.append(button(action ? "secondary" : "primary", "Попробовать снова", () => enter()));
-    }
+    // в браузер уводим одной кнопкой: повтор здесь ничего не даст
+    if (run !== openInBrowser) actions.append(button(action ? "secondary" : "primary", "Попробовать снова", () => enter()));
     actions.append(button("link", "Войти без микрофона", () => enter({ mic: false })));
   } else {
     setLobbyText("Готовы войти?", detail || "Проверьте микрофон и камеру");
@@ -83,30 +79,6 @@ function lobby(kind = "ready", detail = "") {
   }
   setIconButton($("pvMic"), kind in NOMIC ? false : prefs.mic, "mic", "микрофон");
   setIconButton($("pvCam"), prefs.cam, "cam", "камеру");
-}
-
-// Результат копирования показывает сама кнопка, ссылку на экран не выводим
-async function copyLink(e) {
-  const btn = e.currentTarget;
-  const label = btn.textContent;
-  btn.textContent = (await copy(browserUrl())) ? "Ссылка скопирована" : "Не удалось скопировать";
-  setTimeout(() => (btn.textContent = label), 2500);
-}
-
-async function copy(text) {
-  try {
-    await navigator.clipboard.writeText(text);
-    return true;
-  } catch {
-    // во фрейме MAX web буфер обмена через clipboard бывает закрыт: старый способ
-    const area = Object.assign(document.createElement("textarea"), { value: text });
-    area.style.cssText = "position:fixed;opacity:0";
-    document.body.append(area);
-    area.select();
-    const ok = document.execCommand("copy");
-    area.remove();
-    return ok;
-  }
 }
 
 function setLobbyText(title, text) {
