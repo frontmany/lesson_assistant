@@ -4,6 +4,7 @@ import csv
 
 import pytest
 
+from app.db.results import seed_history
 from app.pipeline.classify import classify
 from app.pipeline.scoring import (
     DEFAULT_NORM,
@@ -112,9 +113,11 @@ def test_quiet_but_precise_needs_few_replies_and_a_long_answer():
 
 
 def test_demo_lesson_scale():
-    """Демо-урок с нормой 4,5: картина из таблицы правил в #19."""
+    """Демо-урок с нормой из прошлых уроков (history_seed.json, #20): картина из таблицы правил в #19."""
+    norm = lesson_norm(seed_history())
+    assert norm == 4.5
     students = [s.id for s in ROSTER.students]
-    board = Scoreboard(students, norm=4.5, lesson_s=300)
+    board = Scoreboard(students, norm=norm, lesson_s=300)
     context: list[dict] = []
     for row in csv.DictReader(open(DEMO / "ground_truth.csv", encoding="utf-8")):
         who, t, end = row["speaker_id"], float(row["start_s"]), float(row["end_s"])
