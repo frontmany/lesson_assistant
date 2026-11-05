@@ -1,0 +1,40 @@
+{
+  "comment": "Пять прошлых уроков 7Б по всеобщей истории перед демо-уроком «Открытие Америки». activity — баллы на ученика за урок (scoring.lesson_activity), медиана — норма урока. replied — кто дал засчитанную реплику: Волков не отвечал все пять уроков, Белов — два последних.",
+  "lessons": [
+    {
+      "date": "2026-10-01",
+      "topic": "Европа в конце Средних веков",
+      "activity": 4.4,
+      "quiet": false,
+      "replied": ["ivan_petrov", "ivan_sidorov", "kirill_belov", "anna_kozlova"]
+    },
+    {
+      "date": "2026-10-08",
+      "topic": "Зачем европейцам нужен был путь в Индию",
+      "activity": 5.0,
+      "quiet": false,
+      "replied": ["ivan_petrov", "olga_smirnova", "kirill_belov", "anna_kozlova"]
+    },
+    {
+      "date": "2026-10-15",
+      "topic": "Португальские мореплаватели",
+      "activity": 4.7,
+      "quiet": false,
+      "replied": ["ivan_petrov", "ivan_sidorov", "olga_smirnova", "kirill_belov"]
+    },
+    {
+      "date": "2026-10-22",
+      "topic": "Корабли и навигация XV века",
+      "activity": 5.3,
+      "quiet": false,
+      "replied": ["ivan_petrov", "ivan_sidorov", "olga_smirnova", "anna_kozlova"]
+    },
+    {
+      "date": "2026-10-29",
+      "topic": "Испания и Реконкиста",
+      "activity": 4.6,
+      "quiet": false,
+      "replied": ["ivan_petrov", "olga_smirnova", "anna_kozlova"]
+    }
+  ]
+}
