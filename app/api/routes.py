@@ -210,6 +210,9 @@ async def start(lesson_id: str, virtual: bool = False):
     lesson = classes.get_lesson(lesson_id)
     if lesson is not None and lesson.demo:
         return {"lesson_id": lesson_id, "started": _start_virtual(lesson_id)}
+    if lesson is not None and lesson.ended_at is not None:
+        # новый прогон завершённого урока затёр бы его итоги (results.save_lesson)
+        raise HTTPException(409, "Урок уже завершён: начните новый урок из чата с ботом")
     started = runner.start(lesson_id, _lesson_roster(lesson_id, virtual))
     if started:
         runner.when_finished(lesson_id, classes.mark_ended)

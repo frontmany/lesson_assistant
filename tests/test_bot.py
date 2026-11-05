@@ -321,3 +321,28 @@ def test_unknown_buttons_are_answered(bot):
 def test_students_are_counted_in_russian():
     assert [students_count(n) for n in (1, 2, 5, 11, 21, 24)] == [
         "1 ученик", "2 ученика", "5 учеников", "11 учеников", "21 ученик", "24 ученика"]
+
+
+def test_bot_waits_for_max_at_start():
+    # MAX недоступен при старте сервера: поток бота ждёт, а не умирает
+    import threading
+
+    import httpx
+
+    from app.bot import max_bot
+
+    calls = []
+
+    def answer(request):
+        calls.append(request.url.path)
+        if len(calls) == 1:
+            raise httpx.ConnectError("нет сети")
+        if len(calls) == 2:
+            return httpx.Response(200, text="<html>работы</html>")
+        return httpx.Response(200, json={"name": "Идея фикс", "username": "ideya_bot"})
+
+    stop = threading.Event()
+    http = httpx.Client(base_url="https://max.test", transport=httpx.MockTransport(answer))
+    stop.wait = lambda timeout=None: False  # без настоящего ожидания
+    assert max_bot._whoami(http, stop)["username"] == "ideya_bot"
+    assert len(calls) == 3
