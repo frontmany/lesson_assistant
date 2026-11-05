@@ -556,10 +556,31 @@ def lesson_finished(roster, summary, cards, minutes: int) -> None:
             log.warning("не отправил карточку %s: %s", card.student_id, exc)
 
 
+def _whoami(http: httpx.Client, stop: threading.Event | None) -> dict | None:
+    """Профиль бота. MAX может быть недоступен при старте сервера: ждём, а не роняем поток."""
+    while stop is None or not stop.is_set():
+        try:
+            res = http.get("/me")
+            res.raise_for_status()
+            me = res.json()
+            if settings.max_bot_name or me.get("username"):
+                return me
+            log.warning("API MAX не вернул имя бота и MAX_BOT_NAME не задан, повторю через 10 с")
+        except (httpx.HTTPError, ValueError) as exc:
+            log.warning("API MAX недоступен при старте: %s, повторю через 10 с", exc)
+        if stop is None:
+            time.sleep(10)
+        else:
+            stop.wait(10)
+    return None
+
+
 def run_polling(stop: threading.Event | None = None) -> None:
     global _bot
     with client() as http:
-        me = http.get("/me").json()
+        me = _whoami(http, stop)
+        if me is None:
+            return
         log.info("бот %s (%s) слушает обновления", me.get("name"), me.get("username"))
         api = MaxApi(http)
         _bot = Bot(api, settings.max_bot_name or me["username"])
@@ -567,7 +588,8 @@ def run_polling(stop: threading.Event | None = None) -> None:
         while stop is None or not stop.is_set():
             try:
                 data = api.updates(marker)
-            except httpx.HTTPError as exc:
+            except (httpx.HTTPError, ValueError) as exc:
+                # ValueError — ответ не JSON (прокси или работы на стороне MAX): поток не должен умереть
                 log.warning("не получил обновления: %s, повторю через 3 с", exc)
                 time.sleep(3)
                 continue

@@ -76,6 +76,9 @@ def build_summary(roster: Roster, utterances: list[dict], levels: Levels, streak
             return _llm_summary(roster, utterances, levels, streaks)
         except llm.LlmError as exc:
             log.warning("сводка урока %s по шаблону: %s", roster.lesson_id, exc)
+        except Exception:
+            # ответ не той формы (строка вместо списка, словарь вместо id): без сводки учителя не оставляем
+            log.exception("сводка урока %s по шаблону: ответ GigaChat не разобрался", roster.lesson_id)
     return template_summary(roster, utterances, levels, streaks)
 
 
@@ -158,6 +161,8 @@ def build_cards(roster: Roster, utterances: list[dict], levels: Levels) -> list[
             cards = _llm_cards(roster, utterances, levels)
         except llm.LlmError as exc:
             log.warning("карточки урока %s по шаблону: %s", roster.lesson_id, exc)
+        except Exception:
+            log.exception("карточки урока %s по шаблону: ответ GigaChat не разобрался", roster.lesson_id)
     template = {c.student_id: c for c in template_cards(roster, utterances, levels)}
     # кого модель пропустила, тем — шаблонная карточка
     merged = [cards.get(sid) or template.get(sid) for sid in levels]

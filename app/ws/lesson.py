@@ -147,6 +147,9 @@ async def lesson_events(ws: WebSocket, lesson_id: str, token: str | None = None,
     try:
         student = _viewer(lesson_id, token, id)
     except PermissionError as exc:
+        # до accept() uvicorn отвечает на рукопожатие HTTP 403, и браузер видит код 1006,
+        # а не 4403: клиент переподключался бы без конца (webapp/js/lesson.js)
+        await ws.accept()
         await ws.close(code=4403, reason=str(exc))
         return
     await ws.accept()
