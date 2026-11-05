@@ -9,6 +9,16 @@ def test_health():
     assert client.get("/api/health").json()["status"] == "ok"
 
 
+def test_health_tells_whether_dev_links_work(monkeypatch):
+    import dataclasses
+
+    from app import main
+
+    for dev in (True, False):
+        monkeypatch.setattr(main, "settings", dataclasses.replace(main.settings, dev_auth=dev))
+        assert client.get("/api/health").json()["dev_auth"] is dev
+
+
 def test_webapp_is_served():
     assert "Урок в MAX" in client.get("/").text
 
