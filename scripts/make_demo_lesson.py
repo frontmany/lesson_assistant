@@ -1,7 +1,10 @@
 """Озвучить демо-урок по сценарию: дорожки участников и эталон реплик (#84).
 
-    docker run --rm -v "$PWD:/srv" -w /srv python:3.12-slim sh -c \
+    docker run --rm -v "$PWD:/srv" -v lesson-tts-cache:/root/.cache -w /srv python:3.12-slim sh -c \
         "pip install -r scripts/requirements-tts.txt && python scripts/make_demo_lesson.py data/demo_lesson_2"
+
+Том lesson-tts-cache хранит pip, torch.hub и модель Silero между запусками:
+без него всё это скачивается заново при каждой сборке.
 
 Читает из папки урока scenario.csv и roster.json, озвучивает каждую реплику
 Silero TTS (v4_ru, 48 кГц) голосом из roster.json, раскладывает реплики по
