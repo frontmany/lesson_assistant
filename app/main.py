@@ -33,7 +33,8 @@ app = FastAPI(title="Ассистент Сферум AI", lifespan=lifespan)
 
 @app.get("/api/health")
 def health() -> dict:
-    return {"status": "ok", "source_mode": settings.source_mode}
+    # dev_auth: стартовая страница показывает ссылки для разработки, только когда вход без MAX открыт
+    return {"status": "ok", "source_mode": settings.source_mode, "dev_auth": settings.dev_auth}
 
 
 app.include_router(api_router, prefix="/api")

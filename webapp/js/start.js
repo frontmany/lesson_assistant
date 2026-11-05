@@ -104,7 +104,9 @@ try {
     await home();
   } else {
     say("Откройте мини-приложение в MAX: в чате с ботом «Идея фикс».");
-    $("dev").hidden = false;
+    // ссылки на демо-класс без MAX работают только при DEV_AUTH=1: иначе их не показываем
+    const health = await fetch("/api/health").then((r) => r.json()).catch(() => ({}));
+    $("dev").hidden = !health.dev_auth;
   }
 } catch (err) {
   $("title").textContent = "Не удалось открыть урок";
