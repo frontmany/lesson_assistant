@@ -1,0 +1,7 @@
+# Только для scripts/make_demo_lesson.py, в образ приложения не входит (#84).
+# Silero TTS загружается через torch.hub; torch — сборка для CPU, без CUDA
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.5.1
+numpy==2.1.3
+# Silero читает свой список моделей через OmegaConf
+omegaconf==2.3.0

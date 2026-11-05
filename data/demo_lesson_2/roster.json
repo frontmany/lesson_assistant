@@ -1,0 +1,15 @@
+{
+  "lesson_id": "7b-history-america",
+  "class_name": "7Б",
+  "subject": "Всеобщая история",
+  "topic": "Открытие Америки",
+  "teacher": { "id": "teacher", "name": "Марина Сергеевна", "voice": "xenia" },
+  "students": [
+    { "id": "ivan_petrov", "name": "Иван Петров", "voice": "aidar" },
+    { "id": "ivan_sidorov", "name": "Иван Сидоров", "voice": "eugene" },
+    { "id": "olga_smirnova", "name": "Ольга Смирнова", "voice": "baya" },
+    { "id": "kirill_belov", "name": "Кирилл Белов", "voice": "aidar, pitch low" },
+    { "id": "anna_kozlova", "name": "Анна Козлова", "voice": "kseniya" },
+    { "id": "egor_volkov", "name": "Егор Волков", "voice": "молчит: на дорожке кашель и стук клавиатуры" }
+  ]
+}
