@@ -191,7 +191,7 @@ def build(lesson_dir: Path, speak) -> list[Line]:
             if line.speaker not in voice_of:
                 raise SystemExit(f"строка {n + 1}: у {line.speaker} нет голоса в roster.json")
             line.audio = resample(speak(line.text, *voice_of[line.speaker]))
-            print(f"{n:3}/{len(lines)} {line.speaker:14} {len(line.audio) / RATE:5.1f} с  {plain(line.text)[:60]}")
+            print(f"{n:3}/{len(lines)} {line.speaker:14} {len(line.audio) / RATE:5.1f} с  {plain(line.text)}")
     layout(lines)
     tracks_dir = lesson_dir / "tracks"
     tracks_dir.mkdir(exist_ok=True)
