@@ -228,3 +228,43 @@ def test_card_api_gives_stored_card_or_404(monkeypatch):
     assert got.status_code == 200 and got.json()["went_well"] == ["Ответ"]
     assert client.get(f"/api/lessons/{lesson.id}/cards/{artem_id}", params={"id": artem_id}).status_code == 404
     assert client.get(f"/api/lessons/{lesson.id}/cards/{ivan_id}", params={"id": artem_id}).status_code == 403
+
+
+@pytest.mark.parametrize("answer", [
+    {"carried": [{"student_id": "ivan_i"}], "dropped": [], "weak_topics": [], "ask_next": []},
+    {"carried": [], "dropped": [], "weak_topics": 3, "ask_next": []},
+    TypeError("ответ модели не того вида"),
+])
+def test_summary_falls_back_to_template_on_any_error(demo, gigachat, answer):
+    # не только LlmError: ответ не той формы не должен оставить учителя без сводки
+    roster, utterances, levels = demo
+    answers, _ = gigachat
+    answers.append(answer)
+    assert summary.build_summary(roster, utterances, levels, {}).carried == ["ivan_i", "maria_s"]
+
+
+def test_cards_fall_back_to_template_on_any_error(demo, gigachat):
+    roster, utterances, levels = demo
+    answers, _ = gigachat
+    answers.append({"cards": [{"student_id": ["ivan_i"], "went_well": [], "to_repeat": []}]})
+    cards = summary.build_cards(roster, utterances, levels)
+    assert {c.student_id for c in cards} == {c.student_id for c in summary.template_cards(roster, utterances, levels)}
+
+
+def test_student_switched_off_just_before_end_is_not_in_results(monkeypatch):
+    # шкала забывает ученика только на реплике или раз в 30 с: выключатель проверяется и при завершении
+    api = FakeApi()
+    monkeypatch.setattr(max_bot, "_bot", max_bot.Bot(api, "ideya_bot"))
+    c, lesson, (ivan, artem) = lesson_of_class()
+    roster = classes.lesson_roster(lesson.id)
+    ivan_id, artem_id = f"m{ivan.id}", f"m{artem.id}"
+    utterances = [{"student_id": ivan_id, "t": 4.0, "end": 9.0, "text": "Искал союзников и учился строить корабли.", "kind": "answer"}]
+    board = Scoreboard([ivan_id, artem_id], 6.0, 2400)
+    board.add(ivan_id, "answer", utterances[0]["text"], 4.0, 9.0)
+    runner.set_analytics(lesson.id, False, artem_id)
+
+    asyncio.run(runner.finish_lesson(lesson.id, roster, utterances, board))
+
+    assert artem_id not in results.get_summary(lesson.id).dropped
+    assert results.get_card(lesson.id, artem_id) is None
+    assert not [m for m in api.sent if m[0] == 11]

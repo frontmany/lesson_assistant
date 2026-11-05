@@ -152,3 +152,19 @@ def test_continuation_adds_speech_not_points():
         board.extend("sofya_l", "Это вообще очень интересный вопрос.", 97 + 3 * i, 99 + 3 * i)
     assert board.score("sofya_l") == 2  # один отклик; 20 секунд речи — меньше 30, баллов за объём нет
     assert board.level("sofya_l") == 2
+
+
+def test_answer_after_hesitation_counts():
+    # «Ну, это…» — прочее, а продолжение после паузы — ответ: засчитывается ответ
+    board = Scoreboard(["ivan_i"], norm=4.5, lesson_s=300)
+    board.add("ivan_i", "other", "Ну, это…", 6, 6.5)
+    board.extend("ivan_i", "Он хотел учиться строить корабли", 7.2, 9, "answer")
+    assert board.score("ivan_i") == 3
+    assert board.level("ivan_i") == 3
+
+
+def test_long_answer_in_phrases_counts_once():
+    board = Scoreboard(["ivan_i"], norm=4.5, lesson_s=300)
+    board.add("ivan_i", "answer", "Пётр начал строить новый флот", 6, 8)
+    board.extend("ivan_i", "и победил шведов на Балтике", 9, 11, "answer")
+    assert board.score("ivan_i") == 3
