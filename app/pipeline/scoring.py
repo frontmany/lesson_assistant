@@ -153,18 +153,22 @@ class Scoreboard:
         """Ученик вошёл в класс во время урока: шкала с первой ступени, как у всех в начале."""
         self._students.setdefault(student_id, _Student())
 
-    def extend(self, student_id: str, text: str, t: float, end: float) -> int:
+    def extend(self, student_id: str, text: str, t: float, end: float, kind: UtteranceKind = "other") -> int:
         """Продолжение прошлой реплики: ученик договорил после паузы.
 
         Длинный ответ приходит из конвейера несколькими фразами. Это одна
         реплика: прибавляется время речи и текст, а баллы за тип — нет.
-        Иначе ответ из пяти фраз весил бы как пять ответов.
+        Иначе ответ из пяти фраз весил бы как пять ответов. Но если реплика
+        началась с незасчитанного «Ну, это…», а продолжение — ответ (kind),
+        засчитывается ответ: иначе ученик, который замялся, остался бы без баллов.
         """
         s = self._students[student_id]
         if not s.kinds:
-            return self.add(student_id, "other", text, t, end)
+            return self.add(student_id, kind, text, t, end)
         s.texts[-1] = f"{s.texts[-1]} {text}"
         s.speech_s += max(0.0, end - t)
+        if s.kinds[-1] not in COUNTED and kind in COUNTED:
+            s.kinds[-1] = kind
         if s.kinds[-1] in COUNTED:
             s.last_reply_end = end
         self.tick(end)

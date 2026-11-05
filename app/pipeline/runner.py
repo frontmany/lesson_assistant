@@ -214,11 +214,14 @@ async def finish_lesson(lesson_id: str, roster: Roster, utterances: list[dict], 
     loop = asyncio.get_running_loop()
     # у кого аналитика выключена, тех нет ни в репликах, ни в ступенях урока (#22)
     utterances = [u for u in utterances if not u.get("off")]
+    # шкала забывает ученика только на его реплике или раз в FLAGS_EVERY_S: если урок
+    # завершили сразу после выключения, проверяем выключатель здесь
+    off_now = {s.id for s in roster.students if analytics_off(lesson_id, s.id)}
     _off.pop(lesson_id, None)
     ended = max((u["end"] for u in utterances), default=0.0)
     levels = {
         s.id: (board.level(s.id), board.score(s.id), board.flags(s.id, ended))
-        for s in roster.students if s.id in board.students()
+        for s in roster.students if s.id in board.students() and s.id not in off_now
     }
     saved = await loop.run_in_executor(
         None, results.save_lesson, lesson_id, utterances, levels,
@@ -501,7 +504,7 @@ async def transcribe_stream(
             item["kind"] = kind
             emit(Utterance(student_id=job.who, t=job.t, text=text, kind=kind, addressed=kind == "response"))
             if continues(job.who, job.t):
-                board.extend(job.who, text, job.t, job.end)
+                board.extend(job.who, text, job.t, job.end, kind)
             else:
                 board.add(job.who, kind, text, job.t, job.end)
             show_scale(lesson_time())
