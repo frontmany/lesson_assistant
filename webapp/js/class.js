@@ -108,7 +108,7 @@ function toast(text, undo) {
 
 function openInvite(c) {
   show("inviteView");
-  $("inviteTitle").textContent = `Пригласить в ${c.name}`;
+  $("inviteTitle").textContent = `Пригласить в ${c.name}, ${c.subject}`;
   $("inviteBack").onclick = () => show("classView");
   // без имени бота ссылки нет: остаётся код, его вводят в чате с ботом
   $("linkCard").hidden = !c.link;
@@ -118,7 +118,7 @@ function openInvite(c) {
   $("copyLink").onclick = (e) => copyButton(e.currentTarget, c.link, "Ссылка скопирована");
   $("copyCode").onclick = (e) => copyButton(e.currentTarget, c.code, "Код скопирован");
   $("share").hidden = !(navigator.share && c.link);
-  $("share").onclick = () => navigator.share({ text: `Вход в класс ${c.name}: ${c.link}` }).catch(() => {});
+  $("share").onclick = () => navigator.share({ text: `Вход в класс ${c.name}, ${c.subject}: ${c.link}` }).catch(() => {});
 }
 
 async function copyButton(btn, text, done) {
