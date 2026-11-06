@@ -225,7 +225,6 @@ function renderStage() {
     tiles.replaceChildren(...visible.map((p, i) => tile(p, (page - 1) * size + i)));
     $("pager").hidden = pages === 1;
     $("pageNo").textContent = `${page} / ${pages}`;
-    $("pageInfo").textContent = `· показаны ${c} из ${all.length}`;
     $("prev").disabled = page === 1;
     $("next").disabled = page === pages;
   }
