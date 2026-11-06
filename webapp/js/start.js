@@ -9,7 +9,9 @@ const $ = (id) => document.getElementById(id);
 const inMax = Boolean(window.WebApp?.initData);
 
 // данные запуска (#WebAppData=…) несём дальше: экран урока проверит их сам
-const go = (page, lesson) => location.replace(`${page}?lesson=${lesson}${location.hash}`);
+// now=1: урок начинают, а не присоединяются — экран урока входит сразу, без «Готовы войти?»
+const go = (page, lesson, now = false) =>
+  location.replace(`${page}?lesson=${lesson}${now ? "&now=1" : ""}${location.hash}`);
 
 function say(text) {
   $("text").textContent = text;
@@ -18,7 +20,7 @@ function say(text) {
 
 async function startLesson(classId) {
   const { lesson_id: lesson } = await api(`/api/classes/${classId}/lessons`, { method: "POST" });
-  go("teacher.html", lesson);
+  go("teacher.html", lesson, true);
 }
 
 function plural(n, one, few, many) {
@@ -84,7 +86,7 @@ async function home() {
   $("demo").onclick = async () => {
     try {
       const { lesson_id: lesson } = await api("/api/demo", { method: "POST" });
-      go("teacher.html", lesson);
+      go("teacher.html", lesson, true);
     } catch (err) {
       say(err.message);
     }
@@ -99,7 +101,8 @@ try {
   } else if (start?.startsWith("l")) {
     const lesson = start.slice(1);
     const me = await api(`/api/lessons/${lesson}/me`);
-    go(me.role === "teacher" ? "teacher.html" : "student.html", lesson);
+    // учителю бот присылает l<id> только для демо: это начало урока, а ученик присоединяется
+    go(me.role === "teacher" ? "teacher.html" : "student.html", lesson, me.role === "teacher");
   } else if (inMax || signedIn()) {
     await home();
   } else {

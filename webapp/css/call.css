@@ -180,6 +180,11 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 }
 .level i { width: 3px; border-radius: 2px; background: var(--accent-on-scrim); }
 .level span { margin-left: 6px; }
+/* стрелка «К классам» на экране входа */
+.lobby { position: relative; }
+.lobby .back { position: absolute; top: 16px; left: 16px; width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; color: var(--ink); background: transparent; }
+.lobby .back:hover { background: var(--surface-muted); }
+.lobby .back .i { width: 24px; height: 24px; }
 .lobby-text { max-width: 360px; }
 .lobby h1 { margin: 0 0 8px; font-size: 26px; line-height: 1.2; }
 .lobby p { margin: 0 0 16px; color: var(--ink-soft); font-size: 15px; line-height: 1.45; }
@@ -203,7 +208,7 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 
 /* Телефон */
 @media (max-width: 700px) {
-  .lobby { flex-direction: column; justify-content: flex-start; gap: 20px; padding: 16px; }
+  .lobby { flex-direction: column; justify-content: flex-start; gap: 20px; padding: 68px 16px 16px; }
   .lobby.ended { justify-content: center; }
   .preview { width: 100%; aspect-ratio: 4 / 5; }
   .lobby-text { max-width: none; width: 100%; }
