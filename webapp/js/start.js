@@ -17,6 +17,7 @@ const go = (page, lesson, now = false) =>
 function say(text) {
   $("text").textContent = text;
   $("text").hidden = !text;
+  $("homeScroll").hidden = false;
 }
 
 async function startLesson(classId) {
@@ -74,6 +75,8 @@ async function home() {
   $("classes").replaceChildren(...mine.map(row));
   $("classes").hidden = mine.length === 0;
   $("homeEmpty").hidden = mine.length > 0;
+  // без классов пустая прокрутка сдвигала «Классов пока нет» вниз: прячем её, если и сообщения нет
+  $("homeScroll").hidden = !mine.length && $("text").hidden;
   $("actions").hidden = false;
 
   $("demo").onclick = async () => {

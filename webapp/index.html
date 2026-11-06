@@ -95,7 +95,7 @@
     <!-- Мои классы -->
     <div class="view" id="home">
       <div class="top"><div class="title"><h1 id="title">Мои классы</h1></div></div>
-      <div class="scroll">
+      <div class="scroll" id="homeScroll">
         <p class="text" id="text" hidden></p>
         <ul class="list" id="classes" hidden></ul>
         <!-- Для разработки (DEV_AUTH=1): урок демо-класса без MAX -->
@@ -108,7 +108,6 @@
       <div class="empty" id="homeEmpty" hidden>
         <div class="glyph"><svg class="i"><use href="#i-people"/></svg></div>
         <h2>Классов пока нет</h2>
-        <p>Создайте первый, чтобы пригласить учеников</p>
       </div>
       <div class="toast" id="homeToast" role="status" hidden><span id="homeToastText"></span><button id="homeToastBtn">Вернуть</button></div>
       <div class="bottom col" id="actions" hidden>
