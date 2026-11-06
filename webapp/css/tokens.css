@@ -81,3 +81,5 @@ button:not(:disabled):not([aria-disabled="true"]):active { transform: scale(0.97
 @media (hover: hover) {
   .menu button:hover { filter: none; background: color-mix(in srgb, var(--danger) 12%, transparent); }
 }
+/* системная подсветка касания на телефоне — прямоугольник без скруглений; отклик даёт :active выше */
+* { -webkit-tap-highlight-color: transparent; }
