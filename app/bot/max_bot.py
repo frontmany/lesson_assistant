@@ -507,6 +507,12 @@ def card_text(roster, card) -> str:
     return "\n\n".join(blocks)
 
 
+def invite_link(code: str) -> str | None:
+    """Ссылка-приглашение в класс, как в боте. None — имя бота неизвестно: бот не запущен и MAX_BOT_NAME пуст."""
+    name = _bot.bot_name if _bot is not None else settings.max_bot_name
+    return f"https://max.ru/{name}?start={code}" if name else None
+
+
 def full_name(user: dict) -> str:
     """Имя из профиля MAX: «Иван Иванов»."""
     parts = [user.get("first_name") or "", user.get("last_name") or ""]
