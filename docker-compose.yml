@@ -15,9 +15,14 @@ services:
       - models:/srv/models  # модели распознавания скачиваются один раз, а не при каждом запуске
       - ./saved_phrases:/srv/saved_phrases  # фразы по SAVE_PHRASES_DIR, только тестовые уроки команды
     depends_on:
-      - livekit
-      - postgres
-      - redis
+      livekit:
+        condition: service_started
+      # при первом запуске PostgreSQL несколько секунд создаёт базу: без проверки
+      # готовности приложение стартует раньше и падает на «Connection refused» (#30)
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
 
   # SFU: принимает звук каждого участника и раздаёт остальным.
   # --dev: ключи devkey/secret, только для локальной разработки.
@@ -41,6 +46,11 @@ services:
       POSTGRES_DB: assistant
     volumes:
       - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U assistant -d assistant"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
 
   redis:
     image: redis:7-alpine
