@@ -542,4 +542,15 @@ function fail(err) {
   throw err;
 }
 
-lobby();
+// Стрелка на экране входа — к списку классов; данные запуска MAX (#WebAppData) несём с собой
+$("lobbyBack").onclick = () => location.replace(`index.html${location.hash}`);
+
+// Урок только что начали («Начать урок», демо): входим сразу. «Готовы войти?» — для тех, кто присоединяется
+const params = new URLSearchParams(location.search);
+if (params.get("now") === "1") {
+  params.delete("now");
+  history.replaceState(null, "", `${location.pathname}?${params}${location.hash}`);
+  enter();
+} else {
+  lobby();
+}

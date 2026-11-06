@@ -377,4 +377,7 @@ function iconSpan(cls, icon) {
   return el;
 }
 
+// Стрелка на экране входа — к списку классов; данные запуска MAX (#WebAppData) несём с собой
+$("lobbyBack").onclick = () => location.replace(`index.html${location.hash}`);
+
 lobby();
