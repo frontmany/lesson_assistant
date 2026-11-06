@@ -21,7 +21,9 @@
     .text { margin: 0 0 24px; color: var(--ink-soft); font-size: 15px; line-height: 1.5; }
     .classes { display: grid; gap: 10px; margin: 16px 0 24px; }
     .card { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-radius: var(--radius); background: var(--surface); border: 1px solid var(--line); }
-    .card > div { flex: 1; min-width: 0; }
+    /* название — первой строкой, кнопки «Открыть» и «Начать урок» — второй, справа */
+    .card > div { flex: 1 1 100%; min-width: 0; }
+    .card button.open { margin-left: auto; }
     .card-name { font-weight: 600; font-size: 16px; }
     .card-meta { font-size: 13px; color: var(--ink-soft); margin-top: 2px; }
     /* урок идёт: точка перед подписью, как в design/start.html */
