@@ -60,10 +60,10 @@ function lobby(kind = "ready", detail = "") {
   const actions = $("lobbyActions");
   actions.replaceChildren();
   if (kind === "connecting") {
-    setLobbyText("Подключаемся к уроку", "Обычно это занимает 3–5 секунд");
+    setLobbyText("Подключаемся к уроку", "");
     actions.append(button("primary", "Подключаемся…", null, true, true));
   } else if (kind === "checking") {
-    setLobbyText("Проверяем микрофон", "Это занимает несколько секунд");
+    setLobbyText("Проверяем микрофон", "");
     actions.append(button("primary", "Проверяем…", null, true, true));
   } else if (kind in NOMIC) {
     // без серой подсказки под заголовком: что делать, говорит сама кнопка
@@ -74,7 +74,7 @@ function lobby(kind = "ready", detail = "") {
     if (run !== openInBrowser) actions.append(button(action ? "secondary" : "primary", "Попробовать снова", () => enter()));
     actions.append(button("link", "Войти без микрофона", () => enter({ mic: false })));
   } else {
-    setLobbyText("Готовы войти?", detail || "Проверьте микрофон и камеру");
+    setLobbyText("Готовы войти?", detail); // под заголовком только ошибка входа, если была
     $("lobbyText").classList.toggle("lobby-error", Boolean(detail));
     actions.append(button("primary", "Войти в урок", () => enter()));
   }
