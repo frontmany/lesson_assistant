@@ -185,6 +185,50 @@ def demo(user: User = Depends(current_user)):
     return {"lesson_id": classes.demo_lesson(user.max_user_id, user.name or None).id}
 
 
+def _taught_class(class_id: int, user: User):
+    """Класс, которым управляет вошедший учитель: иначе 404 или 403."""
+    c = classes.get_class(class_id)
+    if c is None or c.deleted_at is not None:
+        raise HTTPException(404, "Такого класса нет")
+    m = classes.membership(class_id, user.max_user_id) if user.max_user_id is not None else None
+    if m is None or m.role != "teacher":
+        raise HTTPException(403, "Это может только учитель класса")
+    return c
+
+
+def _class_student(class_id: int, member_id: int):
+    m = classes.get_member(member_id)
+    if m is None or m.class_id != class_id or m.role != "student":
+        raise HTTPException(404, "Такого ученика в классе нет")
+    return m
+
+
+@router.get("/classes/{class_id}")
+def class_card(class_id: int, user: User = Depends(current_user)):
+    """Экран класса в мини-приложении (design/classes.html): ученики по алфавиту, ссылка и код для приглашения."""
+    c = _taught_class(class_id, user)
+    return {
+        "id": c.id, "name": c.name, "subject": c.subject,
+        "code": c.invite_code, "link": max_bot.invite_link(c.invite_code),
+        "students": [{"id": m.id, "name": classes.short_name(m.name)} for m in classes.students_of(c.id)],
+    }
+
+
+@router.delete("/classes/{class_id}/students/{member_id}")
+def remove_student(class_id: int, member_id: int, user: User = Depends(current_user)):
+    """«Убрать из класса»: сразу, без вопроса — на экране есть «Вернуть»."""
+    _taught_class(class_id, user)
+    classes.remove_member(_class_student(class_id, member_id).id)
+    return {"removed": member_id}
+
+
+@router.post("/classes/{class_id}/students/{member_id}/restore")
+def restore_student(class_id: int, member_id: int, user: User = Depends(current_user)):
+    _taught_class(class_id, user)
+    classes.restore_member(_class_student(class_id, member_id).id)
+    return {"restored": member_id}
+
+
 @router.post("/classes/{class_id}/lessons")
 def lesson_for_class(class_id: int, user: User = Depends(current_user)):
     """«Начать урок» в боте: урок класса, идущий или новый. Мини-приложение открывает его звонок."""
