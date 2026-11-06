@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Урок в MAX</title>
   <!-- Стартовая страница мини-приложения (#24). Открыли кнопкой бота — сразу ведёт в урок:
        c<id> — учитель начинает урок класса, l<id> — урок, учителю панель, ученику его экран.
@@ -39,7 +39,8 @@
     .row .go { color: var(--ink-soft); margin-right: 6px; }
     .ava { width: 40px; height: 40px; flex: none; border-radius: 50%; display: grid; place-items: center; background: var(--accent-tint); color: var(--accent); font-weight: 700; font-size: 14px; }
 
-    .bottom { display: flex; gap: 8px; padding: 12px 16px 16px; border-top: 1px solid var(--line); background: var(--bg); }
+    /* кнопки чуть выше края: над полоской жестов телефона */
+    .bottom { display: flex; gap: 8px; padding: 12px 16px calc(28px + env(safe-area-inset-bottom)); border-top: 1px solid var(--line); background: var(--bg); }
     .bottom.col { flex-direction: column; }
     .btn { flex: 1; min-height: 48px; padding: 0 16px; border-radius: 12px; font-weight: 600; font-size: 16px; text-align: center; display: inline-flex; align-items: center; justify-content: center; }
     .btn.primary { background: var(--accent); color: var(--surface); }
