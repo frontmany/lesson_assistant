@@ -141,7 +141,7 @@ def write_wav(path: Path, audio: np.ndarray) -> None:
 
 def write_ground_truth(path: Path, lines: list[Line]) -> None:
     with path.open("w", encoding="utf-8", newline="") as f:
-        out = csv.writer(f)
+        out = csv.writer(f, lineterminator="\n")  # в репозитории переводы строк LF
         out.writerow(["speaker_id", "start_s", "end_s", "text", "kind", "addressed"])
         for line in sorted((x for x in lines if not x.is_noise), key=lambda x: x.start):
             out.writerow([line.speaker, f"{line.start:.2f}", f"{line.end:.2f}", plain(line.text), line.kind, line.addressed])
