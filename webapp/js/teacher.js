@@ -321,7 +321,8 @@ function menu(s) {
   const el = div("menu");
   el.setAttribute("role", "menu");
   el.onclick = (e) => e.stopPropagation();
-  el.append(div("menu-title", s.name));
+  // имя не повторяем: меню открыто у карточки ученика. Для скринридера — в aria-label
+  el.setAttribute("aria-label", `Меню: ${s.name}`);
   const item = div("menu-item");
   const label = span("", "Аналитика для ученика");
   label.append(Object.assign(document.createElement("small"), { textContent: "Когда выключена, ученик не попадает в шкалу" }));
