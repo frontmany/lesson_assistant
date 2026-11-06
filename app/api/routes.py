@@ -203,6 +203,23 @@ def _class_student(class_id: int, member_id: int):
     return m
 
 
+class NewClass(BaseModel):
+    name: str
+    subject: str
+
+
+@router.post("/classes")
+def create_class(body: NewClass, user: User = Depends(current_user)):
+    """«Создать класс» в мини-приложении: как в боте, вошедший становится учителем класса."""
+    name, subject = body.name.strip(), body.subject.strip()
+    if user.max_user_id is None:
+        raise HTTPException(403, "Создать класс можно из MAX")
+    if not name or not subject or len(name) > 40 or len(subject) > 60:
+        raise HTTPException(422, "Укажите класс и предмет. Например: 10А и история")
+    c = classes.create_class(user.max_user_id, user.name or "Учитель", name, subject.lower())
+    return {"id": c.id}
+
+
 @router.get("/classes/{class_id}")
 def class_card(class_id: int, user: User = Depends(current_user)):
     """Экран класса в мини-приложении (design/classes.html): ученики по алфавиту, ссылка и код для приглашения."""
@@ -211,6 +228,7 @@ def class_card(class_id: int, user: User = Depends(current_user)):
         "id": c.id, "name": c.name, "subject": c.subject,
         "code": c.invite_code, "link": max_bot.invite_link(c.invite_code),
         "students": [{"id": m.id, "name": classes.short_name(m.name)} for m in classes.students_of(c.id)],
+        "lesson": live.id if (live := classes.live_lesson(c.id)) else None,
     }
 
 

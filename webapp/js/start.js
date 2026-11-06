@@ -1,7 +1,7 @@
 // Стартовая страница мини-приложения (#24): кто открыл и что открыть.
-// Кнопка бота передаёт урок — сразу ведём в него. Без урока показываем классы
-// человека: учителю «Начать урок», ученику «Войти в урок», если урок идёт; всем —
-// демо и чат с ботом, где создают класс и входят в него.
+// Кнопка бота передаёт урок — сразу ведём в него. Без урока — «Мои классы» по
+// design/classes.html: учитель открывает класс (js/class.js) и создаёт новый,
+// ученик входит в идущий урок; всем — «Посмотреть демо».
 
 import { openClass } from "./class.js";
 import { api, signedIn, signIn } from "./lesson.js";
@@ -30,74 +30,49 @@ function plural(n, one, few, many) {
   return many;
 }
 
-function card(c) {
-  const el = document.createElement("article");
-  el.className = "card";
-  const info = document.createElement("div");
-  const name = Object.assign(document.createElement("div"), { className: "card-name", textContent: `${c.name}, ${c.subject}` });
-  name.dataset.full = name.textContent;
-  name.dataset.short = c.name;
-  const meta = document.createElement("div");
-  meta.className = "card-meta";
-  info.append(name, meta);
-  el.append(info);
-  const action = (text, onclick) => {
-    const b = Object.assign(document.createElement("button"), { textContent: text });
-    b.onclick = () => onclick().catch((err) => say(err.message));
-    el.append(b);
-    return b;
-  };
-  // подписи как в design/start.html: идёт урок — это важнее числа учеников
-  if (c.lesson) meta.classList.add("live");
+const NEXT = '<svg class="i go" aria-hidden="true"><use href="#i-next"/></svg>';
+
+// Строка класса как в design/classes.html: «10А» в кружке, «24 ученика · история», стрелка.
+// Учителю строка открывает экран класса, ученику — идущий урок; без урока ученику открывать нечего
+function row(c) {
+  const li = document.createElement("li");
+  const opens = c.role === "teacher" || c.lesson;
+  const el = document.createElement(opens ? "button" : "div");
+  el.className = "row";
+  el.innerHTML = `<span class="ava" aria-hidden="true"></span><span class="main"><span class="name"></span><span class="sub"></span></span>${opens ? NEXT : ""}`;
+  el.querySelector(".ava").textContent = c.name.slice(0, 3);
+  el.querySelector(".name").textContent = c.name;
+  const sub = el.querySelector(".sub");
+  let state;
+  if (c.lesson) state = "Урок идёт";
+  else if (c.role === "teacher") state = c.students ? `${c.students} ${plural(c.students, "ученик", "ученика", "учеников")}` : "Нет учеников";
+  else state = "Урок пока не идёт";
+  sub.textContent = `${state} · ${c.subject}`;
+  sub.classList.toggle("live", Boolean(c.lesson));
   if (c.role === "teacher") {
-    // «Открыть» — экран класса: ученики и «Пригласить»
-    action("Открыть", async () =>
-      openClass(c.id, { onBack: home, onStart: (id) => startLesson(id).catch((err) => say(err.message)), onError: say }),
-    ).classList.add("open");
-    if (c.lesson) meta.textContent = "Урок идёт";
-    else if (c.students) meta.textContent = `${c.students} ${plural(c.students, "ученик", "ученика", "учеников")}`;
-    else meta.textContent = "Нет учеников"; // «Пока нет учеников» не помещается рядом с двумя кнопками
-    if (c.lesson) action("Вернуться в урок", async () => go("teacher.html", c.lesson));
-    else if (c.students) action("Начать урок", () => startLesson(c.id));
-    else {
-      // пустой класс: кнопка неактивна, а почему — объясняем только по нажатию
-      const b = action("Начать урок", async () => hint(el, "Урок начинается, когда в классе есть хотя бы один ученик. Пригласить учеников — в «Открыть»"));
-      b.classList.add("off");
-      b.setAttribute("aria-disabled", "true");
-    }
-  } else {
-    meta.textContent = c.lesson ? "Урок идёт" : "Урок пока не идёт";
-    if (c.lesson) action("Войти в урок", async () => go("student.html", c.lesson));
+    el.onclick = () => openClass(c.id, {
+      onBack: home,
+      // урок уже идёт — возвращаемся в него, иначе начинаем новый
+      onStart: (id, lesson) => (lesson ? go("teacher.html", lesson) : startLesson(id).catch((err) => say(err.message))),
+      onError: say,
+    });
+  } else if (c.lesson) {
+    el.onclick = () => go("student.html", c.lesson);
   }
-  return el;
+  li.append(el);
+  return li;
 }
 
-// Карточка в одну строку: если «10А, история» не помещается рядом с кнопками, остаётся «10А»
-function fitNames() {
-  for (const el of document.querySelectorAll(".card-name")) {
-    el.textContent = el.dataset.full;
-    if (el.scrollWidth > el.clientWidth) el.textContent = el.dataset.short;
-  }
-}
-addEventListener("resize", fitNames);
-
-function hint(card, text) {
-  let p = card.querySelector(".card-hint");
-  if (!p) {
-    p = Object.assign(document.createElement("p"), { className: "card-hint" });
-    card.append(p);
-  }
-  p.textContent = text;
-  clearTimeout(p.timer);
-  p.timer = setTimeout(() => p.remove(), 5000);
+function show(view) {
+  for (const id of ["home", "classView", "inviteView", "createView"]) $(id).hidden = id !== view;
 }
 
 async function home() {
+  show("home");
   const mine = await api("/api/me/classes").catch(() => []);
-  $("classes").replaceChildren(...mine.map(card));
-  requestAnimationFrame(fitNames);
+  $("classes").replaceChildren(...mine.map(row));
   $("classes").hidden = mine.length === 0;
-  if (!mine.length) say("Классов пока нет. Создайте класс или войдите по коду в чате с ботом.");
+  $("homeEmpty").hidden = mine.length > 0;
   $("actions").hidden = false;
 
   $("demo").onclick = async () => {
@@ -106,6 +81,30 @@ async function home() {
       go("teacher.html", lesson, true);
     } catch (err) {
       say(err.message);
+    }
+  };
+  $("create").onclick = openCreate;
+}
+
+// «Создать класс»: класс и предмет, как в боте («10А, история»). Созданный класс сразу
+// открывается — пустой, с «Пригласить»
+function openCreate() {
+  show("createView");
+  $("createError").hidden = true;
+  $("newName").value = "";
+  $("newSubject").value = "";
+  $("newName").focus();
+  $("createBack").onclick = () => home();
+  $("createView").onsubmit = async (e) => {
+    e.preventDefault();
+    try {
+      const { id } = await api("/api/classes", {
+        method: "POST", body: { name: $("newName").value, subject: $("newSubject").value },
+      });
+      openClass(id, { onBack: home, onStart: (cid) => startLesson(cid).catch((err) => say(err.message)), onError: say });
+    } catch (err) {
+      $("createError").textContent = err.message;
+      $("createError").hidden = false;
     }
   };
 }

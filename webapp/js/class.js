@@ -16,7 +16,7 @@ function plural(n, one, few, many) {
 const initials = (name) => name.split(/\s+/).map((w) => w[0]).join("").slice(0, 2).toUpperCase();
 
 function show(view) {
-  for (const id of ["home", "classView", "inviteView"]) $(id).hidden = id !== view;
+  for (const id of ["home", "classView", "inviteView", "createView"]) $(id).hidden = id !== view;
 }
 
 let undoTimer;
@@ -29,15 +29,17 @@ export async function openClass(classId, { onBack, onStart, onError }) {
     return onError(err.message);
   }
   show("classView");
-  $("className").textContent = `${c.name}, ${c.subject}`;
+  $("className").textContent = c.name;
   $("classBack").onclick = () => { closeMenu(); show("home"); onBack(); };
-  $("classStart").onclick = () => onStart(c.id);
+  // урок класса уже идёт — кнопка возвращает в него
+  $("classStart").textContent = c.lesson ? "Вернуться в урок" : "Начать урок";
+  $("classStart").onclick = () => onStart(c.id, c.lesson);
   $("inviteBtn").onclick = () => openInvite(c);
 
   function render() {
     const n = c.students.length;
-    $("classCount").textContent = n ? `${n} ${plural(n, "ученик", "ученика", "учеников")}` : "";
-    $("students").hidden = !n;
+    $("classCount").textContent = n ? `${n} ${plural(n, "ученик", "ученика", "учеников")} · ${c.subject}` : c.subject;
+    $("studentsScroll").hidden = !n;
     $("classEmpty").hidden = Boolean(n);
     // пустой класс урок не начинает: остаётся только «Пригласить»
     $("classStart").hidden = !n;
@@ -46,8 +48,8 @@ export async function openClass(classId, { onBack, onStart, onError }) {
 
   function row(s) {
     const li = document.createElement("li");
-    li.innerHTML = `<div class="row"><span class="ava" aria-hidden="true"></span><span class="name"></span>`
-      + `<button class="ib" aria-haspopup="menu"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg></button></div>`;
+    li.innerHTML = `<div class="row"><span class="ava" aria-hidden="true"></span><span class="main"><span class="name"></span></span>`
+      + `<button class="ib" aria-haspopup="menu"><svg class="i"><use href="#i-dots"/></svg></button></div>`;
     li.querySelector(".ava").textContent = initials(s.name);
     li.querySelector(".name").textContent = s.name;
     const dots = li.querySelector("button");
@@ -108,7 +110,7 @@ function toast(text, undo) {
 
 function openInvite(c) {
   show("inviteView");
-  $("inviteTitle").textContent = `Пригласить в ${c.name}, ${c.subject}`;
+  $("inviteTitle").textContent = `Пригласить в ${c.name}, ${c.subject}`; // с предметом: класс «10» без него читается как обрезанный
   $("inviteBack").onclick = () => show("classView");
   // без имени бота ссылки нет: остаётся код, его вводят в чате с ботом
   $("linkCard").hidden = !c.link;

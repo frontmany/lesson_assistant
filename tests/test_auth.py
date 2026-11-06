@@ -206,3 +206,12 @@ def test_class_screen_lists_students_and_removes_with_undo(monkeypatch):
     assert client.delete(f"/api/classes/{c.id}/students/{artem.id}", headers=student).status_code == 403
     other = db.create_class(77, "Ольга", "9Б", "физика")
     assert client.delete(f"/api/classes/{other.id}/students/{artem.id}", headers=sign_in(77)).status_code == 404
+
+
+def test_class_is_created_from_the_app():
+    teacher = sign_in(MARIA)
+    made = client.post("/api/classes", json={"name": " 7Б ", "subject": "География"}, headers=teacher)
+    assert made.status_code == 200
+    card = client.get(f"/api/classes/{made.json()['id']}", headers=teacher).json()
+    assert (card["name"], card["subject"], card["students"], card["lesson"]) == ("7Б", "география", [], None)
+    assert client.post("/api/classes", json={"name": "7Б", "subject": " "}, headers=teacher).status_code == 422
