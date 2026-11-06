@@ -1,5 +1,6 @@
 """Вход по данным запуска MAX и права в уроке (#24)."""
 
+import dataclasses
 import hashlib
 import hmac
 import json
@@ -176,3 +177,32 @@ def test_analytics_switch_is_kept_and_sent_to_student(lesson):
     assert client.get(f"/api/lessons/{lesson_id}/analytics", headers=sign_in(IVAN)).status_code == 403
     client.post(f"/api/lessons/{lesson_id}/analytics", json={**state, "enabled": True}, headers=teacher)
     assert client.get(f"/api/lessons/{lesson_id}/me", headers=sign_in(IVAN)).json()["analytics"] is True
+
+
+def test_class_screen_lists_students_and_removes_with_undo(monkeypatch):
+    """Экран класса в мини-приложении (design/classes.html): только учителю этого класса."""
+    from app.bot import max_bot
+    from app.db import classes as db
+
+    monkeypatch.setattr(max_bot, "_bot", None)
+    monkeypatch.setattr(max_bot, "settings", dataclasses.replace(max_bot.settings, max_bot_name="lesson_bot"))
+    c = db.create_class(MARIA, "Мария Смирнова", "10А", "история")
+    sofya, _ = db.join(c.id, 31, "Софья Ланская")
+    artem, _ = db.join(c.id, 32, "Артём Котов")
+    teacher = sign_in(MARIA)
+
+    card = client.get(f"/api/classes/{c.id}", headers=teacher).json()
+    assert [s["name"] for s in card["students"]] == ["Артём К.", "Софья Л."]  # по алфавиту, коротко
+    assert card["link"] == f"https://max.ru/lesson_bot?start={c.invite_code}"
+
+    assert client.delete(f"/api/classes/{c.id}/students/{artem.id}", headers=teacher).status_code == 200
+    names = [s["name"] for s in client.get(f"/api/classes/{c.id}", headers=teacher).json()["students"]]
+    assert names == ["Софья Л."]
+    client.post(f"/api/classes/{c.id}/students/{artem.id}/restore", headers=teacher)
+    assert len(client.get(f"/api/classes/{c.id}", headers=teacher).json()["students"]) == 2
+
+    student = sign_in(31)
+    assert client.get(f"/api/classes/{c.id}", headers=student).status_code == 403
+    assert client.delete(f"/api/classes/{c.id}/students/{artem.id}", headers=student).status_code == 403
+    other = db.create_class(77, "Ольга", "9Б", "физика")
+    assert client.delete(f"/api/classes/{other.id}/students/{artem.id}", headers=sign_in(77)).status_code == 404
