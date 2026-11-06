@@ -71,9 +71,13 @@ button:not(:disabled):not([aria-disabled="true"]):active { transform: scale(0.97
 @media (hover: hover) {
   button:not(:disabled):not([aria-disabled="true"]):hover { filter: brightness(0.94); }
   /* прозрачные кнопки-иконки: яркость не видна, нужна подложка */
-  .ib:hover, .back:hover, .toggle:hover, .menu button:hover, .toast button:hover, .dots:hover { filter: none; background: var(--surface-muted); }
+  .ib:hover, .back:hover, .toggle:hover, .toast button:hover, .dots:hover { filter: none; background: var(--surface-muted); }
   a:hover { filter: brightness(0.85); }
 }
 @media (hover: hover) and (prefers-color-scheme: dark) {
   button:not(:disabled):not([aria-disabled="true"]):hover { filter: brightness(1.12); }
+}
+/* пункт меню «Убрать из класса»: при наведении лёгкий оттенок своего цвета, а не серая плашка */
+@media (hover: hover) {
+  .menu button:hover { filter: none; background: color-mix(in srgb, var(--danger) 12%, transparent); }
 }
