@@ -115,17 +115,20 @@ function openInvite(c) {
   $("copyLink").hidden = !c.link;
   $("inviteLink").textContent = c.link ? c.link.replace(/^https:\/\//, "") : "";
   $("inviteCode").textContent = c.code;
-  $("copyLink").onclick = (e) => copyButton(e.currentTarget, c.link, "Ссылка скопирована");
-  $("copyCode").onclick = (e) => copyButton(e.currentTarget, c.code, "Код скопирован");
+  $("copyLink").onclick = (e) => copyIcon(e.currentTarget, c.link);
+  $("copyCode").onclick = (e) => copyIcon(e.currentTarget, c.code);
   $("share").hidden = !(navigator.share && c.link);
   $("share").onclick = () => navigator.share({ text: `Вход в класс ${c.name}, ${c.subject}: ${c.link}` }).catch(() => {});
 }
 
-async function copyButton(btn, text, done) {
-  const label = btn.dataset.label ?? btn.textContent;
-  btn.dataset.label = label;
-  btn.textContent = (await copy(text)) ? done : "Не удалось скопировать";
-  setTimeout(() => (btn.textContent = label), 2500);
+// Иконка справа в плашке: на пару секунд галочка — скопировано, крестик — нет
+async function copyIcon(btn, text) {
+  const icon = btn.dataset.icon ?? btn.innerHTML;
+  btn.dataset.icon = icon;
+  const ok = await copy(text);
+  btn.innerHTML = `<svg class="i" viewBox="0 0 24 24"><path d="${ok ? "M5 12.5l4.5 4.5L19 7.5" : "M6 6l12 12M18 6L6 18"}"/></svg>`;
+  btn.classList.toggle("done", ok);
+  setTimeout(() => { btn.innerHTML = icon; btn.classList.remove("done"); }, 2000);
 }
 
 async function copy(text) {
