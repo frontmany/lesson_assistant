@@ -50,11 +50,10 @@
         <div class="banner" id="banner" hidden><span class="spin"></span>Связь пропала. Переподключаемся…</div>
         <div class="tiles" id="tiles"></div>
         <div class="share" id="share" hidden><div class="shared" id="shared"><span class="you" id="sharedBy"></span></div><div class="strip" id="strip"></div></div>
-        <div class="pager" id="pager" hidden>
-          <button class="pb" id="prev" aria-label="Предыдущая страница"><svg class="i sm"><use href="#chev-l"/></svg></button>
-          <span id="pageNo"></span>
-          <button class="pb" id="next" aria-label="Следующая страница"><svg class="i sm"><use href="#chev-r"/></svg></button>
-        </div>
+        <!-- страницы плиток: на компьютере стрелки по бокам, на телефоне свайп; точки — где мы -->
+        <button class="side prev" id="prev" aria-label="Предыдущая страница" hidden><svg class="i"><use href="#chev-l"/></svg></button>
+        <button class="side next" id="next" aria-label="Следующая страница" hidden><svg class="i"><use href="#chev-r"/></svg></button>
+        <div class="dots" id="pager" aria-hidden="true" hidden></div>
       </section>
       <aside class="panel" id="panel" aria-label="Панель класса">
         <div class="panel-head">

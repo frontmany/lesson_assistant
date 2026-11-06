@@ -209,22 +209,23 @@ function renderStage() {
       ? all.map(tile)
       : [...all.slice(0, 3).map(tile), moreTile(all.length - 3)];
     $("strip").replaceChildren(...strip);
-    $("pager").hidden = true;
+    $("pager").hidden = $("prev").hidden = $("next").hidden = true;
   } else {
-    const size = mobile.matches ? 6 : 16;
+    const tiles = $("tiles");
+    const size = pageSize(tiles);
     const pages = Math.max(1, Math.ceil(all.length / size));
     page = Math.min(page, pages);
     const visible = all.slice((page - 1) * size, page * size);
     const c = visible.length;
-    const cols = mobile.matches ? (c === 1 ? 1 : 2) : c === 1 ? 1 : c <= 4 ? 2 : c <= 9 ? 3 : 4;
+    const cols = bestCols(c, tiles);
     const few = !mobile.matches && c <= 2;
-    const tiles = $("tiles");
     tiles.className = `tiles${few ? " few" : ""}${few && c === 1 ? " one" : ""}`;
     tiles.style.gridTemplateColumns = `repeat(${cols}, minmax(0, ${few ? (c === 1 ? "960px" : "420px") : "1fr"}))`;
     tiles.style.gridTemplateRows = `repeat(${Math.ceil(c / cols)}, minmax(0, 1fr))`;
     tiles.replaceChildren(...visible.map((p, i) => tile(p, (page - 1) * size + i)));
     $("pager").hidden = pages === 1;
-    $("pageNo").textContent = `${page} / ${pages}`;
+    $("pager").replaceChildren(...Array.from({ length: pages }, (_, i) => span(i + 1 === page ? "on" : "")));
+    $("prev").hidden = $("next").hidden = pages === 1;
     $("prev").disabled = page === 1;
     $("next").disabled = page === pages;
   }
@@ -241,6 +242,60 @@ function moreTile(n) {
 
 $("prev").onclick = () => { page--; renderStage(); };
 $("next").onclick = () => { page++; renderStage(); };
+
+// Сколько плиток на странице — от места на сцене, а не числом: плитка не меньше TILE_MIN.
+// На телефоне с открытой аналитикой это 2–4 плитки, на большом экране — до 16
+const TILE_MIN = { mobile: [140, 110], desktop: [200, 140] };
+const GAP = 8;
+const MAX_TILES = 16;
+
+function grid(box) {
+  const [w, h] = mobile.matches ? TILE_MIN.mobile : TILE_MIN.desktop;
+  const maxCols = Math.max(1, Math.floor((box.clientWidth + GAP) / (w + GAP)));
+  const maxRows = Math.max(1, Math.floor((box.clientHeight + GAP) / (h + GAP)));
+  return { maxCols, maxRows };
+}
+
+function pageSize(box) {
+  const { maxCols, maxRows } = grid(box);
+  return Math.min(MAX_TILES, maxCols * maxRows);
+}
+
+// Столбцы, при которых плитки ближе всего к 4:3 и крупнее всего
+function bestCols(c, box) {
+  const { maxCols, maxRows } = grid(box);
+  let best = 1;
+  let bestSide = 0;
+  for (let cols = 1; cols <= Math.min(c, maxCols); cols++) {
+    const rows = Math.ceil(c / cols);
+    if (rows > maxRows) continue;
+    const w = (box.clientWidth - (cols - 1) * GAP) / cols;
+    const h = (box.clientHeight - (rows - 1) * GAP) / rows;
+    const side = Math.min(w, h * 4 / 3);
+    if (side > bestSide) { bestSide = side; best = cols; }
+  }
+  return best;
+}
+
+// Сцена поменяла размер (панель аналитики, поворот телефона, окно) — пересчитываем страницу
+let lastBox = "";
+new ResizeObserver(([e]) => {
+  const key = `${Math.round(e.contentRect.width)}x${Math.round(e.contentRect.height)}`;
+  if (key !== lastBox) { lastBox = key; renderStage(); }
+}).observe($("tiles"));
+
+// На телефоне страницы листаются свайпом по плиткам
+let swipeX = null;
+$("tiles").addEventListener("pointerdown", (e) => { swipeX = e.clientX; });
+$("tiles").addEventListener("pointerup", (e) => {
+  if (swipeX === null) return;
+  const dx = e.clientX - swipeX;
+  swipeX = null;
+  if (Math.abs(dx) < 50) return;
+  const pages = $("pager").children.length || 1;
+  const next = page + (dx < 0 ? 1 : -1);
+  if (next >= 1 && next <= pages) { page = next; renderStage(); }
+});
 
 // ---------- панель класса ----------
 
