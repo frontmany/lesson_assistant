@@ -229,3 +229,16 @@ def test_class_is_deleted_and_restored_from_the_app():
     assert client.get(f"/api/classes/{c.id}", headers=teacher).status_code == 200
     db.join(c.id, 31, "Софья Ланская")
     assert client.delete(f"/api/classes/{c.id}", headers=sign_in(31)).status_code == 403
+
+
+def test_class_is_renamed_from_the_app():
+    from app.db import classes as db
+
+    teacher = sign_in(MARIA)
+    c = db.create_class(MARIA, "Мария Смирнова", "10", "р")
+    assert client.patch(f"/api/classes/{c.id}", json={"name": "10А", "subject": "Русский"}, headers=teacher).status_code == 200
+    card = client.get(f"/api/classes/{c.id}", headers=teacher).json()
+    assert (card["name"], card["subject"]) == ("10А", "русский")
+    assert client.patch(f"/api/classes/{c.id}", json={"name": "", "subject": "х"}, headers=teacher).status_code == 422
+    db.join(c.id, 31, "Софья Ланская")
+    assert client.patch(f"/api/classes/{c.id}", json={"name": "1", "subject": "х"}, headers=sign_in(31)).status_code == 403

@@ -51,13 +51,7 @@ function row(c) {
   sub.textContent = `${state} · ${c.subject}`;
   sub.classList.toggle("live", Boolean(c.lesson));
   if (c.role === "teacher") {
-    el.onclick = () => openClass(c.id, {
-      onBack: home,
-      // урок уже идёт — возвращаемся в него, иначе начинаем новый
-      onStart: (id, lesson) => (lesson ? go("teacher.html", lesson) : startLesson(id).catch((err) => say(err.message))),
-      onError: say,
-      onDeleted: classDeleted,
-    });
+    el.onclick = () => openClassScreen(c.id);
   } else if (c.lesson) {
     el.onclick = () => go("student.html", c.lesson);
   }
@@ -87,7 +81,7 @@ async function home() {
       say(err.message);
     }
   };
-  $("create").onclick = openCreate;
+  $("create").onclick = () => openForm();
 }
 
 // Класс удалён: список классов и несколько секунд «Вернуть» — сервер хранит класс 30 дней
@@ -105,22 +99,37 @@ async function classDeleted(c) {
   toastTimer = setTimeout(() => ($("homeToast").hidden = true), 5000);
 }
 
-// «Создать класс»: класс и предмет, как в боте («10А, история»). Созданный класс сразу
-// открывается — пустой, с «Пригласить»
-function openCreate() {
+// Класс открывают с одними и теми же действиями: со списка, после создания и после правки
+function openClassScreen(id) {
+  openClass(id, {
+    onBack: home,
+    // урок уже идёт — возвращаемся в него, иначе начинаем новый
+    onStart: (cid, lesson) => (lesson ? go("teacher.html", lesson) : startLesson(cid).catch((err) => say(err.message))),
+    onError: say,
+    onDeleted: classDeleted,
+    onEdit: (c) => openForm(c),
+  });
+}
+
+// «Создать класс» и карандаш «Изменить класс» — одна форма: класс и предмет, как в боте («10А, история»).
+// После создания открывается пустой класс с «Пригласить», после правки — тот же класс
+function openForm(c = null) {
   show("createView");
+  $("formTitle").textContent = c ? "Изменить класс" : "Новый класс";
+  $("formSubmit").textContent = c ? "Сохранить" : "Создать";
   $("createError").hidden = true;
-  $("newName").value = "";
-  $("newSubject").value = "";
+  $("newName").value = c?.name ?? "";
+  $("newSubject").value = c?.subject ?? "";
   $("newName").focus();
-  $("createBack").onclick = () => home();
+  $("createBack").onclick = () => (c ? openClassScreen(c.id) : home());
   $("createView").onsubmit = async (e) => {
     e.preventDefault();
+    const body = { name: $("newName").value, subject: $("newSubject").value };
     try {
-      const { id } = await api("/api/classes", {
-        method: "POST", body: { name: $("newName").value, subject: $("newSubject").value },
-      });
-      openClass(id, { onBack: home, onStart: (cid) => startLesson(cid).catch((err) => say(err.message)), onError: say, onDeleted: classDeleted });
+      const id = c
+        ? (await api(`/api/classes/${c.id}`, { method: "PATCH", body }), c.id)
+        : (await api("/api/classes", { method: "POST", body })).id;
+      openClassScreen(id);
     } catch (err) {
       $("createError").textContent = err.message;
       $("createError").hidden = false;

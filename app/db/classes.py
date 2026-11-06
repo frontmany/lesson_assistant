@@ -166,6 +166,13 @@ def new_code(class_id: int) -> Class:
         return c
 
 
+def update_class(class_id: int, name: str, subject: str) -> None:
+    """Изменить название и предмет: ученики, ссылка и уроки остаются."""
+    with db.session() as s:
+        c = s.get(Class, class_id)
+        c.name, c.subject = name, subject
+
+
 def delete_class(class_id: int) -> None:
     with db.session() as s:
         s.get(Class, class_id).deleted_at = now()

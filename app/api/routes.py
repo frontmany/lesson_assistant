@@ -208,16 +208,30 @@ class NewClass(BaseModel):
     subject: str
 
 
+def _class_fields(body: NewClass) -> tuple[str, str]:
+    """Класс и предмет с теми же проверками, что в боте: «10А, история»."""
+    name, subject = body.name.strip(), body.subject.strip()
+    if not name or not subject or len(name) > 40 or len(subject) > 60:
+        raise HTTPException(422, "Укажите класс и предмет. Например: 10А и история")
+    return name, subject.lower()
+
+
 @router.post("/classes")
 def create_class(body: NewClass, user: User = Depends(current_user)):
     """«Создать класс» в мини-приложении: как в боте, вошедший становится учителем класса."""
-    name, subject = body.name.strip(), body.subject.strip()
     if user.max_user_id is None:
         raise HTTPException(403, "Создать класс можно из MAX")
-    if not name or not subject or len(name) > 40 or len(subject) > 60:
-        raise HTTPException(422, "Укажите класс и предмет. Например: 10А и история")
-    c = classes.create_class(user.max_user_id, user.name or "Учитель", name, subject.lower())
+    name, subject = _class_fields(body)
+    c = classes.create_class(user.max_user_id, user.name or "Учитель", name, subject)
     return {"id": c.id}
+
+
+@router.patch("/classes/{class_id}")
+def update_class(class_id: int, body: NewClass, user: User = Depends(current_user)):
+    """Карандаш на экране класса: новое название и предмет."""
+    _taught_class(class_id, user)
+    classes.update_class(class_id, *_class_fields(body))
+    return {"updated": class_id}
 
 
 @router.get("/classes/{class_id}")

@@ -26,6 +26,7 @@
     .top .title { flex: 1; min-width: 0; padding-left: 8px; }
     /* корзина над троеточиями учеников: отступ списка 16 + рамка 1 + отступ строки 8 */
     #classDelete { margin-right: 17px; color: var(--ink-soft); }
+    #classEdit { color: var(--ink-soft); }
     .ib { width: 44px; height: 44px; display: grid; place-items: center; border-radius: 12px; flex: none; }
     .ib:focus-visible, .btn:focus-visible, .row:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
     .scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 4px 16px 16px; }
@@ -89,6 +90,7 @@
     <symbol id="i-next" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></symbol>
     <symbol id="i-dots" viewBox="0 0 24 24"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></symbol>
     <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/></symbol>
+    <symbol id="i-edit" viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16v4zM13.5 6.5l4 4"/></symbol>
     <symbol id="i-people" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.6-3.6 3.2-5.5 6.5-5.5s5.9 1.9 6.5 5.5M16 4.8a3.5 3.5 0 0 1 0 6.4M18 14.8c1.9.6 3.2 2.3 3.5 5.2"/></symbol>
   </svg>
   <main>
@@ -121,6 +123,7 @@
       <div class="top">
         <button class="ib" id="classBack" aria-label="К классам"><svg class="i"><use href="#i-back"/></svg></button>
         <div class="title"><h1 id="className"></h1><small id="classCount"></small></div>
+        <button class="ib" id="classEdit" aria-label="Изменить класс"><svg class="i"><use href="#i-edit"/></svg></button>
         <button class="ib" id="classDelete" aria-label="Удалить класс"><svg class="i"><use href="#i-trash"/></svg></button>
       </div>
       <div class="scroll" id="studentsScroll"><ul class="list" id="students"></ul></div>
@@ -154,14 +157,14 @@
     <form class="view" id="createView" hidden>
       <div class="top">
         <button class="ib" type="button" id="createBack" aria-label="К классам"><svg class="i"><use href="#i-back"/></svg></button>
-        <div class="title"><h1>Новый класс</h1></div>
+        <div class="title"><h1 id="formTitle">Новый класс</h1></div>
       </div>
       <div class="scroll">
         <label class="field"><span>Класс</span><input id="newName" maxlength="40" placeholder="10А" autocomplete="off" required></label>
         <label class="field"><span>Предмет</span><input id="newSubject" maxlength="60" placeholder="история" autocomplete="off" required></label>
         <p class="error" id="createError" hidden></p>
       </div>
-      <div class="bottom"><button class="btn primary" type="submit">Создать</button></div>
+      <div class="bottom"><button class="btn primary" type="submit" id="formSubmit">Создать</button></div>
     </form>
   </main>
   <script src="https://st.max.ru/js/max-web-app.js"></script>

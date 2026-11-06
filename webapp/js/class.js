@@ -21,7 +21,7 @@ function show(view) {
 
 let undoTimer;
 
-export async function openClass(classId, { onBack, onStart, onError, onDeleted }) {
+export async function openClass(classId, { onBack, onStart, onError, onDeleted, onEdit }) {
   let c;
   try {
     c = await api(`/api/classes/${classId}`);
@@ -35,6 +35,7 @@ export async function openClass(classId, { onBack, onStart, onError, onDeleted }
   $("classStart").textContent = c.lesson ? "Вернуться в урок" : "Начать урок";
   $("classStart").onclick = () => onStart(c.id, c.lesson);
   $("inviteBtn").onclick = () => openInvite(c);
+  $("classEdit").onclick = () => { closeMenu(); onEdit(c); };
   // удаляем сразу: на списке классов несколько секунд «Вернуть», как у ученика
   $("classDelete").onclick = async () => {
     closeMenu();
