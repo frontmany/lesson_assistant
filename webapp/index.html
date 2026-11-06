@@ -67,7 +67,7 @@
     .link-card .val { flex: 1; min-width: 0; }
     .link-card .ib.done { color: var(--accent); }
     .code-card { margin-top: 8px; }
-    .code-card .cap { display: block; font-size: 13px; color: var(--ink-soft); }
+    .link-card .cap { display: block; font-size: 13px; color: var(--ink-soft); }
     .code-card code.big { font-family: ui-monospace, Consolas, monospace; font-size: 28px; font-weight: 700; letter-spacing: 0.12em; color: var(--ink); }
     .help { margin: 12px 4px 0; color: var(--ink-soft); font-size: 15px; }
     .stack { display: grid; gap: 8px; margin-top: 16px; }
@@ -119,7 +119,7 @@
         <button class="ib" id="inviteBack" aria-label="К ученикам"><svg class="i" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
         <h2 id="inviteTitle"></h2>
       </div>
-      <div class="link-card" id="linkCard"><div class="val"><code id="inviteLink"></code></div><button class="ib" id="copyLink" aria-label="Копировать ссылку"><svg class="i" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/></svg></button></div>
+      <div class="link-card" id="linkCard"><div class="val"><span class="cap">Ссылка для учеников</span><code id="inviteLink"></code></div><button class="ib" id="copyLink" aria-label="Копировать ссылку"><svg class="i" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/></svg></button></div>
       <div class="link-card code-card"><div class="val"><span class="cap">Код класса</span><code class="big" id="inviteCode"></code></div><button class="ib" id="copyCode" aria-label="Копировать код"><svg class="i" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/></svg></button></div>
       <div class="stack">
         <button class="secondary" id="share" hidden>Поделиться</button>
