@@ -53,8 +53,9 @@ function lobby(kind = "ready", detail = "") {
     setLobbyText("Подключаемся к уроку", "");
     actions.append(button("primary", "Подключаемся…", null, true, true));
   } else if (kind in NOMIC) {
-    const [text, action, run] = NOMIC[kind];
-    setLobbyText("Нет доступа к микрофону", text);
+    // без серой подсказки под заголовком: что делать, говорит сама кнопка
+    const [, action, run] = NOMIC[kind];
+    setLobbyText("Нет доступа к микрофону", "");
     if (action) actions.append(button("primary", action, run));
     if (run !== openInBrowser) actions.append(button(action ? "secondary" : "primary", "Попробовать снова", () => enter()));
     actions.append(button("link", "Войти без микрофона", () => enter({ mic: false })));

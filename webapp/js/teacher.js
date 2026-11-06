@@ -66,8 +66,9 @@ function lobby(kind = "ready", detail = "") {
     setLobbyText("Проверяем микрофон", "Это занимает несколько секунд");
     actions.append(button("primary", "Проверяем…", null, true, true));
   } else if (kind in NOMIC) {
-    const [text, action, run] = NOMIC[kind];
-    setLobbyText("Нет доступа к микрофону", text);
+    // без серой подсказки под заголовком: что делать, говорит сама кнопка
+    const [, action, run] = NOMIC[kind];
+    setLobbyText("Нет доступа к микрофону", "");
     if (action) actions.append(button("primary", action, run));
     // в браузер уводим одной кнопкой: повтор здесь ничего не даст
     if (run !== openInBrowser) actions.append(button(action ? "secondary" : "primary", "Попробовать снова", () => enter()));
