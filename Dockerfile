@@ -9,12 +9,11 @@ WORKDIR /srv
 COPY requirements.txt .
 RUN pip install -r requirements.txt
 
-# Модели распознавания. С PRELOAD_MODEL=1 они скачиваются при сборке,
-# и запуск контейнера не зависит от сети.
-# TODO(Ярослав): включить по умолчанию, когда появится pipeline/asr.py
+# Модели распознавания скачиваются при сборке, и запуск контейнера не зависит
+# от сети. PRELOAD_MODEL=0 — скачать при первом уроке (сборка быстрее)
 ARG WHISPER_MODEL_TEACHER=gigaam-v3-e2e-ctc
 ARG WHISPER_MODEL_STUDENT=gigaam-v3-e2e-ctc
-ARG PRELOAD_MODEL=0
+ARG PRELOAD_MODEL=1
 ENV WHISPER_MODEL_TEACHER=${WHISPER_MODEL_TEACHER} \
     WHISPER_MODEL_STUDENT=${WHISPER_MODEL_STUDENT} \
     WHISPER_DOWNLOAD_ROOT=/srv/models
