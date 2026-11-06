@@ -66,13 +66,12 @@
 
 /* Отклик на наведение и нажатие по всему приложению. Только там, где есть мышь:
    на телефоне подсветка после касания «залипала» бы */
-button, .card.openable, a { transition: background-color .15s, border-color .15s, filter .15s, transform .1s; }
+button, a { transition: background-color .15s, border-color .15s, filter .15s, transform .1s; }
 button:not(:disabled):not([aria-disabled="true"]):active { transform: scale(0.97); }
 @media (hover: hover) {
   button:not(:disabled):not([aria-disabled="true"]):hover { filter: brightness(0.94); }
   /* прозрачные кнопки-иконки: яркость не видна, нужна подложка */
   .ib:hover, .back:hover, .toggle:hover, .menu button:hover, .toast button:hover, .dots:hover { filter: none; background: var(--surface-muted); }
-  .card.openable:hover { border-color: var(--line-strong); }
   a:hover { filter: brightness(0.85); }
 }
 @media (hover: hover) and (prefers-color-scheme: dark) {

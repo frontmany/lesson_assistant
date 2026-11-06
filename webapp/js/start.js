@@ -48,12 +48,10 @@ function card(c) {
   // подписи как в design/start.html: идёт урок — это важнее числа учеников
   if (c.lesson) meta.classList.add("live");
   if (c.role === "teacher") {
-    // нажатие на карточку (не на кнопку) открывает класс: ученики и «Пригласить»
-    el.classList.add("openable");
-    el.onclick = (e) => {
-      if (e.target.closest("button")) return;
-      openClass(c.id, { onBack: home, onStart: (id) => startLesson(id).catch((err) => say(err.message)), onError: say });
-    };
+    // «Открыть» — экран класса: ученики и «Пригласить»
+    action("Открыть", async () =>
+      openClass(c.id, { onBack: home, onStart: (id) => startLesson(id).catch((err) => say(err.message)), onError: say }),
+    ).classList.add("open");
     if (c.lesson) meta.textContent = "Урок идёт";
     else if (c.students) meta.textContent = `${c.students} ${plural(c.students, "ученик", "ученика", "учеников")}`;
     else meta.textContent = "Пока нет учеников";
@@ -61,7 +59,7 @@ function card(c) {
     else if (c.students) action("Начать урок", () => startLesson(c.id));
     else {
       // пустой класс: кнопка неактивна, а почему — объясняем только по нажатию
-      const b = action("Начать урок", async () => hint(el, "Урок начинается, когда в классе есть хотя бы один ученик. Нажмите на класс, чтобы пригласить учеников"));
+      const b = action("Начать урок", async () => hint(el, "Урок начинается, когда в классе есть хотя бы один ученик. Пригласить учеников — в «Открыть»"));
       b.classList.add("off");
       b.setAttribute("aria-disabled", "true");
     }
