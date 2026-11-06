@@ -21,15 +21,15 @@
     .text { margin: 0 0 24px; color: var(--ink-soft); font-size: 15px; line-height: 1.5; }
     .classes { display: grid; gap: 10px; margin: 16px 0 24px; }
     .card { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-radius: var(--radius); background: var(--surface); border: 1px solid var(--line); }
-    /* название — первой строкой, кнопки «Открыть» и «Начать урок» — второй, справа */
-    .card > div { flex: 1 1 100%; min-width: 0; }
-    .card button.open { margin-left: auto; }
+    /* всё в одну строку: не помещается «10А, история» — остаётся «10А» (js/start.js, fitNames) */
+    .card > div { flex: 1; min-width: 0; }
+    .card-name, .card-meta { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .card-name { font-weight: 600; font-size: 16px; }
     .card-meta { font-size: 13px; color: var(--ink-soft); margin-top: 2px; }
     /* урок идёт: точка перед подписью, как в design/start.html */
     .card-meta.live::before { content: ""; display: inline-block; width: 8px; height: 8px; margin-right: 6px; border-radius: 50%; background: var(--accent); }
-    .card { flex-wrap: wrap; }
     .card button.off { background: var(--surface-muted); color: var(--ink-soft); cursor: default; }
+    .card { flex-wrap: wrap; }
     .card-hint { flex-basis: 100%; margin: 4px 0 0; font-size: 13px; color: var(--ink-soft); }
     .spacer { flex: 1; }
     button { font: inherit; font-weight: 600; border: 0; cursor: pointer; border-radius: 999px; padding: 12px 20px; }

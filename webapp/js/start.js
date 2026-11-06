@@ -35,6 +35,8 @@ function card(c) {
   el.className = "card";
   const info = document.createElement("div");
   const name = Object.assign(document.createElement("div"), { className: "card-name", textContent: `${c.name}, ${c.subject}` });
+  name.dataset.full = name.textContent;
+  name.dataset.short = c.name;
   const meta = document.createElement("div");
   meta.className = "card-meta";
   info.append(name, meta);
@@ -54,7 +56,7 @@ function card(c) {
     ).classList.add("open");
     if (c.lesson) meta.textContent = "Урок идёт";
     else if (c.students) meta.textContent = `${c.students} ${plural(c.students, "ученик", "ученика", "учеников")}`;
-    else meta.textContent = "Пока нет учеников";
+    else meta.textContent = "Нет учеников"; // «Пока нет учеников» не помещается рядом с двумя кнопками
     if (c.lesson) action("Вернуться в урок", async () => go("teacher.html", c.lesson));
     else if (c.students) action("Начать урок", () => startLesson(c.id));
     else {
@@ -70,6 +72,15 @@ function card(c) {
   return el;
 }
 
+// Карточка в одну строку: если «10А, история» не помещается рядом с кнопками, остаётся «10А»
+function fitNames() {
+  for (const el of document.querySelectorAll(".card-name")) {
+    el.textContent = el.dataset.full;
+    if (el.scrollWidth > el.clientWidth) el.textContent = el.dataset.short;
+  }
+}
+addEventListener("resize", fitNames);
+
 function hint(card, text) {
   let p = card.querySelector(".card-hint");
   if (!p) {
@@ -84,6 +95,7 @@ function hint(card, text) {
 async function home() {
   const mine = await api("/api/me/classes").catch(() => []);
   $("classes").replaceChildren(...mine.map(card));
+  requestAnimationFrame(fitNames);
   $("classes").hidden = mine.length === 0;
   if (!mine.length) say("Классов пока нет. Создайте класс или войдите по коду в чате с ботом.");
   $("actions").hidden = false;
