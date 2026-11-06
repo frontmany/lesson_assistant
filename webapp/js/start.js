@@ -55,6 +55,7 @@ function row(c) {
       // урок уже идёт — возвращаемся в него, иначе начинаем новый
       onStart: (id, lesson) => (lesson ? go("teacher.html", lesson) : startLesson(id).catch((err) => say(err.message))),
       onError: say,
+      onDeleted: classDeleted,
     });
   } else if (c.lesson) {
     el.onclick = () => go("student.html", c.lesson);
@@ -86,6 +87,21 @@ async function home() {
   $("create").onclick = openCreate;
 }
 
+// Класс удалён: список классов и несколько секунд «Вернуть» — сервер хранит класс 30 дней
+let toastTimer;
+async function classDeleted(c) {
+  await home();
+  clearTimeout(toastTimer);
+  $("homeToastText").textContent = `Класс ${c.name} удалён`;
+  $("homeToast").hidden = false;
+  $("homeToastBtn").onclick = async () => {
+    $("homeToast").hidden = true;
+    await api(`/api/classes/${c.id}/restore`, { method: "POST" }).catch((err) => say(err.message));
+    home();
+  };
+  toastTimer = setTimeout(() => ($("homeToast").hidden = true), 5000);
+}
+
 // «Создать класс»: класс и предмет, как в боте («10А, история»). Созданный класс сразу
 // открывается — пустой, с «Пригласить»
 function openCreate() {
@@ -101,7 +117,7 @@ function openCreate() {
       const { id } = await api("/api/classes", {
         method: "POST", body: { name: $("newName").value, subject: $("newSubject").value },
       });
-      openClass(id, { onBack: home, onStart: (cid) => startLesson(cid).catch((err) => say(err.message)), onError: say });
+      openClass(id, { onBack: home, onStart: (cid) => startLesson(cid).catch((err) => say(err.message)), onError: say, onDeleted: classDeleted });
     } catch (err) {
       $("createError").textContent = err.message;
       $("createError").hidden = false;

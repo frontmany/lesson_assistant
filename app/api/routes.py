@@ -185,10 +185,10 @@ def demo(user: User = Depends(current_user)):
     return {"lesson_id": classes.demo_lesson(user.max_user_id, user.name or None).id}
 
 
-def _taught_class(class_id: int, user: User):
-    """Класс, которым управляет вошедший учитель: иначе 404 или 403."""
+def _taught_class(class_id: int, user: User, deleted: bool = False):
+    """Класс, которым управляет вошедший учитель: иначе 404 или 403. deleted — и удалённый (для «Вернуть»)."""
     c = classes.get_class(class_id)
-    if c is None or c.deleted_at is not None:
+    if c is None or (c.deleted_at is not None and not deleted):
         raise HTTPException(404, "Такого класса нет")
     m = classes.membership(class_id, user.max_user_id) if user.max_user_id is not None else None
     if m is None or m.role != "teacher":
@@ -230,6 +230,24 @@ def class_card(class_id: int, user: User = Depends(current_user)):
         "students": [{"id": m.id, "name": classes.short_name(m.name)} for m in classes.students_of(c.id)],
         "lesson": live.id if (live := classes.live_lesson(c.id)) else None,
     }
+
+
+@router.delete("/classes/{class_id}")
+def delete_class(class_id: int, user: User = Depends(current_user)):
+    """Удалить класс: как в боте, 30 дней его можно вернуть («Вернуть» на экране)."""
+    _taught_class(class_id, user)
+    if classes.live_lesson(class_id):
+        raise HTTPException(409, "Идёт урок: удалить класс можно после него")
+    classes.delete_class(class_id)
+    return {"deleted": class_id}
+
+
+@router.post("/classes/{class_id}/restore")
+def restore_class(class_id: int, user: User = Depends(current_user)):
+    _taught_class(class_id, user, deleted=True)
+    if not classes.restore_class(class_id):
+        raise HTTPException(410, "Класс удалён больше 30 дней назад")
+    return {"restored": class_id}
 
 
 @router.delete("/classes/{class_id}/students/{member_id}")

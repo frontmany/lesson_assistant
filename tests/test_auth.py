@@ -215,3 +215,17 @@ def test_class_is_created_from_the_app():
     card = client.get(f"/api/classes/{made.json()['id']}", headers=teacher).json()
     assert (card["name"], card["subject"], card["students"], card["lesson"]) == ("7Б", "география", [], None)
     assert client.post("/api/classes", json={"name": "7Б", "subject": " "}, headers=teacher).status_code == 422
+
+
+def test_class_is_deleted_and_restored_from_the_app():
+    from app.db import classes as db
+
+    teacher = sign_in(MARIA)
+    c = db.create_class(MARIA, "Мария Смирнова", "10А", "история")
+    assert client.delete(f"/api/classes/{c.id}", headers=teacher).status_code == 200
+    assert client.get(f"/api/classes/{c.id}", headers=teacher).status_code == 404
+    assert all(x["id"] != c.id for x in client.get("/api/me/classes", headers=teacher).json())
+    assert client.post(f"/api/classes/{c.id}/restore", headers=teacher).status_code == 200
+    assert client.get(f"/api/classes/{c.id}", headers=teacher).status_code == 200
+    db.join(c.id, 31, "Софья Ланская")
+    assert client.delete(f"/api/classes/{c.id}", headers=sign_in(31)).status_code == 403

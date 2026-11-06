@@ -21,7 +21,7 @@ function show(view) {
 
 let undoTimer;
 
-export async function openClass(classId, { onBack, onStart, onError }) {
+export async function openClass(classId, { onBack, onStart, onError, onDeleted }) {
   let c;
   try {
     c = await api(`/api/classes/${classId}`);
@@ -35,6 +35,16 @@ export async function openClass(classId, { onBack, onStart, onError }) {
   $("classStart").textContent = c.lesson ? "Вернуться в урок" : "Начать урок";
   $("classStart").onclick = () => onStart(c.id, c.lesson);
   $("inviteBtn").onclick = () => openInvite(c);
+  // удаляем сразу: на списке классов несколько секунд «Вернуть», как у ученика
+  $("classDelete").onclick = async () => {
+    closeMenu();
+    try {
+      await api(`/api/classes/${c.id}`, { method: "DELETE" });
+    } catch (err) {
+      return toast(err.message);
+    }
+    onDeleted(c);
+  };
 
   function render() {
     const n = c.students.length;
