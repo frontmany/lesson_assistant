@@ -12,3 +12,5 @@ tests
 *.md
 !README.md
 saved_phrases
+# живые фразы — только для analytics/compare_asr.py, серверу не нужны
+data/asr_check
