@@ -24,7 +24,7 @@
     .top h1 { margin: 0; font-size: 20px; line-height: 1.2; }
     .top small { display: block; font-size: 13px; font-weight: 400; color: var(--ink-soft); }
     .top .title { flex: 1; min-width: 0; padding-left: 8px; }
-    .top .logo { width: 32px; height: 32px; margin-left: 8px; border-radius: 9px; flex: none; }
+    .top .logo { width: 32px; height: 32px; margin-left: 8px; padding: 3px; border-radius: 9px; background: #fff; object-fit: contain; flex: none; }
     .ib { width: 44px; height: 44px; display: grid; place-items: center; border-radius: 12px; flex: none; }
     .ib:focus-visible, .btn:focus-visible, .row:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
     .scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 4px 16px 16px; }
@@ -92,8 +92,8 @@
   <main>
     <!-- Мои классы -->
     <div class="view" id="home">
-      <!-- наш знак: иконка мини-приложения (design/bot/miniapp-icon.png), в бейдже звезда вместо «AI» -->
-      <div class="top"><img class="logo" src="img/logo.png" alt="" width="32" height="32"><div class="title"><h1 id="title">Мои классы</h1></div></div>
+      <!-- шар Сферума из design/bot/sferum-logo.png на белой плашке: читается и на тёмном фоне -->
+      <div class="top"><img class="logo" src="img/sferum.png" alt="" width="32" height="32"><div class="title"><h1 id="title">Мои классы</h1></div></div>
       <div class="scroll">
         <p class="text" id="text" hidden></p>
         <ul class="list" id="classes" hidden></ul>
