@@ -4,7 +4,7 @@
 // ученик входит в идущий урок; всем — «Посмотреть демо».
 
 import { openClass } from "./class.js";
-import { api, signedIn, signIn } from "./lesson.js";
+import { api, signedIn, signIn, signOut } from "./lesson.js";
 
 const $ = (id) => document.getElementById(id);
 const inMax = Boolean(window.WebApp?.initData);
@@ -82,6 +82,16 @@ async function home() {
     }
   };
   $("create").onclick = () => openForm();
+  // Нажал «Я учитель» по ошибке — в MAX возвращаемся в чат с ботом, там выбирают роль заново;
+  // в браузере забываем вход
+  $("exit").hidden = false;
+  $("exit").onclick = () => {
+    if (inMax) return window.WebApp.close();
+    signOut();
+    show("home");
+    $("classes").hidden = $("homeEmpty").hidden = $("actions").hidden = $("exit").hidden = true;
+    say("Вы вышли. Откройте мини-приложение в MAX: в чате с ботом «Идея фикс».");
+  };
 }
 
 // Класс удалён: список классов и несколько секунд «Вернуть» — сервер хранит класс 30 дней

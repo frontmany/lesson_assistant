@@ -37,6 +37,16 @@ function stored() {
   }
 }
 
+// «Выйти» в браузере: сессия забывается, войти снова — из MAX
+export function signOut() {
+  session = null;
+  try {
+    sessionStorage.removeItem("session");
+  } catch {
+    // см. stored()
+  }
+}
+
 function keep(token) {
   session = token;
   try {
