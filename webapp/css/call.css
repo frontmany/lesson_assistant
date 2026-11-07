@@ -95,7 +95,6 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 .panel-head .count { flex: 1; font-size: 13px; color: var(--ink-soft); }
 .iconbtn { position: relative; width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; color: var(--ink-soft); }
 .iconbtn:hover, .iconbtn.open { background: var(--surface-muted); }
-.legend, .hint { margin: 0; padding: 0 16px 8px; font-size: 13px; color: var(--ink-soft); }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 16px 8px; }
 .chip { position: relative; padding: 4px 10px; border-radius: 999px; font-size: 13px; font-weight: 600; background: var(--surface-muted); color: var(--ink-soft); }
 .chip.on { background: var(--ink); color: var(--surface); }
@@ -226,7 +225,6 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
   .toast { bottom: 80px; font-size: 13px; }
   .body { flex-direction: column; gap: 8px; padding: 8px; }
   .panel { width: auto; height: 50%; flex: none; }
-  .legend { display: none; }
   .tile .name { font-size: 13px; padding: 2px 7px; }
   .share { grid-template-columns: 1fr; grid-template-rows: auto auto; align-content: start; }
   .shared { aspect-ratio: 1 / 1; padding: 44px 6% 5%; gap: 8px; }
