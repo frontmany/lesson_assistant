@@ -492,7 +492,7 @@ class Bot:
     def lesson_started(self, user_id: int, c, lesson_id: str) -> None:
         """Шаг 10."""
         self.api.send(
-            user_id, f"Урок начался: {c.name}, {c.subject}.\nАссистент слушает урок, чтобы вести шкалу участия.",
+            user_id, f"Урок начался: {c.name}, {c.subject}.",
             [[self.open_app("Войти в урок", f"l{lesson_id}")]],
         )
 
