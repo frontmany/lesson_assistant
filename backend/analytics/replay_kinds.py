@@ -1,6 +1,6 @@
 """Прогон записанного урока через конвейер без звонка и сверка типов реплик с эталоном.
 
-    docker compose run --rm --no-deps -v "$PWD:/srv" -w /srv app python -m analytics.replay_kinds
+    docker compose run --rm --no-deps -v "$PWD:/srv" -w /srv/backend app python -m analytics.replay_kinds
     ... python -m analytics.replay_kinds --teacher small gigaam-v3-e2e-ctc
 
 Дорожки из data/demo_lesson подаются в transcribe_stream кадрами по 30 мс,

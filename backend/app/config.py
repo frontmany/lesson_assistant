@@ -37,7 +37,7 @@ class Settings:
     dev_auth: bool = os.getenv("DEV_AUTH", "0") == "1"
 
     # GigaAM у всех: на живых фразах меньше ошибок и почти все «?», в разы быстрее Whisper,
-    # а на демо-уроке и у учителя точнее small, имена без подсказок слышит (analytics/README.md)
+    # а на демо-уроке и у учителя точнее small, имена без подсказок слышит (docs/quality.md)
     whisper_model_teacher: str = os.getenv("WHISPER_MODEL_TEACHER", "gigaam-v3-e2e-ctc")
     whisper_model_student: str = os.getenv("WHISPER_MODEL_STUDENT", "gigaam-v3-e2e-ctc")
     whisper_compute_type: str = os.getenv("WHISPER_COMPUTE_TYPE", "int8")

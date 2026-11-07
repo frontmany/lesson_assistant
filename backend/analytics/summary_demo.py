@@ -1,6 +1,6 @@
 """Сводка и карточки по демо-уроку без звонка: для правки промптов (#20, #21).
 
-    docker compose run --rm --no-deps -v "$PWD:/srv" -w /srv app python -m analytics.summary_demo
+    docker compose run --rm --no-deps -v "$PWD:/srv" -w /srv/backend app python -m analytics.summary_demo
     ... python -m analytics.summary_demo --runs 3 --model GigaChat-3-Ultra
 
 Реплики берутся из эталона data/demo_lesson/ground_truth.csv, тип реплик

@@ -89,7 +89,7 @@ git lfs install && git lfs pull
 ### Только образ приложения
 
 ```bash
-docker build -t lesson-assistant .
+docker build -f backend/Dockerfile -t lesson-assistant .
 docker run --rm -p 8000:8000 --env-file .env lesson-assistant
 ```
 

@@ -25,7 +25,7 @@
 
 ```bash
 docker run --rm -v "$PWD:/srv" -v lesson-tts-cache:/root/.cache -w /srv python:3.12-slim sh -c \
-    "pip install -r scripts/requirements-tts.txt && python scripts/make_demo_lesson.py data/demo_lesson_2"
+    "pip install -r scripts/requirements-tts.txt && python scripts/make_demo_lesson.py backend/data/demo_lesson_2"
 ```
 
 Том `lesson-tts-cache` хранит `pip`, `torch.hub` и модель Silero между запусками: без него всё это скачивается заново при каждой сборке. Если загрузка модели оборвалась (`SSL: UNEXPECTED_EOF`), запустите ещё раз.

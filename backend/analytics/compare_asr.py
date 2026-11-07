@@ -1,6 +1,6 @@
 """Сравнение моделей распознавания на живых фразах (#55).
 
-    docker compose run --rm --no-deps -v "$PWD:/srv" -w /srv app python -m analytics.compare_asr
+    docker compose run --rm --no-deps -v "$PWD:/srv" -w /srv/backend app python -m analytics.compare_asr
 
 Набор — data/asr_check/labels.csv и wav рядом с ним: file, speaker, text, kind
 (question, answer, other), intonation_only, noise. Для каждой модели считает

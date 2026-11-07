@@ -1,3 +1,7 @@
+# Образ приложения. Собирается из корня репозитория: в образ идут backend/ и webapp/.
+#   docker compose up --build
+#   docker build -f backend/Dockerfile -t lesson-assistant .
+# Что не попадает в образ — backend/Dockerfile.dockerignore
 FROM python:3.12-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
