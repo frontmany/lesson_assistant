@@ -252,7 +252,6 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 .stu-last { margin: 6px 0 0; font-size: 13px; color: var(--ink-soft); overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .stu.compact .stu-last { display: none; }
 .switch { cursor: pointer; }
-.cbtn.armed { box-shadow: 0 0 0 3px var(--warn-tint); }
 .lobby-error { color: var(--danger); }
 
 /* Свёрнутая панель класса: стрелка на её месте выдвигает её обратно */

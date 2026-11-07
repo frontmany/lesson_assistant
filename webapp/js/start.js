@@ -4,6 +4,7 @@
 // ученик входит в идущий урок; всем — «Посмотреть демо».
 
 import { openClass } from "./class.js";
+import { ask } from "./confirm.js";
 import { api, signedIn, signIn } from "./lesson.js";
 
 const $ = (id) => document.getElementById(id);
@@ -119,6 +120,13 @@ async function home() {
   // «Выйти» — к выбору роли; бот присылает в чат то же приветствие
   $("exit").hidden = false;
   $("exit").onclick = async () => {
+    const teaching = role === "teacher" && mine.some((c) => c.lesson);
+    const yes = await ask({
+      title: "Выйти?",
+      text: teaching ? "Идущие уроки завершатся, а потом можно будет заново выбрать роль" : "Потом можно будет заново выбрать роль",
+      ok: "Выйти",
+    });
+    if (!yes) return;
     setRole("none");
     await api("/api/me/exit", { method: "POST" }).catch(() => {});
     welcome();

@@ -2,6 +2,7 @@
 // «Убрать из класса» сразу и «Вернуть» несколько секунд, «Пригласить» со ссылкой
 // и кодом, «Начать урок». Только учителю этого класса — сервер проверяет сам.
 
+import { ask } from "./confirm.js";
 import { api } from "./lesson.js";
 
 const $ = (id) => document.getElementById(id);
@@ -36,9 +37,11 @@ export async function openClass(classId, { onBack, onStart, onError, onDeleted, 
   $("classStart").onclick = () => onStart(c.id, c.lesson);
   $("inviteBtn").onclick = () => openInvite(c);
   $("classEdit").onclick = () => { closeMenu(); onEdit(c); };
-  // удаляем сразу: на списке классов несколько секунд «Вернуть», как у ученика
+  // после вопроса: на списке классов ещё несколько секунд «Вернуть»
   $("classDelete").onclick = async () => {
     closeMenu();
+    const yes = await ask({ title: `Удалить класс «${c.name}»?`, text: "Ученики больше не увидят его и его уроки", ok: "Удалить" });
+    if (!yes) return;
     try {
       await api(`/api/classes/${c.id}`, { method: "DELETE" });
     } catch (err) {
@@ -81,9 +84,10 @@ export async function openClass(classId, { onBack, onStart, onError, onDeleted, 
     return li;
   }
 
-  // убираем сразу, без вопроса: ошибку исправит «Вернуть»
+  // после вопроса; ошибку ещё исправит «Вернуть»
   async function removeStudent(s) {
     closeMenu();
+    if (!(await ask({ title: `Убрать из класса: ${s.name}?`, text: "Ученик больше не попадёт на уроки этого класса", ok: "Убрать" }))) return;
     const at = c.students.indexOf(s);
     try {
       await api(`/api/classes/${c.id}/students/${s.id}`, { method: "DELETE" });

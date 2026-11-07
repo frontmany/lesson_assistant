@@ -3,6 +3,7 @@
 // Плитки строятся по участникам LiveKit, панель класса — по событиям урока из WebSocket.
 
 import { DisconnectReason, joinCall } from "./call.js";
+import { ask } from "./confirm.js";
 import { LESSON_ID, api, loadRoster, signIn, subscribe, whoAmI } from "./lesson.js";
 import { inMax, micAccess, openInBrowser, openMaxSettings, openSystemSettings } from "./mic.js";
 
@@ -472,19 +473,9 @@ $("btnScreen").onclick = async () => {
   renderStage();
 };
 
-// «Завершить урок» нажимают дважды: случайное касание не должно закончить урок всему классу.
-// confirm() не годится: во встроенном браузере MAX он может не показаться
-let armed = null;
+// «Завершить урок» — после вопроса: случайное касание не должно закончить урок всему классу
 $("btnLeave").onclick = async () => {
-  if (!armed) {
-    $("btnLeave").classList.add("armed");
-    toast("Нажмите ещё раз, чтобы завершить урок");
-    armed = setTimeout(() => { armed = null; $("btnLeave").classList.remove("armed"); }, TOAST_MS);
-    return;
-  }
-  clearTimeout(armed);
-  armed = null;
-  $("btnLeave").classList.remove("armed");
+  if (!(await ask({ title: "Завершить урок?", text: "Урок закончится у всего класса, сводку пришлёт бот", ok: "Завершить" }))) return;
   leaving = true;
   const minutes = Math.max(1, Math.round((Date.now() - startedAt) / 60000));
   await room.disconnect();
