@@ -4,7 +4,7 @@
 // ученику аналитику — тогда вместо шкалы «Аналитика выключена».
 
 import { DisconnectReason, joinCall } from "./call.js";
-import { LEVEL_LABELS, loadRoster, signIn, subscribe, whoAmI } from "./lesson.js";
+import { LEVEL_LABELS, botLink, failText, loadRoster, signIn, subscribe, whoAmI } from "./lesson.js";
 import { inMax, micAccess, openInBrowser, openMaxSettings, openSystemSettings } from "./mic.js";
 
 const { RoomEvent, Track } = window.LivekitClient;
@@ -20,12 +20,13 @@ const NOMIC = {
 
 const $ = (id) => document.getElementById(id);
 
-await signIn();
+// ошибка входа (устаревшая ссылка в браузере, нет сети) — не тупик: текст и кнопки (#98, п. 4)
+await signIn().catch((err) => fail(err));
 // Ученик — тот, кого сервер узнал по данным запуска MAX (#24); учителя отправляем на его экран
 const me = await whoAmI().catch((err) => fail(err));
 if (me.role === "teacher") location.replace(`teacher.html${location.search}`);
 const studentId = me.participant_id;
-let roster = await loadRoster();
+let roster = await loadRoster().catch((err) => fail(err));
 
 const prefs = { mic: true, cam: false };
 let room = null;
@@ -291,8 +292,18 @@ function toast(text) {
 }
 
 function fail(err) {
-  setLobbyText("Не удалось открыть урок", err.message);
-  $("lobbyActions").replaceChildren();
+  show("lobby");
+  setLobbyText("Не удалось открыть урок", failText(err));
+  const actions = $("lobbyActions");
+  // устаревшую ссылку повтор не спасёт: урок открывается заново из чата с ботом
+  actions.replaceChildren(...(err?.status === 401 ? [] : [button("primary", "Попробовать снова", () => location.reload())]));
+  if (inMax()) actions.append(button(err?.status === 401 ? "primary" : "secondary", "К классам", toClasses));
+  else {
+    // в браузере урок заново открывается из чата с ботом
+    botLink().then((link) => {
+      if (link) actions.append(button(err?.status === 401 ? "primary" : "secondary", "Открыть из чата с ботом", () => location.assign(link)));
+    });
+  }
   $("preview").hidden = true;
   throw err;
 }

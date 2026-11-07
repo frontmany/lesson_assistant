@@ -100,6 +100,11 @@ def callback(text: str, payload: str) -> dict:
     return {"type": "callback", "text": text, "payload": payload}
 
 
+def label(c) -> str:
+    """«10А, история»: одноимённые классы различаются предметом (#98, п. 16)."""
+    return f"{c.name}, {c.subject}"
+
+
 def plural(n: int, one: str, few: str, many: str) -> str:
     if n % 10 == 1 and n % 100 != 11:
         return one
@@ -148,7 +153,8 @@ class Bot:
                 return self.code(user, body)
             return self.create_class(user, body)
         if step == "code":
-            return self.code(user, body)
+            # ученик прислал ссылку вместо кода — берём код из неё (#98, п. 18)
+            return self.code(user, body.rsplit("start=", 1)[-1])
         if step == "name" and body:
             db.set_dialog(user_id, None)
             return self.join(user_id, class_id, body)
@@ -185,10 +191,32 @@ class Bot:
         if action == "cancel":
             # «Отмена» и «Остаться»: вопрос в чате меняется на ответ, кнопки исчезают
             return self.api.answer(callback_id, message=self.cancelled(arg))
-        self.api.answer(callback_id, "Готово" if handler else "Эта кнопка больше не нужна")
+        done = self.pressed(action, arg) if handler else None
+        if done is not None:
+            # кнопка одноразовая: вопрос меняется на то, что выбрали, и второй раз не нажать (#98, п. 15)
+            self.api.answer(callback_id, message=done)
+        else:
+            self.api.answer(callback_id, "Готово" if handler else "Эта кнопка больше не нужна")
         if handler is None:
             return self.greet(user_id)
         handler()
+
+    def pressed(self, action: str, arg: str) -> str | None:
+        """Чем заменить сообщение с одноразовой кнопкой после нажатия. None — кнопки остаются."""
+        c = db.get_class(int(arg)) if arg.isdigit() and action not in ("kick", "unkick") else None
+        m = db.get_member(int(arg)) if arg.isdigit() and action in ("kick", "unkick") else None
+        name = label(c) if c else ""
+        who = db.short_name(m.name) if m else "Ученик"
+        return {
+            "newlink_yes": f"Создана новая ссылка для {name}.",
+            "delete_yes": f"Удалить класс {name}: удаляю.",
+            "leave_yes": f"Выйти из класса {name}: выхожу.",
+            "me": f"Вы входите в класс {name}.",
+            "rename": f"Вы входите в класс {name}: меняем имя.",
+            "restore": f"Возвращаю класс {name}.",
+            "kick": f"{who}: убираю из класса.",
+            "unkick": f"{who}: возвращаю в класс.",
+        }.get(action)
 
     # ---------- кто вы ----------
 
@@ -203,7 +231,7 @@ class Bot:
         if len(learning) == 1:
             self.student_class(user_id, learning[0].id)
         elif learning:
-            self.choose(user_id, [(c.name, f"class:{c.id}") for c in learning])
+            self.choose(user_id, [(label(c), f"class:{c.id}") for c in learning])
 
     def choose_role(self, user_id: int) -> None:
         """Шаг 1: кто вы. И «Выйти» в мини-приложении — выбрать роль заново.
@@ -259,12 +287,12 @@ class Bot:
         if len(teaching) == 1:
             return then(user_id, teaching[0].id)
         if teaching:
-            self.choose(user_id, [(c.name, f"{action}:{c.id}") for c in teaching])
+            self.choose(user_id, [(label(c), f"{action}:{c.id}") for c in teaching])
 
     def pick_lesson(self, user_id: int) -> None:
         startable = [c for c, m in db.classes_of(user_id) if m.role == "teacher" and db.students_of(c.id)]
         self.api.send(user_id, "Вы в нескольких классах. Выберите класс.",
-                      [[self.open_app(c.name, f"c{c.id}") for c in startable[i:i + 3]] for i in range(0, len(startable), 3)])
+                      [[self.open_app(label(c), f"c{c.id}") for c in startable[i:i + 3]] for i in range(0, len(startable), 3)])
 
     # ---------- учитель: класс ----------
 
@@ -299,7 +327,8 @@ class Bot:
         )
 
     def ask_new_link(self, user_id: int, class_id: int) -> None:
-        self.api.send(user_id, "Создать новую ссылку и код? Старые перестанут работать.",
+        c = db.get_class(class_id)
+        self.api.send(user_id, f"Создать новую ссылку и код для {label(c)}? Старые перестанут работать.",
                       [[callback("Создать ссылку", f"newlink_yes:{class_id}"), callback("Отмена", f"cancel:newlink-{class_id}")]])
 
     def new_link(self, user_id: int, class_id: int) -> None:
@@ -311,15 +340,19 @@ class Bot:
 
     def ask_delete(self, user_id: int, class_id: int) -> None:
         c = db.get_class(class_id)
-        self.api.send(user_id, f"Удалить класс {c.name}? Ученики потеряют доступ.",
+        self.api.send(user_id, f"Удалить класс {label(c)}? Ученики потеряют доступ.",
                       [[callback("Удалить класс", f"delete_yes:{class_id}"), callback("Отмена", f"cancel:delete-{class_id}")]])
 
     def delete(self, user_id: int, class_id: int) -> None:
         if not self.teaches(user_id, class_id):
             return
+        students = db.students_of(class_id)
         db.delete_class(class_id)
         c = db.get_class(class_id)
-        self.api.send(user_id, f"Класс {c.name} удалён. Вернуть можно в течение {db.RESTORE_DAYS} дней.",
+        # ученики не должны ждать урока, которого не будет (#98, п. 19)
+        for m in students:
+            self.api.send(m.max_user_id, f"Учитель удалил класс {label(c)}. Уроков в нём больше не будет.")
+        self.api.send(user_id, f"Класс {label(c)} удалён. Вернуть можно в течение {db.RESTORE_DAYS} дней.",
                       [[callback("Вернуть", f"restore:{class_id}")]])
 
     def restore(self, user_id: int, class_id: int) -> None:
@@ -327,7 +360,9 @@ class Bot:
         if db.teacher_of(class_id).max_user_id != user_id:
             return
         if db.restore_class(class_id):
-            self.api.send(user_id, f"Класс {c.name} снова с вами: ученики и ссылка остались прежними.")
+            self.api.send(user_id, f"Класс {label(c)} снова с вами: ученики и ссылка остались прежними.")
+            for m in db.students_of(class_id):
+                self.api.send(m.max_user_id, f"Учитель вернул класс {label(c)}. Когда начнётся урок, я напишу.")
         else:
             self.api.send(user_id, f"Вернуть {c.name} уже нельзя: прошло {db.RESTORE_DAYS} дней.")
 
@@ -338,9 +373,9 @@ class Bot:
         if c is None:
             return "Хорошо, ничего не меняем."
         return {
-            "newlink": f"Ссылка и код {c.name} остались прежними.",
-            "delete": f"Класс {c.name} остался.",
-            "leave": f"Вы остались в классе {c.name}.",
+            "newlink": f"Ссылка и код {label(c)} остались прежними.",
+            "delete": f"Класс {label(c)} остался.",
+            "leave": f"Вы остались в классе {label(c)}.",
         }.get(action, "Хорошо, ничего не меняем.")
 
     def teaches(self, user_id: int, class_id: int) -> bool:
@@ -364,20 +399,21 @@ class Bot:
         status, c = db.find_by_code(text)
         if status == "none":
             db.set_dialog(user_id, "code")
-            return self.api.send(user_id, "Такого кода нет. Проверьте и введите ещё раз.")
+            return self.api.send(user_id, "Такого кода нет. Проверьте и введите ещё раз.", [[callback("Назад", "back")]])
         db.set_dialog(user_id, None)
+        # удалённый класс — раньше членства: иначе его ссылка отвечала бы «Вы в классе» (#98, п. 19)
+        if status == "deleted":
+            return self.api.send(user_id, "Этот класс удалён. Спросите у учителя.")
         member = db.membership(c.id, user_id) if c else None
         if member is not None:
             # уже в классе: ни «ссылка устарела», ни повторный вход ему не нужны
             if member.role == "teacher":
                 return self.api.send(user_id, f"Это код вашего класса {c.name}.")
             return self.student_class(user_id, c.id)
-        if status == "deleted":
-            return self.api.send(user_id, "Этот класс удалён. Спросите у учителя.")
         if status == "old":
             return self.api.send(user_id, "Эта ссылка устарела. Попросите у учителя новую ссылку или код.",
                                  [[callback("Ввести код", "student")]])
-        self.api.send(user_id, f"Вы входите в класс {c.name}. Вас зовут {full_name(user)}?",
+        self.api.send(user_id, f"Вы входите в класс {label(c)}. Вас зовут {full_name(user)}?",
                       [[callback("Это я", f"me:{c.id}"), callback("Изменить имя", f"rename:{c.id}")]])
 
     def ask_name(self, user_id: int, class_id: int) -> None:
@@ -388,8 +424,12 @@ class Bot:
         c = db.get_class(class_id)
         if c is None or c.deleted_at is not None:
             return self.api.send(user_id, "Этот класс удалён. Спросите у учителя.")
+        before = db.membership(class_id, user_id)
         member, new = db.join(class_id, user_id, name[:80])
-        self.api.send(user_id, f"Готово, вы в классе {c.name}. Когда начнётся урок, я напишу.")
+        if before is not None and before.name != member.name:
+            self.api.send(user_id, f"Готово, теперь в классе {label(c)} вы — {member.name}.")
+        else:
+            self.api.send(user_id, f"Готово, вы в классе {label(c)}. Когда начнётся урок, я напишу.")
         if new:
             # шаг 6: учителю
             teacher = db.teacher_of(class_id)
@@ -408,7 +448,8 @@ class Bot:
             return
         db.remove_member(member_id)
         c = db.get_class(m.class_id)
-        self.api.send(user_id, f"Убрано из класса {c.name}: {db.short_name(m.name)}",
+        self.api.send(m.max_user_id, f"Учитель убрал вас из класса {label(c)}. Если это ошибка, напишите учителю.")
+        self.api.send(user_id, f"Убрано из класса {label(c)}: {db.short_name(m.name)}",
                       [[callback("Вернуть", f"unkick:{member_id}")]])
 
     def unkick(self, user_id: int, member_id: int) -> None:
@@ -417,11 +458,12 @@ class Bot:
             return
         db.restore_member(member_id)
         c = db.get_class(m.class_id)
-        self.api.send(user_id, f"{db.short_name(m.name)} снова в классе {c.name}.")
+        self.api.send(m.max_user_id, f"Учитель вернул вас в класс {label(c)}. Когда начнётся урок, я напишу.")
+        self.api.send(user_id, f"{db.short_name(m.name)} снова в классе {label(c)}.")
 
     def ask_leave(self, user_id: int, class_id: int) -> None:
         c = db.get_class(class_id)
-        self.api.send(user_id, f"Выйти из класса {c.name}?",
+        self.api.send(user_id, f"Выйти из класса {label(c)}?",
                       [[callback("Выйти", f"leave_yes:{class_id}"), callback("Остаться", f"cancel:leave-{class_id}")]])
 
     def leave(self, user_id: int, class_id: int) -> None:
@@ -527,6 +569,12 @@ def card_text(roster, card) -> str:
         blocks.append("**Что повторить**\n" + "\n".join(card.to_repeat))
     blocks.append("Карточка не показывается классу.")
     return "\n\n".join(blocks)
+
+
+def bot_link() -> str | None:
+    """Чат с ботом: экран урока в браузере ведёт сюда, когда ссылка устарела. None — имя бота неизвестно."""
+    name = _bot.bot_name if _bot is not None else settings.max_bot_name
+    return f"https://max.ru/{name}" if name else None
 
 
 def invite_link(code: str) -> str | None:

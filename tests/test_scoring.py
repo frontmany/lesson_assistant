@@ -168,3 +168,17 @@ def test_long_answer_in_phrases_counts_once():
     board.add("ivan_i", "answer", "Пётр начал строить новый флот", 6, 8)
     board.extend("ivan_i", "и победил шведов на Балтике", 9, 11, "answer")
     assert board.score("ivan_i") == 3
+
+
+def test_switching_analytics_off_and_on_keeps_the_scale():
+    # шкала не опускается: выключили и включили аналитику — ступень та же (#98, п. 14)
+    board = Scoreboard(["artem_k", "ivan_i"], norm=4.5, lesson_s=2400)
+    board.add("artem_k", "answer", "Пётр построил флот на Балтике.", 10, 14)
+    board.add("artem_k", "answer", "И основал Петербург в 1703 году.", 60, 64)
+    level = board.level("artem_k")
+    assert level >= 3
+    board.forget("artem_k")
+    assert "artem_k" not in board.students()
+    board.add_student("artem_k")
+    assert board.level("artem_k") == level
+    assert "long_silence" not in board.flags("artem_k", 120)

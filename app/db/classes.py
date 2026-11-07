@@ -206,6 +206,8 @@ def join(class_id: int, max_user_id: int, name: str) -> tuple[Member, bool]:
     with db.session() as s:
         member = _active(s, class_id, max_user_id)
         if member is not None:
+            # «Изменить имя» после «Это я»: уже вошедший меняет имя, а не остаётся со старым (#98, п. 17)
+            member.name = name
             return member, False
         member = Member(class_id=class_id, max_user_id=max_user_id, role="student", name=name)
         s.add(member)
