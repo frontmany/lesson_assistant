@@ -308,7 +308,7 @@ def update_class(class_id: int, body: NewClass, user: User = Depends(current_use
 
 @router.get("/classes/{class_id}")
 def class_card(class_id: int, user: User = Depends(current_user)):
-    """Экран класса в мини-приложении (design/classes.html): ученики по алфавиту, ссылка и код для приглашения."""
+    """Экран класса в мини-приложении (design/screens/start-class.png): ученики по алфавиту, ссылка и код для приглашения."""
     c = _taught_class(class_id, user)
     return {
         "id": c.id, "name": c.name, "subject": c.subject,
