@@ -89,10 +89,22 @@ def is_running(lesson_id: str) -> bool:
 
 
 def when_finished(lesson_id: str, callback: Callable[[str], None]) -> None:
-    """Вызвать callback(lesson_id), когда конвейер урока закончится: «Завершить урок» или пустая комната."""
+    """Вызвать callback(lesson_id), когда конвейер урока закончится: «Завершить урок» или пустая комната.
+
+    Упавший конвейер урок не заканчивает: учитель войдёт снова, и урок начнётся заново,
+    а не ответит «Урок уже завершён» (409) в звонке, где ничего не распознаётся.
+    """
     lesson = _lessons.get(lesson_id)
-    if lesson is not None and lesson.task is not None:
-        lesson.task.add_done_callback(lambda _: callback(lesson_id))
+    if lesson is None or lesson.task is None:
+        return
+
+    def done(task: asyncio.Task) -> None:
+        if task.cancelled() or task.exception() is not None:
+            log.warning("конвейер урока %s остановился с ошибкой: урок не завершаем", lesson_id)
+            return
+        callback(lesson_id)
+
+    lesson.task.add_done_callback(done)
 
 
 def roster_of(lesson_id: str) -> Roster | None:
@@ -195,13 +207,14 @@ async def run_call(lesson_id: str, lesson: _Lesson) -> None:
     await finish_lesson(lesson_id, lesson.roster, utterances, board)
 
 
-async def finish_lesson(lesson_id: str, roster: Roster, utterances: list[dict], board) -> None:
+async def finish_lesson(lesson_id: str, roster: Roster, utterances: list[dict], board) -> asyncio.Task | None:
     """Урок закончен, ассистент вышел, все реплики распознаны.
 
     Единственная точка конца урока: итоги урока пишутся в базу (db.results),
     отсюда же строится сводка, а бот рассылает её учителю и карточки ученикам (#21).
     utterances — реплики урока по времени: {"student_id", "t", "end", "text"}
     и "kind" у учеников (см. transcribe_stream); board — шкала урока (scoring.Scoreboard).
+    Возвращает задачу сводки и рассылки — она идёт уже после конца урока; None — итоги не сохранены.
     """
     from app.bot import max_bot
     from app.db import results
@@ -229,7 +242,7 @@ async def finish_lesson(lesson_id: str, roster: Roster, utterances: list[dict], 
         "итоги в базе" if saved else "урока нет в базе, итоги не сохранены",
     )
     if not saved:
-        return
+        return None
 
     def report() -> None:
         # запросы к базе, GigaChat и боту блокирующие: целиком в отдельном потоке
@@ -250,10 +263,22 @@ async def finish_lesson(lesson_id: str, roster: Roster, utterances: list[dict], 
         log.info("сводка урока %s готова, карточек: %d", lesson_id, len(cards))
         max_bot.lesson_finished(roster, teacher_summary, cards, max(1, round(ended / 60)))
 
-    try:
-        await loop.run_in_executor(None, report)
-    except Exception:
-        log.exception("сводка урока %s не собрана", lesson_id)
+    # Сводка — до четырёх запросов к GigaChat по минуте каждый. Урок к этому времени уже
+    # закончен: задача урока (её ждут /end, «Выйти» и mark_ended) сводку не ждёт
+    async def send_report() -> None:
+        try:
+            await loop.run_in_executor(None, report)
+        except Exception:
+            log.exception("сводка урока %s не собрана", lesson_id)
+
+    task = asyncio.create_task(send_report())
+    _reports.add(task)
+    task.add_done_callback(_reports.discard)
+    return task
+
+
+# сводки в работе: без ссылки на задачу её мог бы собрать сборщик мусора
+_reports: set[asyncio.Task] = set()
 
 
 @dataclass

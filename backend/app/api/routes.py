@@ -202,13 +202,19 @@ async def exit_app(user: User = Depends(current_user)):
     """
     if user.max_user_id is None:
         return {"ended": []}
-    ended = classes.open_lessons_of_teacher(user.max_user_id)
-    for lesson_id in ended:
+    loop = asyncio.get_running_loop()
+    ended = await loop.run_in_executor(None, classes.open_lessons_of_teacher, user.max_user_id)
+
+    async def close(lesson_id: str) -> None:
         await runner.stop_virtual(lesson_id)
-        await runner.end(lesson_id)
+        # как «Завершить урок»: ученики выходят из звонка и видят «Урок завершён»
+        await asyncio.gather(runner.end(lesson_id), call.close_room(lesson_id))
         classes.mark_ended(lesson_id)
-    classes.set_role(user.max_user_id, "none")
-    max_bot.role_again(user.max_user_id)
+
+    await asyncio.gather(*(close(lesson_id) for lesson_id in ended))
+    await loop.run_in_executor(None, classes.set_role, user.max_user_id, "none")
+    # запрос к MAX синхронный и бывает долгим: цикл событий (уроки, WebSocket) он не держит
+    await loop.run_in_executor(None, max_bot.role_again, user.max_user_id)
     return {"ended": ended}
 
 
@@ -324,7 +330,10 @@ def delete_class(class_id: int, user: User = Depends(current_user)):
     _taught_class(class_id, user)
     if classes.live_lesson(class_id):
         raise HTTPException(409, "Идёт урок: удалить класс можно после него")
+    students = classes.students_of(class_id)
     classes.delete_class(class_id)
+    # как в боте: ученики узнают, что уроков больше не будет (#98, п. 19)
+    max_bot.tell(students, max_bot.class_deleted_text(classes.get_class(class_id)))
     return {"deleted": class_id}
 
 
@@ -333,6 +342,7 @@ def restore_class(class_id: int, user: User = Depends(current_user)):
     _taught_class(class_id, user, deleted=True)
     if not classes.restore_class(class_id):
         raise HTTPException(410, "Класс удалён больше 30 дней назад")
+    max_bot.tell(classes.students_of(class_id), max_bot.class_restored_text(classes.get_class(class_id)))
     return {"restored": class_id}
 
 
@@ -340,14 +350,18 @@ def restore_class(class_id: int, user: User = Depends(current_user)):
 def remove_student(class_id: int, member_id: int, user: User = Depends(current_user)):
     """«Убрать из класса»: сразу, без вопроса — на экране есть «Вернуть»."""
     _taught_class(class_id, user)
-    classes.remove_member(_class_student(class_id, member_id).id)
+    member = _class_student(class_id, member_id)
+    classes.remove_member(member.id)
+    max_bot.tell([member], max_bot.student_removed_text(classes.get_class(class_id)))
     return {"removed": member_id}
 
 
 @router.post("/classes/{class_id}/students/{member_id}/restore")
 def restore_student(class_id: int, member_id: int, user: User = Depends(current_user)):
     _taught_class(class_id, user)
-    classes.restore_member(_class_student(class_id, member_id).id)
+    member = _class_student(class_id, member_id)
+    classes.restore_member(member.id)
+    max_bot.tell([member], max_bot.student_returned_text(classes.get_class(class_id)))
     return {"restored": member_id}
 
 

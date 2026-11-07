@@ -130,13 +130,17 @@ def _surname(student: Student) -> str | None:
 
 def _stems(word: str) -> list[str]:
     """Основы для падежей: «петрова» → «петров», «мария» → «мари»,
-    «дмитрий» → «дмитри» (Дмитрия), «чайковский» → «чайковск» (Чайковского)."""
-    stems = [word]
+    «дмитрий» → «дмитри» (Дмитрия), «чайковский» → «чайковск» (Чайковского).
+
+    Само слово — основа всегда, даже короткое: иначе Ян, Ия и Ли не узнавались бы
+    по обращению ни в каком падеже. MIN_STEM — только для укороченных основ.
+    """
+    cut = []
     if word[-1] in "аеиоуыэюяйь":
-        stems.append(word[:-1])
+        cut.append(word[:-1])
     if word[-2:] in ("ий", "ый", "ой", "ая", "яя"):
-        stems.append(word[:-2])
-    return [s for s in stems if len(s) >= MIN_STEM]
+        cut.append(word[:-2])
+    return [word, *(s for s in cut if len(s) >= MIN_STEM)]
 
 
 def _fits(word: str, base: str) -> bool:
@@ -208,6 +212,22 @@ def _teacher_turn(context: list[dict], teacher_id: str, before: float, names_stu
     return turn
 
 
+def _initiatives(context: list[dict], student_id: str) -> int:
+    """Сколько инициатив у ученика за урок. Считаем реплики, а не фразы: хвост вопроса после
+    паузы (правило 4) тоже помечен initiative, но это тот же вопрос — иначе один вопрос
+    с паузой съедал бы весь лимит MAX_INITIATIVES."""
+    count = 0
+    prev = None
+    for item in context:
+        own = item["student_id"] == student_id
+        continues = (own and prev is not None and prev["student_id"] == student_id
+                     and item["t"] - _end(prev) <= CONTINUE_S)
+        if own and item.get("kind") == "initiative" and not continues:
+            count += 1
+        prev = item
+    return count
+
+
 def classify(text: str, student_id: str, t: float, roster: Roster, context: list[dict]) -> UtteranceKind:
     teacher_id = roster.teacher.id
     student = next((s for s in roster.students if s.id == student_id), None)
@@ -231,7 +251,7 @@ def classify(text: str, student_id: str, t: float, roster: Roster, context: list
     # 2. Инициатива: свой вопрос от трёх слов или «Можно я…», обращение к учителю; не больше двух за урок
     stripped = text.strip()
     words = _words(stripped)
-    asked = sum(1 for item in earlier if item["student_id"] == student_id and item.get("kind") == "initiative")
+    asked = _initiatives(earlier, student_id)
     own_question = _is_question(stripped) and (len(words) >= INITIATIVE_MIN_WORDS or words[:2] == ["можно", "я"])
     if asked < MAX_INITIATIVES and (own_question or _norm(stripped).startswith(_norm(roster.teacher.name))):
         return "initiative"
