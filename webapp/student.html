@@ -19,6 +19,7 @@
     <symbol id="leave" viewBox="0 0 24 24"><path d="M3 14c5-5 13-5 18 0l-2.5 3-3.5-1.5v-3c-2-.7-4-.7-6 0v3L5.5 17z"/></symbol>
     <symbol id="pulse" viewBox="0 0 24 24"><path d="M3 12h4l3-8 4 16 3-8h4"/></symbol>
     <symbol id="pulse-off" viewBox="0 0 24 24"><path d="M3 12h4l3-8 4 16 3-8h4M4 4l16 16"/></symbol>
+    <symbol id="ai-star" viewBox="0 0 24 24"><path d="M12 2.5c.7 5 3.5 7.8 8.5 8.5v1c-5 .7-7.8 3.5-8.5 8.5h-1c-.7-5-3.5-7.8-8.5-8.5v-1c5-.7 7.8-3.5 8.5-8.5z"/></symbol>
     <symbol id="check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
   </svg>
 
@@ -42,27 +43,22 @@
 
     <!-- В уроке -->
     <section class="st-screen" id="call" hidden aria-label="Звонок, экран ученика">
-      <div class="st-top">
-        <span class="st-ana" id="ana"><svg class="i"><use href="#pulse"/></svg><span id="anaText">Аналитика активна</span></span>
-        <span class="st-timer" id="timer">0:00</span>
-      </div>
       <div class="banner" id="banner" hidden><span class="spin"></span>Связь пропала. Переподключаемся…</div>
-      <div class="st-stage" id="stage"></div>
-      <div class="st-strip" id="strip" aria-label="Одноклассники в звонке"></div>
-      <div class="st-scale" id="scale">
-        <div class="scale-head">
-          <h2>Твоё участие</h2>
-          <span class="of" id="of">ступень <b id="cur">1</b> из 4</span>
-          <button type="button" class="toggle" id="toggle" aria-expanded="true" aria-controls="fold">
-            <span id="toggleText">Скрыть</span><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 15l7-7 7 7"/></svg>
-          </button>
+      <div class="st-layout">
+        <div class="st-main">
+          <div class="st-stage" id="stage"></div>
+          <span class="st-timer" id="timer">0:00</span>
         </div>
-        <div class="fold" id="fold"><div>
-          <ol class="steps" id="steps"></ol>
-          <p class="scale-note">Видна только тебе. Шкала не опускается</p>
-        </div></div>
-        <p class="off-text" id="offText" hidden>Аналитика выключена. Шкала не ведётся.</p>
-        <p class="sr" aria-live="polite" role="status" id="status"></p>
+        <div class="st-side">
+          <div class="st-strip" id="strip" aria-label="Одноклассники в звонке"></div>
+          <!-- Своя шкала: js переносит её вниз своей плитки в ряду. Звезда «AI» и четыре сегмента,
+               название ступени — в подсказке и для экранного чтения -->
+          <div class="meter-pill" id="scale" role="img">
+            <svg class="ai" aria-hidden="true"><use href="#ai-star"/></svg>
+            <ol class="meter" id="steps" aria-hidden="true"></ol>
+          </div>
+          <span class="sr" aria-live="polite" role="status" id="status"></span>
+        </div>
       </div>
       <div class="toast" id="toast" hidden></div>
       <footer class="st-controls">

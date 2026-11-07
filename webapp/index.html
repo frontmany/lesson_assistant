@@ -2,130 +2,202 @@
 <html lang="ru">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Урок в MAX</title>
   <!-- Стартовая страница мини-приложения (#24). Открыли кнопкой бота — сразу ведёт в урок:
        c<id> — учитель начинает урок класса, l<id> — урок, учителю панель, ученику его экран.
-       Открыли кнопкой приложения — классы человека, демо и чат с ботом. Логика — js/start.js -->
+       Открыли кнопкой приложения — «Мои классы» по design/classes.html: классы, экран класса
+       с учениками, «Пригласить», «Создать класс», демо. Логика — js/start.js и js/class.js -->
   <link rel="stylesheet" href="css/tokens.css">
   <style>
     * { box-sizing: border-box; }
     [hidden] { display: none !important; }
-    body { margin: 0; font-family: var(--font); background: var(--bg); color: var(--ink); }
-    main { max-width: 420px; min-height: 100vh; min-height: 100dvh; margin: 0 auto; padding: 32px 20px; display: flex; flex-direction: column; }
-    /* логотип Сферума на белой плашке, чтобы читался и на тёмном фоне: как в design/start.html */
-    .brand { display: flex; align-items: center; gap: 10px; margin-bottom: 28px; }
-    .brand img { width: 32px; height: 32px; padding: 3px; border-radius: 9px; background: #fff; object-fit: contain; flex: none; }
-    .brand span { font-weight: 700; font-size: 18px; letter-spacing: 0.01em; }
-    h1 { margin: 0 0 8px; font-size: 28px; line-height: 1.2; }
-    .text { margin: 0 0 24px; color: var(--ink-soft); font-size: 15px; line-height: 1.5; }
-    .classes { display: grid; gap: 10px; margin: 16px 0 24px; }
-    .card { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-radius: var(--radius); background: var(--surface); border: 1px solid var(--line); }
-    .card > div { flex: 1; min-width: 0; }
-    .card-name { font-weight: 600; font-size: 16px; }
-    .card-meta { font-size: 13px; color: var(--ink-soft); margin-top: 2px; }
-    /* урок идёт: точка перед подписью, как в design/start.html */
-    .card-meta.live::before { content: ""; display: inline-block; width: 8px; height: 8px; margin-right: 6px; border-radius: 50%; background: var(--accent); }
-    .card { flex-wrap: wrap; }
-    .card button.off { background: var(--surface-muted); color: var(--ink-soft); cursor: default; }
-    .card-hint { flex-basis: 100%; margin: 4px 0 0; font-size: 13px; color: var(--ink-soft); }
-    .spacer { flex: 1; }
-    button { font: inherit; font-weight: 600; border: 0; cursor: pointer; border-radius: 999px; padding: 12px 20px; }
-    .card button { padding: 8px 14px; font-size: 14px; background: var(--accent); color: var(--surface); flex: none; }
-    .actions { display: grid; gap: 10px; }
-    .primary { background: var(--ink); color: var(--surface); }
-    .secondary { background: transparent; color: var(--ink); border: 1px solid var(--line-strong); }
-    .dev { display: grid; gap: 8px; margin-top: 16px; font-size: 14px; }
-    .dev a { color: var(--ink-soft); }
+    body { margin: 0; font-family: var(--font); background: var(--bg); color: var(--ink); line-height: 1.4; }
+    button, input { font: inherit; color: inherit; }
+    button { cursor: pointer; border: 0; background: none; padding: 0; }
+    main { max-width: 480px; height: 100vh; height: 100dvh; margin: 0 auto; display: flex; flex-direction: column; }
+    .i { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex: none; }
 
-    /* Экран класса и «Пригласить» — по design/classes.html */
+    /* Экран: шапка, прокручиваемая середина, кнопки внизу — как .screen в design/classes.html */
     .view { flex: 1; min-height: 0; display: flex; flex-direction: column; position: relative; }
-    .card.openable { cursor: pointer; }
-    .top { display: flex; align-items: center; gap: 8px; margin: -8px 0 16px -10px; }
-    .top h2 { margin: 0; font-size: 22px; line-height: 1.2; }
-    .top small { display: block; font-size: 13px; color: var(--ink-soft); }
-    .ib { width: 44px; height: 44px; flex: none; border-radius: 50%; display: grid; place-items: center; padding: 0; background: transparent; color: var(--ink); }
-    .ib:hover { background: var(--surface-muted); }
-    .i { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-    .list { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; overflow-y: auto; }
+    .top { display: flex; align-items: center; gap: 4px; min-height: 56px; padding: 6px 8px; }
+    .top h1 { margin: 0; font-size: 20px; line-height: 1.2; }
+    .top small { display: block; font-size: 13px; font-weight: 400; color: var(--ink-soft); }
+    .top .title { flex: 1; min-width: 0; padding-left: 8px; }
+    /* корзина над троеточиями учеников: отступ списка 16 + рамка 1 + отступ строки 8 */
+    #classDelete { margin-right: 17px; color: var(--ink-soft); }
+    #classEdit { color: var(--ink-soft); }
+    /* «Выйти» справа в шапке: кто зашёл не той ролью, возвращается в чат с ботом */
+    .exit { min-height: 44px; padding: 0 12px; margin-right: 8px; border-radius: 22px; font-size: 15px; font-weight: 600; color: var(--ink-soft); }
+    .ib { width: 44px; height: 44px; display: grid; place-items: center; border-radius: 50%; flex: none; } /* круглая подложка при наведении */
+    .ib:focus-visible, .btn:focus-visible, .row:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+    .scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 4px 16px 16px; }
+    .text { margin: 4px 4px 12px; color: var(--ink-soft); font-size: 15px; }
+
+    .list { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
     .list > li { min-width: 0; position: relative; }
-    .row { display: flex; align-items: center; gap: 12px; min-height: 64px; padding: 8px 8px 8px 14px; border-radius: var(--radius); background: var(--surface); border: 1px solid var(--line); }
-    .row .name { flex: 1; min-width: 0; font-weight: 600; font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .row { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 64px; padding: 8px 8px 8px 14px; border-radius: var(--radius); background: var(--surface); border: 1px solid var(--line); text-align: left; }
+    .row .main { flex: 1; min-width: 0; }
+    .row .name { display: block; font-weight: 600; font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .row .sub { display: block; font-size: 13px; color: var(--ink-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .row .sub.live { color: var(--accent); font-weight: 600; }
+    .row .go { color: var(--ink-soft); margin-right: 6px; }
     .ava { width: 40px; height: 40px; flex: none; border-radius: 50%; display: grid; place-items: center; background: var(--accent-tint); color: var(--accent); font-weight: 700; font-size: 14px; }
-    .menu { position: absolute; right: 8px; top: 56px; z-index: 2; min-width: 190px; padding: 6px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line-strong); box-shadow: var(--shadow-float); }
-    .menu button { width: 100%; min-height: 44px; padding: 0 12px; border-radius: 8px; text-align: left; font-size: 15px; background: transparent; color: var(--danger); }
-    .empty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 6px; padding: 24px; }
-    .empty h3 { margin: 0; font-size: 18px; }
+
+    /* кнопки чуть выше края: над полоской жестов телефона */
+    .bottom { display: flex; gap: 8px; padding: 12px 16px calc(28px + env(safe-area-inset-bottom)); background: var(--bg); }
+    .bottom.col { flex-direction: column; }
+    .btn { flex: 1; min-height: 48px; padding: 0 16px; border-radius: 12px; font-weight: 600; font-size: 16px; text-align: center; display: inline-flex; align-items: center; justify-content: center; }
+    .btn.primary { background: var(--accent); color: #fff; } /* белый текст в обеих темах, как на телефоне */
+    .btn.ghost { background: var(--surface); border: 1px solid var(--line-strong); }
+
+    /* Пустое состояние */
+    .empty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 6px; padding: 24px 32px; }
+    .empty h2 { margin: 0; font-size: 18px; }
     .empty p { margin: 0; color: var(--ink-soft); font-size: 15px; max-width: 28ch; }
-    .bottom { display: flex; gap: 8px; padding-top: 12px; }
-    .bottom button { flex: 1; }
-    .toast { position: absolute; left: 0; right: 0; bottom: 64px; z-index: 2; display: flex; align-items: center; gap: 8px; padding: 4px 4px 4px 16px; border-radius: 12px; background: var(--slide); color: var(--on-slide); box-shadow: var(--shadow-float); font-size: 15px; }
+    .empty .glyph { width: 56px; height: 56px; border-radius: 50%; display: grid; place-items: center; background: var(--accent-tint); color: var(--accent); margin-bottom: 10px; }
+    .empty .glyph .i { width: 28px; height: 28px; }
+
+    /* Меню за троеточием */
+    .menu { position: absolute; right: 8px; top: 52px; z-index: 2; min-width: 180px; padding: 4px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line-strong); box-shadow: var(--shadow-float); }
+    .menu button { width: 100%; min-height: 40px; padding: 0 12px; border-radius: 8px; font-weight: 600; text-align: left; font-size: 15px; color: var(--danger); }
+
+    /* Сообщение внизу */
+    .toast { position: absolute; left: 12px; right: 12px; bottom: 84px; z-index: 2; display: flex; align-items: center; gap: 8px; padding: 4px 4px 4px 16px; border-radius: 12px; background: var(--slide); color: var(--on-slide); box-shadow: var(--shadow-float); font-size: 15px; }
     .toast span { flex: 1; min-width: 0; }
-    .toast button { min-height: 44px; padding: 0 14px; background: transparent; color: var(--accent-on-scrim); }
+    .toast button { min-height: 44px; padding: 0 14px; font-weight: 700; color: var(--accent-on-scrim); }
+
+    /* Ссылка и код */
     .link-card { margin: 4px 0 0; padding: 14px; border-radius: var(--radius); background: var(--surface); border: 1px solid var(--line); }
+    .link-card .cap { display: block; margin-bottom: 8px; font-size: 13px; color: var(--ink-soft); }
     .link-card code { display: block; font-family: var(--font); font-size: 15px; font-weight: 600; color: var(--accent); word-break: break-all; }
     .code-card { margin-top: 8px; }
-    .code-card .cap { display: block; font-size: 13px; color: var(--ink-soft); }
     .code-card code.big { font-family: ui-monospace, Consolas, monospace; font-size: 28px; font-weight: 700; letter-spacing: 0.12em; color: var(--ink); }
-    .help { margin: 12px 4px 0; color: var(--ink-soft); font-size: 15px; }
     .stack { display: grid; gap: 8px; margin-top: 16px; }
-    [hidden] { display: none !important; }
+
+    /* Новый класс */
+    .field { display: block; margin: 4px 0 14px; }
+    .field span { display: block; margin: 0 0 6px 4px; font-size: 13px; color: var(--ink-soft); }
+    .field input { width: 100%; min-height: 48px; padding: 0 14px; border-radius: 12px; border: 1px solid var(--line-strong); background: var(--surface); font-size: 16px; }
+    .field input:focus { outline: 3px solid var(--accent); outline-offset: 1px; }
+    .error { margin: 0 4px; color: var(--danger); font-size: 14px; }
+
+    /* Экран после «Выйти»: большой шар Сферума на белой плашке и пояснение */
+    .bye { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 24px 32px; text-align: center; }
+    .bye-logo { width: 96px; height: 96px; padding: 10px; margin-bottom: 16px; border-radius: 28px; background: #fff; object-fit: contain; }
+    .bye h1 { margin: 0; font-size: 22px; }
+    .bye .roles { display: grid; gap: 8px; width: 100%; max-width: 320px; margin-top: 24px; }
+    .dev { display: grid; gap: 8px; margin: 16px 4px 0; font-size: 14px; }
+    .dev a { color: var(--ink-soft); }
   </style>
 </head>
 <body>
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <symbol id="i-back" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></symbol>
+    <symbol id="i-next" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></symbol>
+    <symbol id="i-dots" viewBox="0 0 24 24"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/></symbol>
+    <symbol id="i-edit" viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16v4zM13.5 6.5l4 4"/></symbol>
+    <symbol id="i-people" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.6-3.6 3.2-5.5 6.5-5.5s5.9 1.9 6.5 5.5M16 4.8a3.5 3.5 0 0 1 0 6.4M18 14.8c1.9.6 3.2 2.3 3.5 5.2"/></symbol>
+  </svg>
   <main>
-    <!-- шар Сферума из design/bot/sferum-logo.png, 128 px для чётких экранов. Не официальный файл:
-         будет SVG из брендбука — заменить img/sferum.png -->
+    <!-- Мои классы -->
     <div class="view" id="home">
-    <div class="brand"><img src="img/sferum.png" alt="" width="32" height="32"><span>Сферум</span></div>
-    <h1 id="title">Урок в MAX</h1>
-    <p class="text" id="text" hidden></p>
-    <section class="classes" id="classes" hidden></section>
-    <div class="spacer"></div>
-    <div class="actions" id="actions" hidden>
-      <button class="primary" id="demo">Посмотреть демо</button>
-    </div>
-    <!-- Для разработки (DEV_AUTH=1): урок демо-класса без MAX -->
-    <nav class="dev" id="dev" hidden>
-      <a href="teacher.html">Учитель демо-класса</a>
-      <a href="student.html?id=artem_k">Ученик: Артём К.</a>
-      <a href="student.html?id=alisa_n">Ученик: Алиса Н.</a>
-    </nav>
+      <div class="top"><div class="title"><h1 id="title">Мои классы</h1></div><button class="exit" id="exit" hidden>Выйти</button></div>
+      <div class="scroll" id="homeScroll">
+        <p class="text" id="text" hidden></p>
+        <ul class="list" id="classes" hidden></ul>
+        <!-- Для разработки (DEV_AUTH=1): урок демо-класса без MAX -->
+        <nav class="dev" id="dev" hidden>
+          <a href="teacher.html">Учитель демо-класса</a>
+          <a href="student.html?id=artem_k">Ученик: Артём К.</a>
+          <a href="student.html?id=alisa_n">Ученик: Алиса Н.</a>
+        </nav>
+      </div>
+      <div class="empty" id="homeEmpty" hidden>
+        <div class="glyph"><svg class="i"><use href="#i-people"/></svg></div>
+        <h2>Классов пока нет</h2>
+      </div>
+      <div class="toast" id="homeToast" role="status" hidden><span id="homeToastText"></span><button id="homeToastBtn">Вернуть</button></div>
+      <div class="bottom col" id="actions" hidden>
+        <button class="btn ghost" id="demo">Посмотреть демо</button>
+        <button class="btn primary" id="create">Создать класс</button>
+      </div>
     </div>
 
     <!-- Класс: ученики, «Пригласить», «Начать урок» (js/class.js) -->
     <div class="view" id="classView" hidden>
       <div class="top">
-        <button class="ib" id="classBack" aria-label="К классам"><svg class="i" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
-        <div><h2 id="className"></h2><small id="classCount"></small></div>
+        <button class="ib" id="classBack" aria-label="К классам"><svg class="i"><use href="#i-back"/></svg></button>
+        <div class="title"><h1 id="className"></h1><small id="classCount"></small></div>
+        <button class="ib" id="classEdit" aria-label="Изменить класс"><svg class="i"><use href="#i-edit"/></svg></button>
+        <button class="ib" id="classDelete" aria-label="Удалить класс"><svg class="i"><use href="#i-trash"/></svg></button>
       </div>
-      <ul class="list" id="students"></ul>
+      <div class="scroll" id="studentsScroll"><ul class="list" id="students"></ul></div>
       <div class="empty" id="classEmpty" hidden>
-        <h3>В классе пока никого</h3>
-        <p>Отправьте ссылку, и ученики появятся здесь</p>
+        <div class="glyph"><svg class="i"><use href="#i-people"/></svg></div>
+        <h2>В классе пока никого</h2>
       </div>
-      <div class="spacer"></div>
       <div class="toast" id="undo" role="status" hidden><span id="undoText"></span><button id="undoBtn">Вернуть</button></div>
       <div class="bottom">
-        <button class="secondary" id="inviteBtn">Пригласить</button>
-        <button class="primary" id="classStart">Начать урок</button>
+        <button class="btn ghost" id="inviteBtn">Пригласить</button>
+        <button class="btn primary" id="classStart">Начать урок</button>
       </div>
     </div>
 
     <div class="view" id="inviteView" hidden>
       <div class="top">
-        <button class="ib" id="inviteBack" aria-label="К ученикам"><svg class="i" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
-        <h2 id="inviteTitle"></h2>
+        <button class="ib" id="inviteBack" aria-label="К ученикам"><svg class="i"><use href="#i-back"/></svg></button>
+        <div class="title"><h1 id="inviteTitle"></h1></div>
       </div>
-      <div class="link-card" id="linkCard"><code id="inviteLink"></code></div>
-      <div class="link-card code-card"><span class="cap">Код класса</span><code class="big" id="inviteCode"></code></div>
-      <p class="help">Отправьте ссылку ученикам или продиктуйте код на уроке</p>
-      <div class="stack">
-        <button class="primary" id="copyLink">Копировать ссылку</button>
-        <button class="secondary" id="copyCode">Копировать код</button>
-        <button class="secondary" id="share" hidden>Поделиться</button>
+      <div class="scroll">
+        <div class="link-card" id="linkCard"><span class="cap">Ссылка</span><code id="inviteLink"></code></div>
+        <div class="link-card code-card"><span class="cap">Код класса</span><code class="big" id="inviteCode"></code></div>
+        <div class="stack">
+          <button class="btn primary" id="copyLink">Копировать ссылку</button>
+          <button class="btn ghost" id="copyCode">Копировать код</button>
+        </div>
       </div>
     </div>
+
+    <!-- Выбор роли: новый человек и тот, кто нажал «Выйти» (как приветствие бота) -->
+    <div class="view" id="welcomeView" hidden>
+      <div class="bye">
+        <img class="bye-logo" src="img/sferum.png" alt="" width="96" height="96">
+        <h1>Урок в MAX</h1>
+        <div class="roles">
+          <button class="btn primary" id="asTeacher">Я учитель</button>
+          <button class="btn ghost" id="asStudent">Я ученик</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Ученик входит в класс по коду -->
+    <form class="view" id="codeView" hidden>
+      <div class="top">
+        <button class="ib" type="button" id="codeBack" aria-label="К классам"><svg class="i"><use href="#i-back"/></svg></button>
+        <div class="title"><h1>Войти в класс</h1></div>
+      </div>
+      <div class="scroll">
+        <label class="field"><span>Код класса</span><input id="classCode" maxlength="40" placeholder="K7X2M9" autocomplete="off" autocapitalize="characters" required></label>
+        <p class="error" id="codeError" hidden></p>
+      </div>
+      <div class="bottom"><button class="btn primary" type="submit">Войти</button></div>
+    </form>
+
+    <!-- Новый класс -->
+    <form class="view" id="createView" hidden>
+      <div class="top">
+        <button class="ib" type="button" id="createBack" aria-label="К классам"><svg class="i"><use href="#i-back"/></svg></button>
+        <div class="title"><h1 id="formTitle">Новый класс</h1></div>
+      </div>
+      <div class="scroll">
+        <label class="field"><span>Класс</span><input id="newName" maxlength="40" placeholder="10А" autocomplete="off" required></label>
+        <label class="field"><span>Предмет</span><input id="newSubject" maxlength="60" placeholder="история" autocomplete="off" required></label>
+        <p class="error" id="createError" hidden></p>
+      </div>
+      <div class="bottom"><button class="btn primary" type="submit" id="formSubmit">Создать</button></div>
+    </form>
   </main>
   <script src="https://st.max.ru/js/max-web-app.js"></script>
   <script type="module" src="js/start.js"></script>
