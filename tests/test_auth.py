@@ -274,6 +274,43 @@ def test_exit_ends_teachers_unfinished_lessons():
     assert db.lesson_for_class(other.id).id == foreign  # урок чужого класса, где Мария ученица, идёт
 
 
+def test_role_is_shared_by_bot_and_app(monkeypatch):
+    from app.bot import max_bot
+
+    class Api:
+        def send(self, *a, **kw):
+            pass
+
+        def answer(self, *a, **kw):
+            pass
+
+    me = sign_in(MARIA)
+    assert client.get("/api/me/role", headers=me).json()["role"] == "none"
+    # «Я учитель» в чате — приложение уже знает
+    max_bot.Bot(Api(), "ideya_bot").press({"user_id": MARIA}, "cb", "teacher")
+    assert client.get("/api/me/role", headers=me).json()["role"] == "teacher"
+    # «Назад» в чате снова спрашивает «Кто вы?» — роли нет и в приложении
+    bot = max_bot.Bot(Api(), "ideya_bot")
+    bot.press({"user_id": MARIA}, "cb", "student")
+    bot.press({"user_id": MARIA}, "cb", "back")
+    assert client.get("/api/me/role", headers=me).json()["role"] == "none"
+    # «Выйти» в приложении — роли нет, даже если классы есть
+    db.create_class(MARIA, "Мария Смирнова", "10А", "история")
+    client.post("/api/me/exit", headers=me)
+    assert client.get("/api/me/role", headers=me).json()["role"] == "none"
+    # создал класс в чате после выхода — снова учитель
+    db.create_class(MARIA, "Мария Смирнова", "11А", "история")
+    assert client.get("/api/me/role", headers=me).json()["role"] == "teacher"
+    assert client.put("/api/me/role", json={"role": "student"}, headers=me).json()["role"] == "student"
+    assert client.put("/api/me/role", json={"role": "admin"}, headers=me).status_code == 422
+
+
+def test_role_without_choice_comes_from_classes():
+    c = db.create_class(77, "Ольга", "9Б", "физика")
+    db.join(c.id, 31, "Софья Ланская")
+    assert client.get("/api/me/role", headers=sign_in(31)).json()["role"] == "student"
+
+
 def test_student_joins_class_by_code_from_the_app(monkeypatch):
     from app.bot import max_bot
     from app.db import classes as db

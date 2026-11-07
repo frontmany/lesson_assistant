@@ -162,9 +162,9 @@ class Bot:
         user_id = user["user_id"]
         action, _, arg = payload.partition(":")
         handler = {
-            "teacher": lambda: self.ask_class_name(user_id, first=not db.classes_of(user_id)),
+            "teacher": lambda: self.as_teacher(user_id),
             "newclass": lambda: self.ask_class_name(user_id, first=False),
-            "student": lambda: self.ask_code(user_id),
+            "student": lambda: self.as_student(user_id),
             "demo": lambda: self.demo(user),  # кнопка из старых сообщений: теперь «Посмотреть демо» открывает приложение
             "back": lambda: self.back(user_id),
             "me": lambda: self.join(user_id, int(arg), full_name(user)),
@@ -206,12 +206,26 @@ class Bot:
             self.choose(user_id, [(c.name, f"class:{c.id}") for c in learning])
 
     def choose_role(self, user_id: int) -> None:
-        """Шаг 1: кто вы. И «Выйти» в мини-приложении — выбрать роль заново."""
+        """Шаг 1: кто вы. И «Выйти» в мини-приложении — выбрать роль заново.
+
+        Бот спрашивает «Кто вы?» — значит, роли нет: «Назад» после «Я ученик»
+        не должен оставить приложение в роли ученика.
+        """
+        db.set_role(user_id, "none")
         self.api.send(user_id, "Здравствуйте! Я помогаю вести уроки в MAX. Кто вы?", [
             [callback("Я учитель", "teacher"), callback("Я ученик", "student")],
             # сразу открывает демо в мини-приложении, без второго сообщения «Открыть демо»
             [self.open_app("Посмотреть демо", "demo")],
         ])
+
+    def as_teacher(self, user_id: int) -> None:
+        """«Я учитель»: роль видна и в мини-приложении, дальше — название класса."""
+        db.set_role(user_id, "teacher")
+        self.ask_class_name(user_id, first=not db.classes_of(user_id))
+
+    def as_student(self, user_id: int) -> None:
+        db.set_role(user_id, "student")
+        self.ask_code(user_id)
 
     def teacher_menu(self, user_id: int, teaching: list) -> None:
         """Шаг 12: классы учителя и что с ними делать."""

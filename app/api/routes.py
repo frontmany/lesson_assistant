@@ -199,8 +199,30 @@ async def exit_app(user: User = Depends(current_user)):
         await runner.stop_virtual(lesson_id)
         await runner.end(lesson_id)
         classes.mark_ended(lesson_id)
+    classes.set_role(user.max_user_id, "none")
     max_bot.role_again(user.max_user_id)
     return {"ended": ended}
+
+
+class RoleChoice(BaseModel):
+    role: str
+
+
+@router.get("/me/role")
+def my_role(user: User = Depends(current_user)):
+    """Роль для стартовой страницы: та же, что выбрана в чате с ботом."""
+    return {"role": classes.role_of(user.max_user_id) if user.max_user_id is not None else "none"}
+
+
+@router.put("/me/role")
+def choose_role(body: RoleChoice, user: User = Depends(current_user)):
+    """«Я учитель» / «Я ученик» на приветствии мини-приложения."""
+    if body.role not in ("teacher", "student"):
+        raise HTTPException(422, "Роль — учитель или ученик")
+    if user.max_user_id is None:
+        raise HTTPException(403, "Роль выбирают в MAX")
+    classes.set_role(user.max_user_id, body.role)
+    return {"role": body.role}
 
 
 @router.get("/me/classes")
