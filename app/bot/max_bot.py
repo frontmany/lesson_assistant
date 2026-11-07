@@ -46,7 +46,7 @@ log = logging.getLogger(__name__)
 MINCIFRY_ROOT_CA = ROOT / "certs" / "russian_trusted_root_ca.pem"
 
 UPDATE_TYPES = "message_created,message_callback,bot_started"
-# Обложка для первого сообщения /start (design/bot/cover.png)
+# Обложка для первого сообщения /start: 4:3, у 16:9 MAX срезает края (design/bot/start-card.png)
 COVER = Path(__file__).parent / "assets" / "cover.png"
 # Что показывает бот — первым сообщением на /start, до «Кто вы?»
 INTRO = (
