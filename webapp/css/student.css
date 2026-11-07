@@ -1,7 +1,7 @@
 /* Экран ученика в звонке (#22). Своих цветов нет, всё из tokens.css. Экран до входа — call.css.
    Раскладка: на телефоне учитель, лента одноклассников, своя шкала и кнопки столбиком;
    с 900 px — учитель слева на всю высоту, справа колонка с одноклассниками.
-   Верхней полосы нет: таймер и своя шкала — плашками в углах плитки учителя. */
+   Верхней полосы нет: таймер — в углу плитки учителя, своя шкала — внизу своей плитки. */
 
 .st-screen { position: relative; display: flex; flex-direction: column; width: 100%; height: 100vh; height: 100dvh; overflow: hidden; background: var(--bg); }
 .st-layout { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 10px; padding: 12px 12px 0; }
@@ -68,17 +68,20 @@
 .mini .micoff { top: 4px; right: 4px; width: 20px; height: 20px; }
 .mini .micoff .i { width: 12px; height: 12px; }
 
-/* Своя шкала — плашкой в левом нижнем углу плитки учителя, как таймер сверху: четыре коротких
-   сегмента и название ступени. Учитель выключил аналитику — сегменты серые, «Аналитика выключена» */
+/* Своя шкала — внизу своей плитки в ряду: зелёная звезда «AI» и четыре сегмента.
+   Учитель выключил аналитику — звезда и сегменты серые */
+.st-side > .meter-pill { display: none; } /* до входа в звонок плашка ждёт своей плитки */
 .meter-pill {
-  position: absolute; left: 10px; bottom: 10px; z-index: 2; display: flex; align-items: center; gap: 8px;
-  padding: 6px 11px 6px 9px; border-radius: 999px; background: var(--scrim); color: var(--on-scrim);
-  font-size: 13px; font-weight: 600; transition: opacity .3s;
+  position: absolute; left: 4px; right: 4px; bottom: 4px; z-index: 2; display: flex; align-items: center; gap: 5px;
+  padding: 4px 6px; border-radius: 8px; background: var(--scrim); transition: opacity .3s;
 }
-.meter { display: flex; gap: 3px; margin: 0; padding: 0; list-style: none; }
-.meter li { width: 14px; height: 6px; border-radius: 3px; background: color-mix(in srgb, var(--on-scrim) 25%, transparent); transition: background .45s; }
+.mini.me .avatar { margin-bottom: 16px; } /* аватар над плашкой шкалы, а не под ней */
+.meter-pill .ai { width: 13px; height: 13px; flex: none; fill: var(--accent-on-scrim); stroke: none; }
+.meter { flex: 1; display: flex; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.meter li { flex: 1; height: 4px; border-radius: 2px; background: color-mix(in srgb, var(--on-scrim) 25%, transparent); transition: background .45s; }
 .meter li.on { background: var(--accent-on-scrim); }
-.meter-pill.off { opacity: .7; }
+.meter-pill.off { opacity: .75; }
+.meter-pill.off .ai { fill: color-mix(in srgb, var(--on-scrim) 45%, transparent); }
 .meter-pill.off .meter li { background: color-mix(in srgb, var(--on-scrim) 18%, transparent); }
 
 /* Кнопки звонка */
@@ -99,7 +102,8 @@
   .mini { width: auto; height: auto; }
   .mini .avatar { width: 44px; height: 44px; font-size: 16px; }
   .st-timer { top: 14px; left: 14px; }
-  .meter-pill { left: 14px; bottom: 14px; }
+  .meter-pill { left: 6px; right: 6px; bottom: 6px; padding: 5px 8px; }
+  .meter-pill .ai { width: 15px; height: 15px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

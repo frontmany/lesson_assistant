@@ -37,6 +37,8 @@ let reconnecting = false;
 const videos = new Map();
 
 $("previewAvatar").textContent = initials(me.name);
+// Плашка шкалы одна на весь урок: при перерисовке ряда она переезжает в новую свою плитку
+const meterPill = $("scale");
 buildSteps();
 renderScale();
 
@@ -182,6 +184,7 @@ function renderCall() {
   // себя — первым в общем ряду с одноклассниками, а не поверх учителя
   const mine = div("mini me");
   face(mine, room.localParticipant, me.name);
+  mine.append(meterPill); // своя шкала — внизу своей плитки
   $("strip").replaceChildren(mine, ...classmates.map((p) => {
     const el = div(`mini${p.isSpeaking ? " speaking" : ""}`);
     el.setAttribute("aria-label", `${p.isSpeaking ? "Говорит: " : ""}${nameOf(p)}`);
@@ -242,8 +245,10 @@ function buildSteps() {
 // Учитель выключил аналитику — шкала серая, вместо ступени «Аналитика выключена»
 function renderScale() {
   const off = !analytics;
-  $("scale").classList.toggle("off", off);
-  $("meterNow").textContent = off ? "Аналитика выключена" : LEVEL_LABELS[reached];
+  const label = off ? "Аналитика выключена" : `Твоё участие: ${LEVEL_LABELS[reached]}`;
+  meterPill.classList.toggle("off", off);
+  meterPill.title = label;
+  meterPill.setAttribute("aria-label", label);
   for (const li of $("steps").children) li.classList.toggle("on", !off && +li.dataset.n <= reached);
 }
 
