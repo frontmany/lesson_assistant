@@ -382,7 +382,7 @@ async def transcribe_stream(
                 board.forget(sid)
                 shown.pop(sid, None)
                 continue
-            board.add_student(sid)  # аналитику включили снова: шкала с первой ступени
+            board.add_student(sid)  # аналитику включили снова: шкала та же, что до выключения
             level, flags = board.level(sid), board.flags(sid, now)
             if shown.get(sid) != (level, flags):
                 shown[sid] = (level, flags)

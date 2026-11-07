@@ -130,6 +130,8 @@ class Scoreboard:
         self.norm = norm
         self.lesson_s = lesson_s
         self._students = {sid: _Student() for sid in student_ids}
+        # аналитику выключили: шкала отложена, а не стёрта — включат снова, и она та же (#98, п. 14)
+        self._parked: dict[str, _Student] = {}
 
     def add(self, student_id: str, kind: UtteranceKind, text: str, t: float, end: float) -> int:
         """Учесть реплику и вернуть ступень ученика."""
@@ -143,15 +145,22 @@ class Scoreboard:
         return self.level(student_id)
 
     def forget(self, student_id: str) -> None:
-        """Учитель выключил ученику аналитику: его баллы и ступень не ведутся и не идут в итоги."""
-        self._students.pop(student_id, None)
+        """Учитель выключил ученику аналитику: его баллы и ступень не ведутся и не идут в итоги.
+
+        Шкала откладывается: включат аналитику снова — ступень та же, «шкала не опускается».
+        """
+        s = self._students.pop(student_id, None)
+        if s is not None:
+            self._parked[student_id] = s
 
     def students(self) -> set[str]:
         return set(self._students)
 
     def add_student(self, student_id: str) -> None:
-        """Ученик вошёл в класс во время урока: шкала с первой ступени, как у всех в начале."""
-        self._students.setdefault(student_id, _Student())
+        """Ученик вошёл в класс во время урока — шкала с первой ступени, как у всех в начале.
+        Аналитику включили снова — отложенная шкала возвращается."""
+        if student_id not in self._students:
+            self._students[student_id] = self._parked.pop(student_id, None) or _Student()
 
     def extend(self, student_id: str, text: str, t: float, end: float, kind: UtteranceKind = "other") -> int:
         """Продолжение прошлой реплики: ученик договорил после паузы.
