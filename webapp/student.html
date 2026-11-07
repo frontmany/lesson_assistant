@@ -47,18 +47,15 @@
         <div class="st-main">
           <div class="st-stage" id="stage"></div>
           <span class="st-timer" id="timer">0:00</span>
+          <!-- Своя шкала — плашкой в углу плитки учителя: сегменты и название ступени -->
+          <div class="meter-pill" id="scale" role="group" aria-label="Твоё участие">
+            <ol class="meter" id="steps" aria-hidden="true"></ol>
+            <span class="meter-now" id="meterNow"></span>
+            <span class="sr" aria-live="polite" role="status" id="status"></span>
+          </div>
         </div>
         <div class="st-side">
           <div class="st-strip" id="strip" aria-label="Одноклассники в звонке"></div>
-          <!-- Своя шкала: четыре сегмента, не сворачивается; выключил учитель — неактивна -->
-          <section class="meter-card" id="scale" aria-label="Твоё участие">
-            <div class="meter-head">
-              <span class="meter-title">Твоё участие</span>
-              <span class="meter-now" id="meterNow"></span>
-            </div>
-            <ol class="meter" id="steps" aria-hidden="true"></ol>
-            <p class="sr" aria-live="polite" role="status" id="status"></p>
-          </section>
         </div>
       </div>
       <div class="toast" id="toast" hidden></div>

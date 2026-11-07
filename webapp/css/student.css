@@ -1,7 +1,7 @@
 /* Экран ученика в звонке (#22). Своих цветов нет, всё из tokens.css. Экран до входа — call.css.
    Раскладка: на телефоне учитель, лента одноклассников, своя шкала и кнопки столбиком;
-   с 900 px — учитель слева на всю высоту, справа колонка с одноклассниками и шкалой.
-   Верхней полосы нет: таймер — в углу плитки учителя, состояние аналитики видно по шкале. */
+   с 900 px — учитель слева на всю высоту, справа колонка с одноклассниками.
+   Верхней полосы нет: таймер и своя шкала — плашками в углах плитки учителя. */
 
 .st-screen { position: relative; display: flex; flex-direction: column; width: 100%; height: 100vh; height: 100dvh; overflow: hidden; background: var(--bg); }
 .st-layout { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 10px; padding: 12px 12px 0; }
@@ -68,22 +68,18 @@
 .mini .micoff { top: 4px; right: 4px; width: 20px; height: 20px; }
 .mini .micoff .i { width: 12px; height: 12px; }
 
-/* Своя шкала: четыре сегмента в ряд, над ними название ступени. Не сворачивается;
-   аналитику выключил учитель — серая и неактивная */
-.meter-card { padding: 12px 14px 14px; border-radius: var(--radius); background: var(--surface); border: 1px solid var(--line); transition: opacity .3s; }
-.meter-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
-.meter-title { font-size: 14px; color: var(--ink-soft); }
-.meter-now { font-size: 16px; font-weight: 700; color: var(--ink); white-space: nowrap; }
-.meter { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin: 0; padding: 0; list-style: none; }
-.meter li { height: 8px; border-radius: 4px; background: var(--surface-muted); transition: background .45s; }
-/* пройденные сегменты — оттенки одного зелёного: чем выше, тем насыщеннее */
-.meter li.on[data-n="1"] { background: color-mix(in srgb, var(--accent) 55%, var(--surface-muted)); }
-.meter li.on[data-n="2"] { background: color-mix(in srgb, var(--accent) 70%, var(--surface-muted)); }
-.meter li.on[data-n="3"] { background: color-mix(in srgb, var(--accent) 85%, var(--surface-muted)); }
-.meter li.on[data-n="4"] { background: var(--accent); }
-.meter-card.off { opacity: .55; }
-.meter-card.off .meter li { background: var(--surface-muted); }
-.meter-card.off .meter-now { color: var(--ink-soft); font-weight: 600; }
+/* Своя шкала — плашкой в левом нижнем углу плитки учителя, как таймер сверху: четыре коротких
+   сегмента и название ступени. Учитель выключил аналитику — сегменты серые, «Аналитика выключена» */
+.meter-pill {
+  position: absolute; left: 10px; bottom: 10px; z-index: 2; display: flex; align-items: center; gap: 8px;
+  padding: 6px 11px 6px 9px; border-radius: 999px; background: var(--scrim); color: var(--on-scrim);
+  font-size: 13px; font-weight: 600; transition: opacity .3s;
+}
+.meter { display: flex; gap: 3px; margin: 0; padding: 0; list-style: none; }
+.meter li { width: 14px; height: 6px; border-radius: 3px; background: color-mix(in srgb, var(--on-scrim) 25%, transparent); transition: background .45s; }
+.meter li.on { background: var(--accent-on-scrim); }
+.meter-pill.off { opacity: .7; }
+.meter-pill.off .meter li { background: color-mix(in srgb, var(--on-scrim) 18%, transparent); }
 
 /* Кнопки звонка */
 .st-controls { display: flex; align-items: center; justify-content: center; gap: 16px; padding: 12px 16px calc(14px + env(safe-area-inset-bottom)); }
@@ -98,14 +94,14 @@
 @media (min-width: 900px) {
   .st-layout { flex-direction: row; gap: 16px; padding: 16px 16px 0; }
   .st-side { width: 320px; }
-  /* одноклассники — сеткой и прокручиваются, шкала прижата вниз колонки */
+  /* одноклассники — сеткой во всю высоту колонки, прокручиваются */
   .st-strip { flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(2, 1fr); grid-auto-rows: 132px; align-content: start; overflow-x: hidden; overflow-y: auto; }
   .mini { width: auto; height: auto; }
   .mini .avatar { width: 44px; height: 44px; font-size: 16px; }
   .st-timer { top: 14px; left: 14px; }
-  .meter-card { margin-top: auto; }
+  .meter-pill { left: 14px; bottom: 14px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .meter li, .meter-card { transition: none; }
+  .meter li, .meter-pill { transition: none; }
 }
