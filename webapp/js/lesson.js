@@ -53,6 +53,17 @@ async function post(path, body) {
   return data;
 }
 
+// true — значение уже было запомнено под этим ключом в этой вкладке; иначе запоминает
+function once(key, value) {
+  try {
+    if (sessionStorage.getItem(key) === value) return true;
+    sessionStorage.setItem(key, value);
+  } catch {
+    // хранилище недоступно: кнопка бота сработает и при возврате
+  }
+  return false;
+}
+
 // Узнать, кто открыл приложение. Возвращает start_param из MAX, если он есть:
 // c<id> — учитель начинает урок класса, l<id> — открыть урок
 export async function signIn() {
@@ -68,6 +79,9 @@ export async function signIn() {
   if (initData) {
     const { token, start_param: startParam } = await post("/api/auth/max", { init_data: initData });
     keep(token);
+    // MAX отдаёт тот же start_param при каждом переходе внутри приложения: «Назад» из демо
+    // снова запускал бы демо. Кнопку бота выполняем один раз на запуск (initData у запуска свой)
+    if (once("launch", initData)) return null;
     return startParam;
   }
   session = stored();

@@ -64,22 +64,9 @@ function show(view) {
   for (const id of ["home", "classView", "inviteView", "createView", "welcomeView", "codeView"]) $(id).hidden = id !== view;
 }
 
-// Роль на этом устройстве: teacher, student или none (нажал «Выйти»). Без неё — по классам человека
-function storedRole() {
-  try {
-    return localStorage.getItem("role");
-  } catch {
-    return null; // хранилище недоступно: роль по классам
-  }
-}
-
-function setRole(role) {
-  try {
-    localStorage.setItem("role", role);
-  } catch {
-    // см. storedRole()
-  }
-}
+// Роль — на сервере, общая с ботом: teacher, student или none (нажал «Выйти»).
+// Выбрал «Я учитель» в чате — приложение уже знает
+const setRole = (role) => api("/api/me/role", { method: "PUT", body: { role } });
 
 async function demo() {
   try {
@@ -93,14 +80,23 @@ async function demo() {
 // Выбор роли — как приветствие бота: «Я учитель» или «Я ученик»
 function welcome() {
   show("welcomeView");
-  $("asTeacher").onclick = () => { setRole("teacher"); home(); };
-  $("asStudent").onclick = () => { setRole("student"); home(); };
+  const pick = (role) => async () => {
+    try {
+      await setRole(role);
+    } catch (err) {
+      return say(err.message);
+    }
+    home();
+  };
+  $("asTeacher").onclick = pick("teacher");
+  $("asStudent").onclick = pick("student");
 }
 
 async function home() {
-  const all = await api("/api/me/classes").catch(() => []);
-  let role = storedRole();
-  if (!role) role = all.some((c) => c.role === "teacher") ? "teacher" : all.length ? "student" : "none";
+  const [all, { role }] = await Promise.all([
+    api("/api/me/classes").catch(() => []),
+    api("/api/me/role").catch(() => ({ role: "none" })),
+  ]);
   if (role === "none") return welcome();
   // в роли — только её классы: ученик не видит классы, где он учитель, и наоборот
   const mine = all.filter((c) => c.role === role);
@@ -126,7 +122,7 @@ async function home() {
       ok: "Выйти",
     });
     if (!yes) return;
-    setRole("none");
+    // сервер завершает уроки и сбрасывает роль: её больше нет ни в приложении, ни в чате
     await api("/api/me/exit", { method: "POST" }).catch(() => {});
     welcome();
   };
