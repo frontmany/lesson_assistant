@@ -308,6 +308,15 @@ def mark_live(lesson_id: str) -> bool:
         return True
 
 
+def open_lessons_of_teacher(max_user_id: int) -> list[str]:
+    """Незавершённые уроки классов, где человек учитель: их закрывает «Выйти»."""
+    with db.session() as s:
+        return list(s.scalars(select(Lesson.id).join(Member, Member.class_id == Lesson.class_id).where(
+            Member.max_user_id == max_user_id, Member.role == "teacher", Member.left_at.is_(None),
+            Lesson.ended_at.is_(None),
+        )))
+
+
 def mark_ended(lesson_id: str) -> None:
     with db.session() as s:
         lesson = s.get(Lesson, lesson_id)

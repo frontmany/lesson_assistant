@@ -98,10 +98,12 @@ function welcome() {
 }
 
 async function home() {
-  const mine = await api("/api/me/classes").catch(() => []);
+  const all = await api("/api/me/classes").catch(() => []);
   let role = storedRole();
-  if (!role) role = mine.some((c) => c.role === "teacher") ? "teacher" : mine.length ? "student" : "none";
+  if (!role) role = all.some((c) => c.role === "teacher") ? "teacher" : all.length ? "student" : "none";
   if (role === "none") return welcome();
+  // в роли — только её классы: ученик не видит классы, где он учитель, и наоборот
+  const mine = all.filter((c) => c.role === role);
   show("home");
   $("classes").replaceChildren(...mine.map(row));
   $("classes").hidden = mine.length === 0;

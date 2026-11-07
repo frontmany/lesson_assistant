@@ -261,6 +261,19 @@ def test_exit_in_app_sends_role_choice_again(monkeypatch):
     assert [b["text"] for row in buttons for b in row] == ["Я учитель", "Я ученик", "Посмотреть демо"]
 
 
+def test_exit_ends_teachers_unfinished_lessons():
+    c = db.create_class(MARIA, "Мария Смирнова", "10А", "история")
+    lesson_id = db.lesson_for_class(c.id).id
+    db.mark_live(lesson_id)
+    other = db.create_class(77, "Ольга", "9Б", "физика")
+    db.join(other.id, MARIA, "Мария Смирнова")
+    foreign = db.lesson_for_class(other.id).id
+
+    assert client.post("/api/me/exit", headers=sign_in(MARIA)).json()["ended"] == [lesson_id]
+    assert db.live_lesson(c.id) is None
+    assert db.lesson_for_class(other.id).id == foreign  # урок чужого класса, где Мария ученица, идёт
+
+
 def test_student_joins_class_by_code_from_the_app(monkeypatch):
     from app.bot import max_bot
     from app.db import classes as db

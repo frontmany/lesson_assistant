@@ -187,11 +187,20 @@ def join_class(body: ClassCode, user: User = Depends(current_user)):
 
 
 @router.post("/me/exit")
-def exit_app(user: User = Depends(current_user)):
-    """«Выйти» на «Мои классы»: нажал не ту роль — бот присылает в чат выбор роли заново."""
-    if user.max_user_id is not None:
-        max_bot.role_again(user.max_user_id)
-    return {"ok": True}
+async def exit_app(user: User = Depends(current_user)):
+    """«Выйти» на «Мои классы»: всё начатое сбрасывается, бот присылает в чат выбор роли заново.
+
+    Незавершённые уроки учителя закрываются: звонок не остаётся висеть «Урок идёт» у учеников.
+    """
+    if user.max_user_id is None:
+        return {"ended": []}
+    ended = classes.open_lessons_of_teacher(user.max_user_id)
+    for lesson_id in ended:
+        await runner.stop_virtual(lesson_id)
+        await runner.end(lesson_id)
+        classes.mark_ended(lesson_id)
+    max_bot.role_again(user.max_user_id)
+    return {"ended": ended}
 
 
 @router.get("/me/classes")
