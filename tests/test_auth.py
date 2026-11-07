@@ -80,7 +80,7 @@ def test_student_joins_only_as_self(lesson):
     ivan = db.students_of(lesson[0].id)[0]
     headers = sign_in(IVAN)
     me = client.get(f"/api/lessons/{lesson_id}/me", headers=headers).json()
-    assert me == {"participant_id": ivan.participant_id, "name": "Иван И.", "role": "student", "analytics": True, "ended": False}
+    assert me == {"participant_id": ivan.participant_id, "name": "Иван И.", "role": "student", "analytics": True, "ended": False, "demo": False}
     # чужой id в адресе ничего не меняет: участника сервер берёт из сессии
     join = client.get(f"/api/lessons/{lesson_id}/join", params={"id": "m999"}, headers=headers).json()
     assert join["participant_id"] == ivan.participant_id
@@ -154,7 +154,7 @@ def test_demo_from_start_page(lesson):
     headers = sign_in(MARIA, first="Мария", last="Смирнова")
     lesson_id = client.post("/api/demo", headers=headers).json()["lesson_id"]
     assert client.get(f"/api/lessons/{lesson_id}/me", headers=headers).json() == {
-        "participant_id": "teacher", "name": "Мария Смирнова", "role": "teacher", "analytics": True, "ended": False}
+        "participant_id": "teacher", "name": "Мария Смирнова", "role": "teacher", "analytics": True, "ended": False, "demo": True}
     assert client.post("/api/demo").status_code == 401
 
 
@@ -368,3 +368,11 @@ def test_close_room_survives_unreachable_livekit(monkeypatch):
 
     monkeypatch.setattr(call, "settings", dataclasses.replace(call.settings, livekit_url="ws://127.0.0.1:9"))
     assert asyncio.run(call.close_room("x")) is False
+
+
+def test_demo_lesson_is_marked_for_screens(lesson):
+    # экран демо объясняет, что смотреть, и не просит микрофон
+    demo = db.demo_lesson(MARIA, "Мария Смирнова")
+    assert client.get(f"/api/lessons/{demo.id}/me", headers=sign_in(MARIA)).json()["demo"] is True
+    c, lesson_id = lesson
+    assert client.get(f"/api/lessons/{lesson_id}/me", headers=sign_in(IVAN)).json()["demo"] is False

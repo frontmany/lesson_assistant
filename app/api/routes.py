@@ -137,13 +137,15 @@ def me(lesson_id: str, who: Seat = Depends(member)):
     analytics — ведётся ли аналитика этого участника (учитель может выключить её ученику).
     ended — урок класса уже закончился: экран не зовёт в звонок, а ведёт к классам.
     Демо-урок можно смотреть заново, он не «закончился».
+    demo — демо-урок: экран объясняет, что смотреть, и не просит микрофон.
     """
     lesson = classes.get_lesson(lesson_id)
-    ended = lesson is not None and lesson.ended_at is not None and not lesson.demo and not runner.is_running(lesson_id)
+    demo = lesson is not None and lesson.demo
+    ended = lesson is not None and lesson.ended_at is not None and not demo and not runner.is_running(lesson_id)
     return {
         "participant_id": who.participant_id, "name": who.name, "role": who.role,
         "analytics": who.role == "teacher" or not runner.analytics_off(lesson_id, who.participant_id),
-        "ended": ended,
+        "ended": ended, "demo": demo,
     }
 
 

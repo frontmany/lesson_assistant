@@ -69,7 +69,8 @@ function lobby(kind = "ready", detail = "") {
     return;
   } else {
     // без прошедшего времени и рода: пол ученика неизвестен
-    setLobbyText(kind === "left" ? "Ты не в звонке" : "Войти в урок?", detail);
+    // концепция: о том, что ассистент слушает, ученику говорят явно, а не строкой в соглашении
+    setLobbyText(kind === "left" ? "Ты не в звонке" : "Войти в урок?", detail || "Ассистент слушает урок, чтобы вести шкалу участия");
     actions.append(button("primary", kind === "left" ? "Вернуться в урок" : "Войти в урок", () => enter()));
   }
   setIconButton($("pvMic"), kind in NOMIC ? false : prefs.mic, "mic", "микрофон");
@@ -116,7 +117,7 @@ async function enter({ mic = prefs.mic } = {}) {
     RoomEvent.ActiveSpeakersChanged,
   ]) room.on(event, () => requestAnimationFrame(renderCall));
   show("call");
-  if (!mic) toast("Микрофон выключен. Тебя не слышно");
+  if (!mic) toast("Микрофон выключен");
   renderCall();
 }
 
@@ -219,7 +220,7 @@ $("btnMic").onclick = async () => {
   } catch {
     return toast("Нет доступа к микрофону");
   }
-  if (!on) toast("Микрофон выключен. Тебя не слышно");
+  if (!on) toast("Микрофон выключен");
   renderCall();
 };
 

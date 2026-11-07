@@ -83,7 +83,7 @@ function lobby(kind = "ready", detail = "") {
   } else {
     setLobbyText("Готовы войти?", detail); // под заголовком только ошибка входа, если была
     $("lobbyText").classList.toggle("lobby-error", Boolean(detail));
-    actions.append(button("primary", "Войти в урок", () => enter()));
+    actions.append(button("primary", "Войти в урок", () => enter(me.demo ? { mic: false } : {})));
   }
   setIconButton($("pvMic"), kind in NOMIC ? false : prefs.mic, "mic", "микрофон");
   setIconButton($("pvCam"), prefs.cam, "cam", "камеру");
@@ -130,7 +130,7 @@ async function enter({ mic = prefs.mic } = {}) {
   resetStudents();
   watchRoom();
   show("call");
-  if (!mic) toast("Микрофон выключен. Ученики вас не слышат");
+  if (!mic && !me.demo) toast("Микрофон выключен. Ученики вас не слышат");
   render();
 }
 
@@ -321,8 +321,10 @@ function renderPanel() {
   $("count").textContent = `Учеников: ${list.length}`;
   $("collapse").querySelector("use").setAttribute("href", mobile.matches ? "#chev-d" : "#chev-r");
 
+  // в демо подсказка висит весь урок: говорить не нужно, а сводку даёт только «Завершить урок»
   const hint = reconnecting
     ? "Шкалы участия обновятся, когда вернётся связь"
+    : me.demo ? "Демо — 5 минут. Говорить не нужно. В конце нажмите «Завершить урок» — сводка придёт в чат"
     : !started ? "Шкалы участия появятся, когда ученики заговорят" : "";
   $("hint").hidden = !hint;
   $("hint").textContent = hint;
@@ -610,7 +612,8 @@ if (me.ended) {
 } else if (params.get("now") === "1") {
   params.delete("now");
   history.replaceState(null, "", `${location.pathname}?${params}${location.hash}`);
-  enter();
+  // в демо говорить не нужно: без проверки микрофона, которая на iPhone и компьютере уводит в браузер
+  enter({ mic: !me.demo });
 } else {
   lobby();
 }
