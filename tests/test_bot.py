@@ -110,7 +110,7 @@ def test_student_who_pressed_teacher_sends_code(bot):
     c = make_class(b)
     b.handle(press(IVAN, "teacher"))
     b.handle(text(IVAN, c.invite_code))
-    assert api.to(IVAN)[-1][0] == "Вы входите в класс 10А. Вас зовут Иван Иванов?"
+    assert api.to(IVAN)[-1][0] == "Вы входите в класс 10А, история. Вас зовут Иван Иванов?"
     assert len(db.classes_of(TEACHER)) == 1 and db.classes_of(IVAN) == []
 
 
@@ -127,9 +127,9 @@ def test_student_joins_by_link_and_teacher_is_notified(bot):
     c = make_class(b)
     b.handle(started(IVAN, c.invite_code))
     question = api.to(IVAN)[-1]
-    assert question[0] == "Вы входите в класс 10А. Вас зовут Иван Иванов?"
+    assert question[0] == "Вы входите в класс 10А, история. Вас зовут Иван Иванов?"
     b.handle(press(IVAN, payload_of(question, "Это я")))
-    assert api.to(IVAN)[-1][0] == "Готово, вы в классе 10А. Когда начнётся урок, я напишу."
+    assert api.to(IVAN)[-1][0] == "Готово, вы в классе 10А, история. Когда начнётся урок, я напишу."
     note = api.to(TEACHER)[-1]
     assert note[0] == "Иван И. теперь в классе 10А. Можно начинать урок."
     assert [x["text"] for x in buttons(note)] == ["Начать урок", "Убрать из класса"]
@@ -172,7 +172,7 @@ def test_teacher_removes_and_returns_student(bot):
     b.handle(press(TEACHER, payload_of(api.to(TEACHER)[-1], "Убрать из класса")))
     assert db.students_of(c.id) == []
     removed = api.to(TEACHER)[-1]
-    assert removed[0] == "Убрано из класса 10А: Иван И."
+    assert removed[0] == "Убрано из класса 10А, история: Иван И."
     b.handle(press(TEACHER, payload_of(removed, "Вернуть")))
     assert [m.name for m in db.students_of(c.id)] == ["Иван Иванов"]
 
@@ -193,7 +193,7 @@ def test_student_leaves_and_teacher_learns(bot):
     known = api.to(IVAN)[-1]
     assert known[0] == "Вы в классе 10А, история. Урок пока не идёт. Я напишу, когда начнётся."
     b.handle(press(IVAN, payload_of(known, "Выйти из класса")))
-    assert api.to(IVAN)[-1][0] == "Выйти из класса 10А?"
+    assert api.to(IVAN)[-1][0] == "Выйти из класса 10А, история?"
     b.handle(press(IVAN, f"leave_yes:{c.id}"))
     assert api.to(IVAN)[-1][0] == "Вы вышли из 10А. Чтобы вернуться, попросите у учителя ссылку."
     assert api.to(TEACHER)[-1][0] == "Иван И. теперь не в классе 10А."
@@ -205,7 +205,7 @@ def test_new_link_makes_old_code_outdated(bot):
     c = make_class(b)
     old = c.invite_code
     b.handle(press(TEACHER, f"newlink:{c.id}"))
-    assert api.to(TEACHER)[-1][0] == "Создать новую ссылку и код? Старые перестанут работать."
+    assert api.to(TEACHER)[-1][0] == "Создать новую ссылку и код для 10А, история? Старые перестанут работать."
     b.handle(press(TEACHER, f"newlink_yes:{c.id}"))
     new = db.get_class(c.id).invite_code
     assert new != old and f"Новый код: {new}" in api.to(TEACHER)[-1][0]
@@ -229,9 +229,9 @@ def test_class_is_deleted_and_restored(bot):
     c = make_class(b)
     join(b, IVAN, c.invite_code)
     b.handle(press(TEACHER, "delete"))
-    assert api.to(TEACHER)[-1][0] == "Удалить класс 10А? Ученики потеряют доступ."
+    assert api.to(TEACHER)[-1][0] == "Удалить класс 10А, история? Ученики потеряют доступ."
     b.handle(press(TEACHER, f"delete_yes:{c.id}"))
-    assert api.to(TEACHER)[-1][0] == "Класс 10А удалён. Вернуть можно в течение 30 дней."
+    assert api.to(TEACHER)[-1][0] == "Класс 10А, история удалён. Вернуть можно в течение 30 дней."
     b.handle(started(MARIA, c.invite_code))
     assert api.to(MARIA)[-1][0] == "Этот класс удалён. Спросите у учителя."
     b.handle(press(TEACHER, f"restore:{c.id}"))
@@ -297,15 +297,15 @@ def test_cancel_replaces_question_with_answer(bot):
     c = make_class(b)
     b.handle(press(TEACHER, f"newlink:{c.id}"))
     b.handle(press(TEACHER, payload_of(api.to(TEACHER)[-1], "Отмена")))
-    assert api.answers[-1] == ("cb", "Ссылка и код 10А остались прежними.")
+    assert api.answers[-1] == ("cb", "Ссылка и код 10А, история остались прежними.")
     assert db.get_class(c.id).invite_code == c.invite_code
     b.handle(press(TEACHER, f"delete:{c.id}"))
     b.handle(press(TEACHER, payload_of(api.to(TEACHER)[-1], "Отмена")))
-    assert api.answers[-1] == ("cb", "Класс 10А остался.")
+    assert api.answers[-1] == ("cb", "Класс 10А, история остался.")
     join(b, IVAN, c.invite_code)
     b.handle(press(IVAN, f"leave:{c.id}"))
     b.handle(press(IVAN, payload_of(api.to(IVAN)[-1], "Остаться")))
-    assert api.answers[-1] == ("cb", "Вы остались в классе 10А.")
+    assert api.answers[-1] == ("cb", "Вы остались в классе 10А, история.")
     assert db.students_of(c.id) != []
 
 
@@ -349,3 +349,56 @@ def test_bot_waits_for_max_at_start():
     stop.wait = lambda timeout=None: False  # без настоящего ожидания
     assert max_bot._whoami(http, stop)["username"] == "ideya_bot"
     assert len(calls) == 3
+
+
+# ---------- #98: пункты 15–19 ----------
+
+
+def test_confirm_button_is_removed_after_press(bot):
+    # «Создать ссылку» второй раз не нажать: вопрос меняется на ответ, кнопки убираются (п. 15)
+    b, api = bot
+    c = make_class(b)
+    b.handle(press(TEACHER, f"newlink_yes:{c.id}"))
+    assert api.answers[-1] == ("cb", "Создана новая ссылка для 10А, история.")
+
+
+def test_rename_after_this_is_me_changes_name(bot):
+    # «Изменить имя» после «Это я» — имя меняется (п. 17)
+    b, api = bot
+    c = make_class(b)
+    join(b, IVAN, c.invite_code)
+    b.handle(press(IVAN, f"rename:{c.id}"))
+    b.handle(text(IVAN, "Ваня Иванов"))
+    assert [m.name for m in db.students_of(c.id)] == ["Ваня Иванов"]
+    assert api.to(IVAN)[-1][0] == "Готово, теперь в классе 10А, история вы — Ваня Иванов."
+
+
+def test_link_is_accepted_on_code_step_and_wrong_code_has_back(bot):
+    # ученик прислал ссылку вместо кода (п. 18)
+    b, api = bot
+    c = make_class(b)
+    b.handle(press(IVAN, "student"))
+    b.handle(text(IVAN, b.link(c.invite_code)))
+    assert api.to(IVAN)[-1][0] == "Вы входите в класс 10А, история. Вас зовут Иван Иванов?"
+    b.handle(press(MARIA, "student"))
+    b.handle(text(MARIA, "ZZZZZZ"))
+    wrong = api.to(MARIA)[-1]
+    assert wrong[0] == "Такого кода нет. Проверьте и введите ещё раз."
+    assert [x["text"] for x in buttons(wrong)] == ["Назад"]
+
+
+def test_removed_student_and_class_of_deleted_class_are_told(bot):
+    # убранный ученик и ученики удалённого класса узнают об этом (п. 19)
+    b, api = bot
+    c = make_class(b)
+    join(b, IVAN, c.invite_code)
+    member = db.students_of(c.id)[0]
+    b.handle(press(TEACHER, f"kick:{member.id}"))
+    assert api.to(IVAN)[-1][0] == "Учитель убрал вас из класса 10А, история. Если это ошибка, напишите учителю."
+    b.handle(press(TEACHER, f"unkick:{member.id}"))
+    assert api.to(IVAN)[-1][0] == "Учитель вернул вас в класс 10А, история. Когда начнётся урок, я напишу."
+    b.handle(press(TEACHER, f"delete_yes:{c.id}"))
+    assert api.to(IVAN)[-1][0] == "Учитель удалил класс 10А, история. Уроков в нём больше не будет."
+    # ссылка удалённого класса не отвечает «Вы в классе» даже бывшему участнику
+    b.handle(started(IVAN, c.invite_code))
+    assert api.to(IVAN)[-1][0] == "Этот класс удалён. Спросите у учителя."

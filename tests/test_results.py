@@ -157,3 +157,18 @@ def test_pipeline_saves_lesson_with_class_norm(monkeypatch):
     assert levels[artem_id].level == 2 and levels[ivan_id].level == 1
     # один отклик на двоих — 1 балл на ученика, меньше трети нормы 4: урок «тихий», в норму не идёт
     assert results.class_history(c.id) == [3, 5]
+
+
+def test_second_lesson_of_new_class_keeps_seed_norm(monkeypatch, tmp_path):
+    # норма не прыгает 4,5 → 6 → своя: пока своих уроков меньше двух — норма из seed (#98, п. 13)
+    (tmp_path / "history_seed.json").write_text(json.dumps({"lessons": [
+        {"date": "2026-10-01", "activity": 4.5}, {"date": "2026-10-08", "activity": 4.5},
+    ]}), encoding="utf-8")
+    monkeypatch.setattr(results, "settings", dataclasses.replace(results.settings, demo_lesson_dir=tmp_path))
+    c, first, _ = lesson_of_class()
+    finish(first.id, 8)
+    second = classes.lesson_for_class(c.id)
+    assert results.history_for(second.id) == [4.5, 4.5]
+    finish(second.id, 6)
+    third = classes.lesson_for_class(c.id)
+    assert results.history_for(third.id) == [8, 6]

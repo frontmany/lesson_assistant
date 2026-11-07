@@ -28,7 +28,7 @@ def test_name_in_teacher_question_is_response():
 
 
 def test_short_name_and_inflection_count_as_address():
-    assert kind("Да.", "ivan_i", 6, [said("teacher", 0, 5, "Ваня, ты готов?")]) == "response"
+    assert kind("Готов.", "ivan_i", 6, [said("teacher", 0, 5, "Ваня, ты готов?")]) == "response"
     assert kind("Флот.", "artem_k", 6, [said("teacher", 0, 5, "Спросим Артёма.")]) == "response"
 
 
@@ -177,10 +177,10 @@ def test_surname_made_from_name_does_not_call_the_name():
 
 
 def test_name_cases_and_lookalike_words():
-    assert in_class("Да.", "maria", "Спросим Марию.") == "response"
+    assert in_class("Готова.", "maria", "Спросим Марию.") == "response"
     # «Маша» не прячется в «машине», «Ваня» — в «ванне»
-    assert in_class("Да.", "maria", "Какую машину построил Леонардо?") != "response"
-    assert in_class("Да.", "petrov", "Что такое ванна Архимеда?") != "response"
+    assert in_class("Готова.", "maria", "Какую машину построил Леонардо?") != "response"
+    assert in_class("Готова.", "petrov", "Что такое ванна Архимеда?") != "response"
 
 
 def test_class_roster_has_full_names_but_api_does_not_show_them():
@@ -192,3 +192,49 @@ def test_class_roster_has_full_names_but_api_does_not_show_them():
     roster = classes.lesson_roster(lesson.id)
     assert (roster.students[0].name, roster.students[0].full_name) == ("Иван П.", "Иван Петров")
     assert "full_name" not in roster.model_dump()["students"][0]
+
+
+# ---------- #98: пункты 9–11 ----------
+
+
+def test_dont_know_after_address_is_not_response():
+    ctx = [said("teacher", 0, 5, "Артём, что Пётр сделал с флотом?")]
+    assert kind("Не знаю.", "artem_k", 6, ctx) == "other"
+    assert kind("Нет.", "artem_k", 6, ctx) == "other"
+
+
+def test_one_word_answer_right_after_question_counts():
+    ctx = [said("teacher", 0, 5, "Кто открыл Америку?")]
+    assert kind("Колумб.", "artem_k", 6, ctx) == "answer"
+    # «да», «не знаю» и междометие — не ответ
+    assert kind("Да.", "artem_k", 6, ctx) == "other"
+    assert kind("Не знаю.", "artem_k", 6, ctx) == "other"
+    # кто-то уже ответил — короткая реплика следом не ответ
+    ctx.append(said("ivan_i", 5.5, 6.5, "Колумб.", "answer"))
+    assert kind("Колумб.", "artem_k", 7, ctx) == "other"
+
+
+def test_initiative_needs_three_words_except_may_i():
+    assert kind("Можно выйти?", "artem_k", 6, []) == "other"
+    assert kind("Что?", "artem_k", 6, []) == "other"
+    assert kind("Можно я отвечу?", "artem_k", 6, []) == "initiative"
+    assert kind("А почему Пётр перенёс столицу?", "artem_k", 6, []) == "initiative"
+
+
+def test_no_more_than_two_initiatives_per_lesson():
+    ctx = [
+        said("artem_k", 0, 2, "А почему Пётр перенёс столицу?", "initiative"),
+        said("artem_k", 30, 32, "А зачем ему был нужен флот?", "initiative"),
+    ]
+    assert kind("А сколько лет строили Петербург?", "artem_k", 60, ctx) == "other"
+    # у другого ученика свой счёт
+    assert kind("А сколько лет строили Петербург?", "ivan_i", 60, ctx) == "initiative"
+
+
+def test_teacher_turn_with_name_survives_pause():
+    # «Артём.» — пауза 4 с — «Что Пётр сделал с флотом?»: это обращение к Артёму
+    ctx = [said("teacher", 0, 1, "Артём."), said("teacher", 5, 8, "Что Пётр сделал с флотом?")]
+    assert kind("Построил его.", "artem_k", 9, ctx) == "response"
+    # без имени фразы через паузу — разные ходы, как раньше
+    ctx = [said("teacher", 0, 1, "Хорошо."), said("teacher", 5, 8, "Что Пётр сделал с флотом?")]
+    assert kind("Построил его.", "artem_k", 9, ctx) == "answer"

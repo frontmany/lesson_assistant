@@ -181,12 +181,18 @@ def seed_history(path: Path | None = None) -> list[float]:
 
 
 def history_for(lesson_id: str) -> list[float]:
-    """История для нормы урока: прошлые уроки его класса, а у нового класса — history_seed.json."""
+    """История для нормы урока: прошлые уроки его класса, а у нового класса — history_seed.json.
+
+    Новый — пока своих уроков меньше двух: иначе норма прыгала бы 4,5 (seed) → 6 (по
+    умолчанию для одного урока) → своя. Первые два урока — одна норма из seed (#98, п. 13).
+    """
+    from app.pipeline.scoring import MIN_LESSONS
+
     with db.session() as s:
         lesson = s.get(Lesson, lesson_id)
         class_id = lesson.class_id if lesson else None
     history = class_history(class_id) if class_id is not None else []
-    return history or seed_history()
+    return history if len(history) >= MIN_LESSONS else seed_history()
 
 
 def silent_streaks(lesson_id: str, student_ids: list[str], lessons: int = 5) -> dict[str, int]:
