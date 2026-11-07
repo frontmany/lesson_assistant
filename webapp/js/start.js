@@ -89,12 +89,11 @@ async function demo() {
   }
 }
 
-// Выбор роли — как приветствие бота: «Я учитель», «Я ученик», «Посмотреть демо»
+// Выбор роли — как приветствие бота: «Я учитель» или «Я ученик»
 function welcome() {
   show("welcomeView");
   $("asTeacher").onclick = () => { setRole("teacher"); home(); };
   $("asStudent").onclick = () => { setRole("student"); home(); };
-  $("welcomeDemo").onclick = demo;
 }
 
 async function home() {

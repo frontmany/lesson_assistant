@@ -86,7 +86,7 @@
     .bye { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 24px 32px; text-align: center; }
     .bye-logo { width: 96px; height: 96px; padding: 10px; margin-bottom: 16px; border-radius: 28px; background: #fff; object-fit: contain; }
     .bye h1 { margin: 0; font-size: 22px; }
-    .bye p { margin: 0; color: var(--ink-soft); font-size: 15px; }
+    .bye .roles { display: grid; gap: 8px; width: 100%; max-width: 320px; margin-top: 24px; }
     .dev { display: grid; gap: 8px; margin: 16px 4px 0; font-size: 14px; }
     .dev a { color: var(--ink-soft); }
   </style>
@@ -165,12 +165,10 @@
       <div class="bye">
         <img class="bye-logo" src="img/sferum.png" alt="" width="96" height="96">
         <h1>Урок в MAX</h1>
-        <p>Ассистент слышит каждого ученика на уроке</p>
-      </div>
-      <div class="bottom col">
-        <button class="btn primary" id="asTeacher">Я учитель</button>
-        <button class="btn ghost" id="asStudent">Я ученик</button>
-        <button class="btn ghost" id="welcomeDemo">Посмотреть демо</button>
+        <div class="roles">
+          <button class="btn primary" id="asTeacher">Я учитель</button>
+          <button class="btn ghost" id="asStudent">Я ученик</button>
+        </div>
       </div>
     </div>
 
