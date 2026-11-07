@@ -48,7 +48,8 @@ function row(c) {
   if (c.lesson) state = "Урок идёт";
   else if (c.role === "teacher") state = c.students ? `${c.students} ${plural(c.students, "ученик", "ученика", "учеников")}` : "Нет учеников";
   else state = "Урок пока не идёт";
-  sub.textContent = `${state} · ${c.subject}`;
+  // урок идёт — это главное, предмет не нужен
+  sub.textContent = c.lesson ? state : `${state} · ${c.subject}`;
   sub.classList.toggle("live", Boolean(c.lesson));
   if (c.role === "teacher") {
     el.onclick = () => openClassScreen(c.id);
