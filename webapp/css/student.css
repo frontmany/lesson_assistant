@@ -18,7 +18,6 @@
   background: hsl(var(--h) 22% 72%);
 }
 .st-tile.main { inset: 0; }
-.st-tile.me { right: 10px; bottom: 10px; width: 92px; height: 122px; border-radius: 12px; border: 2px solid var(--surface); }
 .person { position: absolute; inset: 0; }
 .person::before {
   content: ""; position: absolute; left: 50%; top: 22%; width: 26%; aspect-ratio: 1;
@@ -32,16 +31,14 @@
   position: absolute; left: 8px; bottom: 8px; max-width: calc(100% - 16px); padding: 3px 9px; border-radius: 8px;
   background: var(--scrim); color: var(--on-scrim); font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.st-tile.me .name { left: 6px; bottom: 6px; padding: 2px 7px; }
 .st-tile video, .mini video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
-.st-tile.me video { transform: scaleX(-1); }
+.mini.me video { transform: scaleX(-1); } /* своя камера зеркально, как в зеркале */
 .st-tile .avatar, .st-tile.nocam { display: grid; place-items: center; }
 .st-tile.nocam { background: var(--surface-muted); border-color: var(--line); }
 .st-tile .avatar {
   position: absolute; inset: 0; margin: auto; width: 72px; height: 72px; border-radius: 50%;
   background: var(--accent-tint); color: var(--accent); font-weight: 700; font-size: 24px;
 }
-.st-tile.me .avatar { width: 40px; height: 40px; font-size: 14px; }
 .st-tile.speaking { outline: 3px solid var(--accent); outline-offset: -3px; }
 .micoff {
   position: absolute; top: 6px; right: 6px; width: 24px; height: 24px; border-radius: 50%;
@@ -105,7 +102,6 @@
   .st-strip { flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(2, 1fr); grid-auto-rows: 132px; align-content: start; overflow-x: hidden; overflow-y: auto; }
   .mini { width: auto; height: auto; }
   .mini .avatar { width: 44px; height: 44px; font-size: 16px; }
-  .st-tile.me { width: 160px; height: 120px; right: 14px; bottom: 14px; }
   .st-timer { top: 14px; left: 14px; }
   .meter-card { margin-top: auto; }
 }

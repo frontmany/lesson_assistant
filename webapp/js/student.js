@@ -177,12 +177,12 @@ function renderCall() {
     main.append(span("name", "Учитель ещё не вошёл"));
   }
   stage.push(main);
-  const mine = div("st-tile me");
-  face(mine, room.localParticipant, me.name);
-  stage.push(mine);
   $("stage").replaceChildren(...stage);
 
-  $("strip").replaceChildren(...classmates.map((p) => {
+  // себя — первым в общем ряду с одноклассниками, а не поверх учителя
+  const mine = div("mini me");
+  face(mine, room.localParticipant, me.name);
+  $("strip").replaceChildren(mine, ...classmates.map((p) => {
     const el = div(`mini${p.isSpeaking ? " speaking" : ""}`);
     el.setAttribute("aria-label", `${p.isSpeaking ? "Говорит: " : ""}${nameOf(p)}`);
     face(el, p, nameOf(p));
