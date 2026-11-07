@@ -229,62 +229,21 @@ $("btnLeave").onclick = async () => {
 // ---------- своя шкала ----------
 
 function buildSteps() {
-  $("steps").replaceChildren(...Object.entries(LEVEL_LABELS).map(([n, label]) => {
+  $("steps").replaceChildren(...Object.keys(LEVEL_LABELS).map((n) => {
     const li = document.createElement("li");
-    li.className = "step";
     li.dataset.n = n;
-    const b = document.createElement("button");
-    b.type = "button";
-    b.setAttribute("aria-label", label);
-    const mark = span("mark", "");
-    mark.append(svg("check"));
-    b.append(mark, span("", label));
-    li.append(b);
     return li;
   }));
 }
 
+// Шкала только растёт: сегменты до достигнутой ступени заполнены, сверху её название.
+// Учитель выключил аналитику — шкала серая, вместо ступени «Аналитика выключена»
 function renderScale() {
   const off = !analytics;
-  $("ana").classList.toggle("off", off);
-  $("ana").querySelector("use").setAttribute("href", off ? "#pulse-off" : "#pulse");
-  $("anaText").textContent = off ? "Аналитика выключена" : "Аналитика активна";
   $("scale").classList.toggle("off", off);
-  for (const id of ["of", "toggle", "fold"]) $(id).hidden = off;
-  $("offText").hidden = !off;
-  $("cur").textContent = reached;
-  for (const li of $("steps").children) {
-    const n = +li.dataset.n;
-    li.classList.toggle("done", n < reached);
-    li.classList.toggle("now", n === reached);
-    const b = li.querySelector("button");
-    if (n === reached) b.setAttribute("aria-current", "step");
-    else b.removeAttribute("aria-current");
-  }
+  $("meterNow").textContent = off ? "Аналитика выключена" : LEVEL_LABELS[reached];
+  for (const li of $("steps").children) li.classList.toggle("on", !off && +li.dataset.n <= reached);
 }
-
-// Скрыть или показать шкалу: выбор помним на устройстве
-let collapsed = false;
-try {
-  collapsed = localStorage.getItem("scaleHidden") === "1";
-} catch {
-  // хранилище недоступно: шкала просто открыта
-}
-function applyCollapsed() {
-  $("scale").classList.toggle("collapsed", collapsed);
-  $("toggle").setAttribute("aria-expanded", String(!collapsed));
-  $("toggleText").textContent = collapsed ? "Показать" : "Скрыть";
-}
-applyCollapsed();
-$("toggle").onclick = () => {
-  collapsed = !collapsed;
-  applyCollapsed();
-  try {
-    localStorage.setItem("scaleHidden", collapsed ? "1" : "0");
-  } catch {
-    // см. выше
-  }
-};
 
 subscribe((event) => {
   if (event.type === "analytics" && (event.student_id == null || event.student_id === studentId)) {
