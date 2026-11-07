@@ -7,7 +7,8 @@
 //    демо-учителя (вход по одноразовой ссылке, её выдаёт контейнер приложения).
 //
 //   python -m http.server 8090                 # в корне репозитория — для макетов
-//   docker compose run -d --rm --name la-dev -e DEV_AUTH=1 -e MAX_BOT_TOKEN= -p 8001:8000 app
+//   docker compose run -d --rm --name la-dev -e DEV_AUTH=1 -e MAX_BOT_TOKEN= -e SESSION_SECRET=screens -p 8001:8000 app
+//   docker exec -i la-dev python - < scripts/screens-seed.py   # демо-учитель с классами
 //   node scripts/screens.mjs [фильтр]          # фильтр — часть имени файла
 //
 // BROWSER — путь к Edge или Chrome, MOCKS — где открыт репозиторий, APP — приложение,
@@ -24,7 +25,8 @@ const CONTAINER = process.env.APP_CONTAINER ?? "la-dev";
 const OUT = new URL("../design/screens/", import.meta.url);
 const filter = process.argv[2] ?? "";
 
-// демо-люди на копии приложения (их заводит scripts/screens-seed.py)
+// демо-люди на копии приложения (их заводит scripts/screens-seed.py); SESSION_SECRET нужен,
+// чтобы одноразовую ссылку из docker exec принял сервер: без токена бота ключ свой у каждого процесса
 const TEACHER = [990001, "Марина Сергеевна"];
 const STUDENT = [990101, "Пётр Новиков"];
 const NEWCOMER = [990201, "Алина Гришина"];
@@ -50,6 +52,7 @@ add("teacher-call-d-n30-panel-closed", mock("teacher-call.html?n=30&panel=0"), D
 add("teacher-call-d-menu", mock("teacher-call.html?n=6&menu=s1"), D);
 add("teacher-call-m-menu", mock("teacher-call.html?n=6&menu=s1&panel=1"), M);
 add("teacher-call-m-n6-sheet", mock("teacher-call.html?n=6&panel=1"), M);
+add("teacher-call-m-n6-sheet-dark", mock("teacher-call.html?n=6&panel=1"), M, { dark: true });
 add("teacher-call-m-n30-sheet", mock("teacher-call.html?n=30&panel=1"), M);
 
 // ---------- состояния звонка ----------
@@ -78,6 +81,7 @@ home("start-welcome", NEWCOMER);
 home("start-teacher", TEACHER);
 home("start-teacher-dark", TEACHER, { dark: true });
 home("start-class", TEACHER, { steps: ["document.querySelector('#classes button.row').click()"] });
+home("start-class-dark", TEACHER, { dark: true, steps: ["document.querySelector('#classes button.row').click()"] });
 home("start-invite", TEACHER, { steps: ["document.querySelector('#classes button.row').click()", "document.getElementById('inviteBtn').click()"] });
 home("start-create", TEACHER, { steps: ["document.getElementById('create').click()"] });
 home("start-student", STUDENT);

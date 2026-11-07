@@ -12,14 +12,14 @@
 
 **Урок у учителя.** Плитки участников и панель класса: у каждого ученика шкала участия, метка и последняя реплика.
 
-![Урок у учителя: плитки участников и панель класса со шкалами](design/screens/teacher-call-d-n6.png)
+![Урок у учителя: плитки участников и панель класса со шкалами](design/screens/teacher-call-d-n6-dark.png)
 
 <table>
   <tr>
-    <td align="center" width="25%"><img src="design/screens/start-teacher.png" alt="Мои классы" width="200"></td>
-    <td align="center" width="25%"><img src="design/screens/start-class.png" alt="Ученики класса" width="200"></td>
-    <td align="center" width="25%"><img src="design/screens/teacher-call-m-n6-sheet.png" alt="Урок у учителя на телефоне" width="200"></td>
-    <td align="center" width="25%"><img src="design/screens/student-call-m-l3.png" alt="Урок у ученика" width="200"></td>
+    <td align="center" width="25%"><img src="design/screens/start-teacher-dark.png" alt="Мои классы" width="200"></td>
+    <td align="center" width="25%"><img src="design/screens/start-class-dark.png" alt="Ученики класса" width="200"></td>
+    <td align="center" width="25%"><img src="design/screens/teacher-call-m-n6-sheet-dark.png" alt="Урок у учителя на телефоне" width="200"></td>
+    <td align="center" width="25%"><img src="design/screens/student-call-m-l3-dark.png" alt="Урок у ученика" width="200"></td>
   </tr>
   <tr>
     <td align="center"><b>Мои классы</b><br>классы учителя и демо-урок</td>
