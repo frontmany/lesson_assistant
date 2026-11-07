@@ -134,6 +134,7 @@ def create_class(teacher_max_id: int, teacher_name: str, name: str, subject: str
         s.flush()
         s.add(InviteCode(code=code, class_id=c.id))
         s.add(Member(class_id=c.id, max_user_id=teacher_max_id, role="teacher", name=teacher_name))
+        _set_role(s, teacher_max_id, "teacher")  # создал класс — значит, учитель
         return c
 
 
@@ -208,6 +209,7 @@ def join(class_id: int, max_user_id: int, name: str) -> tuple[Member, bool]:
             return member, False
         member = Member(class_id=class_id, max_user_id=max_user_id, role="student", name=name)
         s.add(member)
+        _set_role(s, max_user_id, "student")  # вошёл в класс по коду — значит, ученик
         s.flush()
         return member, True
 
@@ -356,6 +358,49 @@ def lesson_roster(lesson_id: str) -> Roster | None:
             for m in students_of(c.id)
         ],
     )
+
+
+# ---------- роль: общая для бота и мини-приложения ----------
+
+ROLES = ("teacher", "student", "none")
+
+
+class UserRole(Base):
+    """Кто человек сейчас: учитель, ученик или none — нажал «Выйти» и роль ещё не выбрал.
+
+    Одна на бота и мини-приложение: выбор «Я учитель» в чате видно в приложении и наоборот.
+    Нет строки — человек роль не выбирал, её выводят из его классов.
+    """
+
+    __tablename__ = "user_roles"
+
+    max_user_id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    role: Mapped[str] = mapped_column(String(10))
+
+
+def _set_role(s: Session, max_user_id: int, role: str) -> None:
+    r = s.get(UserRole, max_user_id)
+    if r is None:
+        s.add(UserRole(max_user_id=max_user_id, role=role))
+    else:
+        r.role = role
+
+
+def set_role(max_user_id: int, role: str) -> None:
+    with db.session() as s:
+        _set_role(s, max_user_id, role)
+
+
+def role_of(max_user_id: int) -> str:
+    """Роль для стартовой страницы: выбранная, иначе по классам — учитель, ученик или none."""
+    with db.session() as s:
+        r = s.get(UserRole, max_user_id)
+        if r is not None:
+            return r.role
+    mine = classes_of(max_user_id)
+    if any(m.role == "teacher" for _, m in mine):
+        return "teacher"
+    return "student" if mine else "none"
 
 
 # ---------- чего бот ждёт от человека ----------
