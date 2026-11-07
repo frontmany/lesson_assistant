@@ -161,6 +161,14 @@ def join(lesson_id: str, who: Seat = Depends(member)):
     )
 
 
+@router.post("/me/exit")
+def exit_app(user: User = Depends(current_user)):
+    """«Выйти» на «Мои классы»: нажал не ту роль — бот присылает в чат выбор роли заново."""
+    if user.max_user_id is not None:
+        max_bot.role_again(user.max_user_id)
+    return {"ok": True}
+
+
 @router.get("/me/classes")
 def my_classes(user: User = Depends(current_user)):
     """Классы вошедшего для стартовой страницы: учителю — «Начать урок», ученику — идущий урок.

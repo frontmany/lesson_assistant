@@ -242,3 +242,20 @@ def test_class_is_renamed_from_the_app():
     assert client.patch(f"/api/classes/{c.id}", json={"name": "", "subject": "х"}, headers=teacher).status_code == 422
     db.join(c.id, 31, "Софья Ланская")
     assert client.patch(f"/api/classes/{c.id}", json={"name": "1", "subject": "х"}, headers=sign_in(31)).status_code == 403
+
+
+
+def test_exit_in_app_sends_role_choice_again(monkeypatch):
+    from app.bot import max_bot
+
+    sent = []
+
+    class Api:
+        def send(self, user_id, text, buttons=None, markdown=False):
+            sent.append((user_id, text, buttons))
+
+    monkeypatch.setattr(max_bot, "_bot", max_bot.Bot(Api(), "ideya_bot"))
+    assert client.post("/api/me/exit", headers=sign_in(MARIA)).status_code == 200
+    (user_id, text, buttons), = sent
+    assert user_id == MARIA and text.endswith("Кто вы?")
+    assert [b["text"] for row in buttons for b in row] == ["Я учитель", "Я ученик", "Посмотреть демо"]

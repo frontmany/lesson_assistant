@@ -82,6 +82,11 @@
     .field input:focus { outline: 3px solid var(--accent); outline-offset: 1px; }
     .error { margin: 0 4px; color: var(--danger); font-size: 14px; }
 
+    /* Экран после «Выйти»: большой шар Сферума на белой плашке и пояснение */
+    .bye { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 24px 32px; text-align: center; }
+    .bye-logo { width: 96px; height: 96px; padding: 10px; margin-bottom: 16px; border-radius: 28px; background: #fff; object-fit: contain; }
+    .bye h1 { margin: 0; font-size: 22px; }
+    .bye p { margin: 0; color: var(--ink-soft); font-size: 15px; }
     .dev { display: grid; gap: 8px; margin: 16px 4px 0; font-size: 14px; }
     .dev a { color: var(--ink-soft); }
   </style>
@@ -153,6 +158,16 @@
           <button class="btn ghost" id="copyCode">Копировать код</button>
         </div>
       </div>
+    </div>
+
+    <!-- После «Выйти»: бот уже прислал в чат выбор роли -->
+    <div class="view" id="exitView" hidden>
+      <div class="bye">
+        <img class="bye-logo" src="img/sferum.png" alt="" width="96" height="96">
+        <h1>Вы вышли</h1>
+        <p>Выберите роль в чате с ботом</p>
+      </div>
+      <div class="bottom" id="exitBottom"><button class="btn primary" id="toChat">Вернуться в чат</button></div>
     </div>
 
     <!-- Новый класс -->

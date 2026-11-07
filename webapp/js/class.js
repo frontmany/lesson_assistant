@@ -16,7 +16,7 @@ function plural(n, one, few, many) {
 const initials = (name) => name.split(/\s+/).map((w) => w[0]).join("").slice(0, 2).toUpperCase();
 
 function show(view) {
-  for (const id of ["home", "classView", "inviteView", "createView"]) $(id).hidden = id !== view;
+  for (const id of ["home", "classView", "inviteView", "createView", "exitView"]) $(id).hidden = id !== view;
 }
 
 let undoTimer;

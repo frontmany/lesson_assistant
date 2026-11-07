@@ -74,6 +74,8 @@ def test_stranger_chooses_teacher_student_or_demo(bot):
     message = api.to(MARIA)[-1]
     assert message[0] == "Здравствуйте! Я помогаю вести уроки в MAX. Кто вы?"
     assert [x["text"] for x in buttons(message)] == ["Я учитель", "Я ученик", "Посмотреть демо"]
+    # демо открывается в мини-приложении сразу, без второго сообщения
+    assert buttons(message)[2]["type"] == "open_app" and buttons(message)[2]["payload"] == "demo"
 
 
 def test_teacher_creates_class_and_gets_code_and_link(bot):

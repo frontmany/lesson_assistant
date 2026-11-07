@@ -60,7 +60,7 @@ function row(c) {
 }
 
 function show(view) {
-  for (const id of ["home", "classView", "inviteView", "createView"]) $(id).hidden = id !== view;
+  for (const id of ["home", "classView", "inviteView", "createView", "exitView"]) $(id).hidden = id !== view;
 }
 
 async function home() {
@@ -85,12 +85,13 @@ async function home() {
   // Нажал «Я учитель» по ошибке — в MAX возвращаемся в чат с ботом, там выбирают роль заново;
   // в браузере забываем вход
   $("exit").hidden = false;
-  $("exit").onclick = () => {
-    if (inMax) return window.WebApp.close();
+  $("exit").onclick = async () => {
+    // бот присылает в чат «Кто вы?» с выбором роли; здесь — экран «Вы вышли»
+    await api("/api/me/exit", { method: "POST" }).catch(() => {});
     signOut();
-    show("home");
-    $("classes").hidden = $("homeEmpty").hidden = $("actions").hidden = $("exit").hidden = true;
-    say("Вы вышли. Откройте мини-приложение в MAX: в чате с ботом «Идея фикс».");
+    show("exitView");
+    $("exitBottom").hidden = !inMax;
+    $("toChat").onclick = () => window.WebApp.close();
   };
 }
 
@@ -150,7 +151,11 @@ function openForm(c = null) {
 try {
   // start_param передаёт кнопка бота; ?start= — то же самое для разработки
   const start = (await signIn()) ?? new URLSearchParams(location.search).get("start");
-  if (start?.startsWith("c")) {
+  if (start === "demo") {
+    // «Посмотреть демо» в боте: свой демо-урок, сразу в звонок
+    const { lesson_id: lesson } = await api("/api/demo", { method: "POST" });
+    go("teacher.html", lesson, true);
+  } else if (start?.startsWith("c")) {
     await startLesson(start.slice(1));
   } else if (start?.startsWith("l")) {
     const lesson = start.slice(1);
