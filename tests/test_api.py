@@ -32,6 +32,8 @@ def test_ws_streams_mock_events():
         first = ws.receive_json()
     assert first["type"] == "scale"
     assert "after" not in first
+    # экран отличает мок от урока: при старте сбрасывает его, ученику не показывает (#78)
+    assert first["mock"] is True
 
 
 def test_webapp_files_are_revalidated():
