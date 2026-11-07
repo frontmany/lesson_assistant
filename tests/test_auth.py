@@ -80,7 +80,7 @@ def test_student_joins_only_as_self(lesson):
     ivan = db.students_of(lesson[0].id)[0]
     headers = sign_in(IVAN)
     me = client.get(f"/api/lessons/{lesson_id}/me", headers=headers).json()
-    assert me == {"participant_id": ivan.participant_id, "name": "Иван И.", "role": "student", "analytics": True}
+    assert me == {"participant_id": ivan.participant_id, "name": "Иван И.", "role": "student", "analytics": True, "ended": False}
     # чужой id в адресе ничего не меняет: участника сервер берёт из сессии
     join = client.get(f"/api/lessons/{lesson_id}/join", params={"id": "m999"}, headers=headers).json()
     assert join["participant_id"] == ivan.participant_id
@@ -154,7 +154,7 @@ def test_demo_from_start_page(lesson):
     headers = sign_in(MARIA, first="Мария", last="Смирнова")
     lesson_id = client.post("/api/demo", headers=headers).json()["lesson_id"]
     assert client.get(f"/api/lessons/{lesson_id}/me", headers=headers).json() == {
-        "participant_id": "teacher", "name": "Мария Смирнова", "role": "teacher", "analytics": True}
+        "participant_id": "teacher", "name": "Мария Смирнова", "role": "teacher", "analytics": True, "ended": False}
     assert client.post("/api/demo").status_code == 401
 
 
@@ -323,3 +323,48 @@ def test_student_joins_class_by_code_from_the_app(monkeypatch):
     mine = client.get("/api/me/classes", headers=student).json()
     assert [(x["name"], x["role"]) for x in mine] == [("10А", "student")]
     assert client.post("/api/classes/join", json={"code": c.invite_code}, headers=sign_in(MARIA)).status_code == 409
+
+
+def test_finished_class_lesson_is_marked_ended_for_screens(lesson):
+    # кнопка закончившегося урока ведёт к классам, а не в пустой звонок
+    c, lesson_id = lesson
+    assert client.get(f"/api/lessons/{lesson_id}/me", headers=sign_in(IVAN)).json()["ended"] is False
+    db.mark_ended(lesson_id)
+    assert client.get(f"/api/lessons/{lesson_id}/me", headers=sign_in(IVAN)).json()["ended"] is True
+    assert client.get(f"/api/lessons/{lesson_id}/me", headers=sign_in(TEACHER)).json()["ended"] is True
+
+
+def test_finished_demo_can_be_watched_again(lesson):
+    demo = db.demo_lesson(MARIA, "Мария Смирнова")
+    db.mark_ended(demo.id)
+    assert client.get(f"/api/lessons/{demo.id}/me", headers=sign_in(MARIA)).json()["ended"] is False
+
+
+def test_end_closes_room_for_whole_class(lesson, monkeypatch):
+    from app import call
+    from app.pipeline import runner
+
+    closed = []
+
+    async def close_room(lesson_id):
+        closed.append(lesson_id)
+        return True
+
+    async def end(lesson_id):
+        return True
+
+    monkeypatch.setattr(call, "close_room", close_room)
+    monkeypatch.setattr(runner, "end", end)
+    c, lesson_id = lesson
+    assert client.post(f"/api/lessons/{lesson_id}/end", headers=sign_in(TEACHER)).status_code == 200
+    assert closed == [lesson_id]
+    assert db.get_lesson(lesson_id).ended_at is not None
+
+
+def test_close_room_survives_unreachable_livekit(monkeypatch):
+    import asyncio
+
+    from app import call
+
+    monkeypatch.setattr(call, "settings", dataclasses.replace(call.settings, livekit_url="ws://127.0.0.1:9"))
+    assert asyncio.run(call.close_room("x")) is False

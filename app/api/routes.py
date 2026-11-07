@@ -15,6 +15,7 @@ from pydantic import BaseModel
 from app import auth, mocks
 from app.auth import User, current_user
 from app.bot import max_bot
+from app import call
 from app.call import participant_token
 from app.config import settings
 from app.db import classes, results
@@ -134,10 +135,15 @@ def me(lesson_id: str, who: Seat = Depends(member)):
     """Кто я в этом уроке: мини-приложение открывает экран учителя или ученика.
 
     analytics — ведётся ли аналитика этого участника (учитель может выключить её ученику).
+    ended — урок класса уже закончился: экран не зовёт в звонок, а ведёт к классам.
+    Демо-урок можно смотреть заново, он не «закончился».
     """
+    lesson = classes.get_lesson(lesson_id)
+    ended = lesson is not None and lesson.ended_at is not None and not lesson.demo and not runner.is_running(lesson_id)
     return {
         "participant_id": who.participant_id, "name": who.name, "role": who.role,
         "analytics": who.role == "teacher" or not runner.analytics_off(lesson_id, who.participant_id),
+        "ended": ended,
     }
 
 
@@ -412,6 +418,8 @@ async def end(lesson_id: str):
     """Учитель нажал «Завершить урок»: ответ приходит, когда очередь дораспознана и ассистент вышел."""
     ended = await runner.end(lesson_id)
     classes.mark_ended(lesson_id)
+    # урок кончается у всего класса: ученики выходят из звонка и видят «Урок завершён»
+    await call.close_room(lesson_id)
     return {"lesson_id": lesson_id, "ended": ended}
 
 
