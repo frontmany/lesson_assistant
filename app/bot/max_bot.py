@@ -46,7 +46,7 @@ log = logging.getLogger(__name__)
 MINCIFRY_ROOT_CA = ROOT / "certs" / "russian_trusted_root_ca.pem"
 
 UPDATE_TYPES = "message_created,message_callback,bot_started"
-# Обложка для первого сообщения /start: 4:3, у 16:9 MAX срезает края (design/bot/start-card.png)
+# Обложка для первого сообщения /start: квадратная — MAX показывает картинку почти квадратом и срезает края (design/bot/start-card.png)
 COVER = Path(__file__).parent / "assets" / "cover.png"
 # Что показывает бот — первым сообщением на /start, до «Кто вы?»
 INTRO = (
@@ -287,17 +287,21 @@ class Bot:
             self.api.send(user_id, INTRO, begin)
 
     def greet(self, user_id: int) -> None:
+        """Меню по текущей роли — той же, что в мини-приложении: учителю его классы, ученику его.
+        Учитель, который где-то ещё и ученик, не получает оба меню сразу."""
         mine = db.classes_of(user_id)
-        teaching = [c for c, m in mine if m.role == "teacher"]
-        learning = [c for c, m in mine if m.role == "student"]
-        if not mine:
-            return self.choose_role(user_id)
-        if teaching:
-            self.teacher_menu(user_id, teaching)
-        if len(learning) == 1:
-            self.student_class(user_id, learning[0].id)
-        elif learning:
-            self.choose(user_id, [(label(c), f"class:{c.id}") for c in learning])
+        role = db.role_of(user_id)
+        if role == "teacher":
+            teaching = [c for c, m in mine if m.role == "teacher"]
+            return self.teacher_menu(user_id, teaching) if teaching else self.ask_class_name(user_id, first=True)
+        if role == "student":
+            learning = [c for c, m in mine if m.role == "student"]
+            if len(learning) == 1:
+                return self.student_class(user_id, learning[0].id)
+            if learning:
+                return self.choose(user_id, [(label(c), f"class:{c.id}") for c in learning])
+            return self.ask_code(user_id)
+        self.choose_role(user_id)
 
     def choose_role(self, user_id: int) -> None:
         """Шаг 1: кто вы. И «Выйти» в мини-приложении — выбрать роль заново.
@@ -455,8 +459,12 @@ class Bot:
         self.api.send(user_id, "Введите код класса. Его назовёт учитель.", [[callback("Назад", "back")]])
 
     def back(self, user_id: int) -> None:
-        """Нажал не ту кнопку: бот перестаёт ждать название или код и возвращает к выбору."""
+        """Нажал не ту кнопку: бот перестаёт ждать название или код и возвращает назад —
+        к меню своей роли, а если в этой роли классов нет, к выбору «Кто вы?»."""
         db.set_dialog(user_id, None)
+        role = db.role_of(user_id)
+        if not any(m.role == role for _, m in db.classes_of(user_id)):
+            return self.choose_role(user_id)
         self.greet(user_id)
 
     def code(self, user: dict, text: str) -> None:

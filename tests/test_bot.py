@@ -453,3 +453,19 @@ def test_start_without_cover_still_explains(bot):
     api.upload_fails = True
     b.handle(started(MARIA))
     assert api.to(MARIA)[0][0] == INTRO
+
+
+def test_menu_follows_current_role(bot):
+    # учитель, который где-то ещё и ученик, получает только меню учителя — и наоборот
+    b, api = bot
+    c = make_class(b)  # TEACHER — учитель 10А
+    other = db.create_class(MARIA, "Мария Смирнова", "7Б", "физика")
+    db.join(other.id, TEACHER, "Елена Викторовна")  # и ученик в чужом классе
+    db.set_role(TEACHER, "teacher")
+    before = len(api.to(TEACHER))
+    b.handle(press(TEACHER, "begin"))
+    new = api.to(TEACHER)[before:]
+    assert len(new) == 1 and new[0][0].startswith("Ваши классы:")
+    db.set_role(TEACHER, "student")
+    b.handle(press(TEACHER, "begin"))
+    assert api.to(TEACHER)[-1][0].startswith("Вы в классе 7Б, физика")
