@@ -275,12 +275,11 @@ def test_students_get_lesson_started_and_late_joiner_too(bot):
     db.mark_live(lesson.id)
     b.lesson_started(IVAN, c, lesson.id)
     message = api.to(IVAN)[-1]
-    # ученику говорят явно, что ассистент слушает урок (концепция, #98)
-    assert message[0] == "Урок начался: 10А, история.\nАссистент слушает урок, чтобы вести шкалу участия."
+    assert message[0] == "Урок начался: 10А, история."
     assert buttons(message)[0]["payload"] == f"l{lesson.id}"
     # кто вошёл в класс во время урока, сразу получает приглашение
     join(b, MARIA, c.invite_code, first="Мария", last="Смирнова")
-    assert api.to(MARIA)[-1][0] == "Урок начался: 10А, история.\nАссистент слушает урок, чтобы вести шкалу участия."
+    assert api.to(MARIA)[-1][0] == "Урок начался: 10А, история."
 
 
 def test_demo_opens_own_lesson(bot):
