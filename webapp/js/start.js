@@ -50,7 +50,7 @@ function row(c) {
   else if (c.role === "teacher") state = c.students ? `${c.students} ${plural(c.students, "ученик", "ученика", "учеников")}` : "Нет учеников";
   else state = "Урок пока не идёт";
   // урок идёт — это главное, предмет не нужен
-  sub.textContent = c.lesson ? state : `${state} · ${c.subject}`;
+  sub.textContent = state; // без предмета: строка только про состояние класса
   sub.classList.toggle("live", Boolean(c.lesson));
   if (c.role === "teacher") {
     el.onclick = () => openClassScreen(c.id);
