@@ -22,11 +22,14 @@ def test_student_joins_own_room_under_own_id():
     assert claims["sub"] == "artem_k"
     assert claims["video"]["room"] == room_name(LESSON)
     assert claims["video"]["canPublish"] is True
+    # ученик говорит и включает камеру, но экран не показывает
+    assert sorted(claims["video"]["canPublishSources"]) == ["camera", "microphone"]
 
 
 def test_teacher_joins():
     info = client.get(f"/api/lessons/{LESSON}/join", params={"id": "teacher"}).json()
     assert info["role"] == "teacher"
+    assert "screen_share" in _claims(info["token"])["video"]["canPublishSources"]
 
 
 def test_stranger_cannot_join():

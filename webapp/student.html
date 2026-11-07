@@ -4,8 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Урок: ученик</title>
-  <!-- Экран ученика в звонке (#22) по макету design/student-call.html (#8). Логика — js/student.js.
-       Экран до входа и без микрофона — общий с учителем (css/call.css) -->
+  <!-- Экран ученика в звонке (#22). Логика — js/student.js. Экран до входа и сцена звонка —
+       общие с учителем (css/call.css, js/stage.js); своё — только шкала (css/student.css) -->
   <link rel="stylesheet" href="css/tokens.css">
   <link rel="stylesheet" href="css/call.css">
   <link rel="stylesheet" href="css/student.css">
@@ -21,6 +21,8 @@
     <symbol id="pulse-off" viewBox="0 0 24 24"><path d="M3 12h4l3-8 4 16 3-8h4M4 4l16 16"/></symbol>
     <symbol id="ai-star" viewBox="0 0 24 24"><path d="M12 2.5c.7 5 3.5 7.8 8.5 8.5v1c-5 .7-7.8 3.5-8.5 8.5h-1c-.7-5-3.5-7.8-8.5-8.5v-1c5-.7 7.8-3.5 8.5-8.5z"/></symbol>
     <symbol id="check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
+    <symbol id="chev-r" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></symbol>
+    <symbol id="chev-l" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></symbol>
   </svg>
 
   <div class="app">
@@ -41,32 +43,31 @@
       </div>
     </div>
 
-    <!-- В уроке -->
-    <section class="st-screen" id="call" hidden aria-label="Звонок, экран ученика">
-      <div class="banner" id="banner" hidden><span class="spin"></span>Связь пропала. Переподключаемся…</div>
-      <div class="st-layout">
-        <div class="st-main">
-          <div class="st-stage" id="stage"></div>
-          <span class="st-timer" id="timer">0:00</span>
-        </div>
-        <div class="st-side">
-          <div class="st-strip" id="strip" aria-label="Одноклассники в звонке"></div>
-          <!-- Своя шкала: js переносит её вниз своей плитки в ряду. Звезда «AI» и четыре сегмента,
-               название ступени — в подсказке и для экранного чтения -->
-          <div class="meter-pill" id="scale" role="img">
-            <svg class="ai" aria-hidden="true"><use href="#ai-star"/></svg>
-            <ol class="meter" id="steps" aria-hidden="true"></ol>
-          </div>
-          <span class="sr" aria-live="polite" role="status" id="status"></span>
-        </div>
-      </div>
-      <div class="toast" id="toast" hidden></div>
-      <footer class="st-controls">
-        <button class="cbtn" id="btnMic" aria-label="Выключить микрофон"><svg class="i"><use href="#mic"/></svg></button>
-        <button class="cbtn" id="btnCam" aria-label="Включить камеру"><svg class="i"><use href="#cam-off"/></svg></button>
-        <button class="cbtn leave" id="btnLeave" aria-label="Выйти из урока"><svg class="i"><use href="#leave"/></svg></button>
-      </footer>
-    </section>
+    <!-- В уроке: та же сцена, что у учителя (js/stage.js), без панели класса -->
+    <div class="body" id="call" hidden aria-label="Звонок, экран ученика">
+      <section class="stage" id="stage" aria-label="Участники звонка">
+        <div class="banner" id="banner" hidden><span class="spin"></span>Связь пропала. Переподключаемся…</div>
+        <div class="tiles" id="tiles"></div>
+        <div class="share" id="share" hidden><div class="shared" id="shared"><span class="you" id="sharedBy"></span></div><div class="strip" id="strip"></div></div>
+        <button class="side prev" id="prev" aria-label="Предыдущая страница" hidden><svg class="i"><use href="#chev-l"/></svg></button>
+        <button class="side next" id="next" aria-label="Следующая страница" hidden><svg class="i"><use href="#chev-r"/></svg></button>
+        <div class="dots" id="pager" aria-hidden="true" hidden></div>
+      </section>
+    </div>
+    <!-- Своя шкала: js переносит её вниз своей плитки. Звезда «AI» и четыре сегмента,
+         название ступени — в подсказке и для экранного чтения -->
+    <div class="meter-pill parked" id="scale" role="img">
+      <svg class="ai" aria-hidden="true"><use href="#ai-star"/></svg>
+      <ol class="meter" id="steps" aria-hidden="true"></ol>
+    </div>
+    <span class="sr" aria-live="polite" role="status" id="status"></span>
+    <div class="toast" id="toast" hidden></div>
+    <!-- Показывать экран ученику нельзя: это право только учителя (app/call.py) -->
+    <footer class="controls" id="controls" hidden>
+      <button class="cbtn" id="btnMic" aria-label="Выключить микрофон" title="Выключить микрофон"><svg class="i"><use href="#mic"/></svg></button>
+      <button class="cbtn" id="btnCam" aria-label="Включить камеру" title="Включить камеру"><svg class="i"><use href="#cam-off"/></svg></button>
+      <button class="cbtn leave" id="btnLeave" aria-label="Выйти из урока" title="Выйти из урока"><svg class="i"><use href="#leave"/></svg></button>
+    </footer>
   </div>
 
   <script src="https://st.max.ru/js/max-web-app.js"></script>

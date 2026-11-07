@@ -5,6 +5,7 @@
 import { DisconnectReason, joinCall } from "./call.js";
 import { ask } from "./confirm.js";
 import { LESSON_ID, api, botLink, failText, loadRoster, signIn, subscribe, whoAmI } from "./lesson.js";
+import { createStage, mobile } from "./stage.js";
 import { inMax, micAccess, openInBrowser, openMaxSettings, openSystemSettings } from "./mic.js";
 
 const { RoomEvent, Track } = window.LivekitClient;
@@ -24,7 +25,6 @@ const NOMIC = {
 };
 
 const $ = (id) => document.getElementById(id);
-const mobile = matchMedia("(max-width: 700px)");
 
 // ошибка входа (устаревшая ссылка в браузере, нет сети) — не тупик: текст и кнопки (#98, п. 4)
 await signIn().catch((err) => fail(err));
@@ -39,12 +39,10 @@ const students = {}; // id → { level, flags, off, last }
 let room = null;
 let leaving = false;
 let startedAt = 0;
-let page = 1;
 let panelOpen = !mobile.matches;
 let filter = "all";
 let menuFor = null;
 let reconnecting = false;
-const videos = new Map(); // sid дорожки → <video>, чтобы не пересоздавать видео при каждой перерисовке
 
 document.title = `Урок: ${roster.class_name}, ${roster.subject.toLowerCase()}`;
 // выключатели аналитики, если учитель ставил их до перезагрузки страницы (#22)
@@ -170,18 +168,11 @@ function personName(p) {
   return s?.name ?? (p.name || p.identity);
 }
 
-function videoFor(pub) {
-  const track = pub?.track;
-  if (!track || pub.isMuted) return null;
-  if (!videos.has(track.sid)) videos.set(track.sid, track.attach());
-  return videos.get(track.sid);
-}
-
 function tile(p, i) {
   const self = p === room.localParticipant;
   const el = div(`tile${p.isSpeaking ? " speaking" : ""}${self ? " self" : ""}`);
   el.style.setProperty("--h", (i * 47 + 200) % 360);
-  const video = videoFor(p.getTrackPublication(Track.Source.Camera));
+  const video = stage.video(p.getTrackPublication(Track.Source.Camera));
   if (video) {
     el.classList.add("cam");
     el.append(video);
@@ -196,111 +187,14 @@ function tile(p, i) {
   return el;
 }
 
+// Плитки, страницы и показ экрана — общие с учеником (stage.js)
+const stage = createStage({ tile, name: personName, redraw: () => renderStage() });
+
 function renderStage() {
   if (!room) return;
-  const all = people();
-  const live = new Set();
-  for (const p of all) for (const pub of p.trackPublications.values()) if (pub.track) live.add(pub.track.sid);
-  for (const sid of videos.keys()) if (!live.has(sid)) videos.delete(sid);
-
-  const sharer = all.find((p) => p.getTrackPublication(Track.Source.ScreenShare)?.track);
-  $("share").hidden = !sharer;
-  $("tiles").hidden = Boolean(sharer);
-  $("stage").classList.toggle("dim", reconnecting);
-  $("banner").hidden = !reconnecting;
-
-  if (sharer) {
-    const video = videoFor(sharer.getTrackPublication(Track.Source.ScreenShare));
-    $("shared").replaceChildren(...(video ? [video] : []), $("sharedBy"));
-    $("sharedBy").textContent = sharer === room.localParticipant ? "Вы показываете экран" : `${personName(sharer)} показывает экран`;
-    const strip = mobile.matches || all.length <= 4
-      ? all.map(tile)
-      : [...all.slice(0, 3).map(tile), moreTile(all.length - 3)];
-    $("strip").replaceChildren(...strip);
-    $("pager").hidden = $("prev").hidden = $("next").hidden = true;
-  } else {
-    const tiles = $("tiles");
-    const { size, cols: maxCols, w } = layout(all.length, tiles.clientWidth, tiles.clientHeight);
-    const pages = Math.max(1, Math.ceil(all.length / size));
-    page = Math.min(page, pages);
-    const visible = all.slice((page - 1) * size, page * size);
-    const cols = Math.max(1, Math.min(maxCols, visible.length));
-    tiles.className = "tiles";
-    tiles.style.gridTemplateColumns = `repeat(${cols}, ${w}px)`;
-    tiles.style.gridTemplateRows = `repeat(${Math.ceil(visible.length / cols)}, ${w / tileRatio()}px)`;
-    tiles.replaceChildren(...visible.map((p, i) => tile(p, (page - 1) * size + i)));
-    $("pager").hidden = pages === 1;
-    $("pager").replaceChildren(...Array.from({ length: pages }, (_, i) => span(i + 1 === page ? "on" : "")));
-    $("prev").hidden = $("next").hidden = pages === 1;
-    $("prev").disabled = page === 1;
-    $("next").disabled = page === pages;
-  }
+  stage.render(people(), { self: room.localParticipant, reconnecting });
   renderControls();
 }
-
-function moreTile(n) {
-  const el = div("tile more-tile");
-  const inner = div("");
-  inner.append(`+${n}`, Object.assign(document.createElement("small"), { textContent: "ещё в звонке" }));
-  el.append(inner);
-  return el;
-}
-
-$("prev").onclick = () => { page--; renderStage(); };
-$("next").onclick = () => { page++; renderStage(); };
-
-// Раскладка плиток. Плитка всегда одной формы (TILE_RATIO) и не мельче TILE_MIN_W:
-// кто не помещается, уходит на следующую страницу, а не сжимает всех. Сетка — по центру сцены
-const TILE_RATIO = { mobile: 4 / 3, desktop: 16 / 9 }; // на телефоне сцена узкая и высокая
-const TILE_MIN_W = { mobile: 150, desktop: 260 };
-const TILE_MAX_W = 960; // один участник не разъезжается на весь монитор
-const GAP = 8;
-const MAX_TILES = 16;
-
-function tileRatio() {
-  return mobile.matches ? TILE_RATIO.mobile : TILE_RATIO.desktop;
-}
-
-// { cols, w, size }: столбцы, ширина плитки в px и сколько плиток на странице
-function layout(n, width, height) {
-  const ratio = tileRatio();
-  const minW = Math.min(mobile.matches ? TILE_MIN_W.mobile : TILE_MIN_W.desktop, width);
-  const span = (total, k) => (total - (k - 1) * GAP) / k;
-  const maxCols = Math.max(1, Math.floor((width + GAP) / (minW + GAP)));
-  // все на одной странице, если плитки при этом не мельче минимума — берём самые крупные
-  let best = null;
-  if (n <= MAX_TILES) {
-    for (let cols = 1; cols <= Math.min(n, maxCols); cols++) {
-      const w = Math.min(span(width, cols), span(height, Math.ceil(n / cols)) * ratio, TILE_MAX_W);
-      if (w >= minW && (!best || w > best.w)) best = { cols, w, size: n };
-    }
-  }
-  if (best || n === 0) return best ?? { cols: 1, w: 0, size: 1 };
-  // не помещаются: плитки минимального размера по ширине, сколько рядов влезает — столько на страницу
-  const w = Math.max(0, Math.min(span(width, maxCols), height * ratio, TILE_MAX_W));
-  const rows = Math.max(1, Math.floor((height + GAP) / (w / ratio + GAP)));
-  return { cols: maxCols, w, size: Math.min(MAX_TILES, maxCols * rows) };
-}
-
-// Сцена поменяла размер (панель аналитики, поворот телефона, окно) — пересчитываем страницу
-let lastBox = "";
-new ResizeObserver(([e]) => {
-  const key = `${Math.round(e.contentRect.width)}x${Math.round(e.contentRect.height)}`;
-  if (key !== lastBox) { lastBox = key; renderStage(); }
-}).observe($("tiles"));
-
-// На телефоне страницы листаются свайпом по плиткам
-let swipeX = null;
-$("tiles").addEventListener("pointerdown", (e) => { swipeX = e.clientX; });
-$("tiles").addEventListener("pointerup", (e) => {
-  if (swipeX === null) return;
-  const dx = e.clientX - swipeX;
-  swipeX = null;
-  if (Math.abs(dx) < 50) return;
-  const pages = $("pager").children.length || 1;
-  const next = page + (dx < 0 ? 1 : -1);
-  if (next >= 1 && next <= pages) { page = next; renderStage(); }
-});
 
 // ---------- панель класса ----------
 
