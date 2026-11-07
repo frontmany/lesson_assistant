@@ -73,16 +73,16 @@
 .st-side > .meter-pill { display: none; } /* до входа в звонок плашка ждёт своей плитки */
 .meter-pill {
   position: absolute; left: 4px; right: 4px; bottom: 4px; z-index: 2; display: flex; align-items: center; gap: 5px;
-  padding: 4px 6px; border-radius: 8px; background: var(--scrim); transition: opacity .3s;
+  padding: 4px 6px; transition: opacity .3s; /* без подложки: прямо на плитке */
 }
 .mini.me .avatar { margin-bottom: 16px; } /* аватар над плашкой шкалы, а не под ней */
-.meter-pill .ai { width: 13px; height: 13px; flex: none; fill: var(--accent-on-scrim); stroke: none; }
+.meter-pill .ai { width: 13px; height: 13px; flex: none; fill: var(--accent); stroke: none; }
 .meter { flex: 1; display: flex; gap: 2px; margin: 0; padding: 0; list-style: none; }
-.meter li { flex: 1; height: 4px; border-radius: 2px; background: color-mix(in srgb, var(--on-scrim) 25%, transparent); transition: background .45s; }
-.meter li.on { background: var(--accent-on-scrim); }
+.meter li { flex: 1; height: 4px; border-radius: 2px; background: var(--line-strong); transition: background .45s; }
+.meter li.on { background: var(--accent); }
 .meter-pill.off { opacity: .75; }
-.meter-pill.off .ai { fill: color-mix(in srgb, var(--on-scrim) 45%, transparent); }
-.meter-pill.off .meter li { background: color-mix(in srgb, var(--on-scrim) 18%, transparent); }
+.meter-pill.off .ai { fill: var(--ink-soft); }
+.meter-pill.off .meter li { background: var(--line); }
 
 /* Кнопки звонка */
 .st-controls { display: flex; align-items: center; justify-content: center; gap: 16px; padding: 12px 16px calc(14px + env(safe-area-inset-bottom)); }
