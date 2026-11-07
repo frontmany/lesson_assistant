@@ -228,6 +228,8 @@ function renderScale() {
 }
 
 subscribe((event) => {
+  // мок до начала урока — не настоящее участие: шкала только растёт, и опустить её потом нельзя (#78)
+  if (event.mock) return;
   if (event.type === "analytics" && (event.student_id == null || event.student_id === studentId)) {
     analytics = event.enabled;
     renderScale();

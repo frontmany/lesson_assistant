@@ -124,8 +124,10 @@ async function enter({ mic = prefs.mic } = {}) {
   // Демо-урок сервер начинает сразу с записанным классом
   await api(`/api/lessons/${LESSON_ID}/start`, { method: "POST" })
     .catch((err) => console.warn("урок не начался на сервере", err));
-  // Состав мог поменяться: виртуальный класс заменяет учеников записанными
+  // Состав мог поменяться: виртуальный класс заменяет учеников записанными.
+  // Шкалы и метки из мока, пришедшие до начала урока, сбрасываем (#78)
   roster = await loadRoster();
+  for (const id of Object.keys(students)) if (students[id].mock) delete students[id];
   resetStudents();
   watchRoom();
   show("call");
@@ -311,18 +313,36 @@ const togglePanel = () => { panelOpen = !panelOpen; render(); };
 $("collapse").onclick = togglePanel;
 $("expand").onclick = togglePanel;
 
-subscribe((event) => {
+// Ученик вошёл в класс во время урока: конвейер его уже засчитывает, а в составе экрана его нет.
+// Перечитываем состав один раз на пачку событий и применяем событие заново (#78)
+let rosterReload = null;
+function reloadRoster() {
+  rosterReload ??= loadRoster()
+    .then((fresh) => { roster = fresh; resetStudents(); render(); })
+    .catch((err) => console.warn("состав урока не обновился", err))
+    .finally(() => { rosterReload = null; });
+  return rosterReload;
+}
+
+subscribe(onEvent);
+
+function onEvent(event) {
+  if (event.student_id && !students[event.student_id] && !event.mock) {
+    reloadRoster().then(() => students[event.student_id] && onEvent(event));
+    return;
+  }
   if (event.type === "analytics") {
     for (const s of roster.students) if (event.student_id == null || event.student_id === s.id) students[s.id].off = !event.enabled;
   }
   const st = students[event.student_id];
+  if (st && event.mock) st.mock = true;
   if (st && event.type === "scale") {
     st.level = Math.max(st.level ?? 1, event.level); // шкала только растёт
     st.flags = event.flags ?? [];
   }
   if (st && event.type === "utterance") st.last = event.text;
   if (room) renderPanel();
-});
+}
 
 // ---------- кнопки звонка ----------
 
