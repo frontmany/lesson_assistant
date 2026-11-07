@@ -2,298 +2,116 @@
 <html lang="ru">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Макет: звонок ученика</title>
-  <!-- Макет экрана ученика в звонке (issue #8). Телефон, 375 px; на широком окне экран стоит по центру.
-       Состояния задаются в адресе: ?level=1…4 (ступень шкалы, по умолчанию 2), ?mic=0 (микрофон выключен),
-       ?ana=off (аналитика выключена, шкалы нет), ?scale=hidden|shown (шкала скрыта или показана).
-       Все четыре ступени подряд: ?all=1.
-       Прототип: нажатие на ступень выше текущей поднимает шкалу, на ступень ниже ничего не делает (шкала только растёт).
-       Цвета и тени берём из токенов, своих значений здесь нет. Тёмная тема включается системной. -->
+  <!-- Макет экрана ученика. Стили и сетка плиток — настоящие (webapp/css, webapp/js/stage.js),
+       участники и шкала подставные. Состояние — в адресе, см. design/README.md -->
   <link rel="stylesheet" href="../webapp/css/tokens.css">
-  <style>
-    * { box-sizing: border-box; }
-    body { margin: 0; font-family: var(--font); background: var(--bg); color: var(--ink); line-height: 1.4; }
-    button { font: inherit; color: inherit; cursor: pointer; border: 0; background: none; padding: 0; }
-    button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
-
-    .i { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex: none; }
-
-    .page { max-width: 1240px; margin: 0 auto; padding: 32px 16px 64px; }
-    .page > h1 { margin: 0 0 4px; font-size: 24px; }
-    .lead { margin: 0 0 32px; color: var(--ink-soft); max-width: 62ch; }
-    .gallery { display: grid; gap: 40px 32px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 375px), 1fr)); align-items: start; }
-    .item h2 { margin: 0 0 12px; font-size: 17px; }
-    .page.single { padding-top: 16px; }
-    .page.single .gallery { justify-content: center; grid-template-columns: minmax(0, 375px); }
-
-    /* Экран звонка */
-    .screen {
-      position: relative; width: 100%; max-width: 375px; height: 780px; display: flex; flex-direction: column; overflow: hidden;
-      background: var(--bg); border: 1px solid var(--line); border-radius: 24px; box-shadow: var(--shadow-float);
-    }
-
-    /* Верх: индикатор аналитики, виден весь урок */
-    .top { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 16px 8px; }
-    .ana {
-      display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px 5px 8px; border-radius: 999px;
-      background: var(--accent-tint); color: var(--accent); font-size: 13px; font-weight: 600;
-    }
-    .ana .i { width: 16px; height: 16px; }
-    .timer { font-size: 13px; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
-
-    /* Видео: учитель на весь блок, своя плитка в углу. Ниже лента одноклассников без шкал: говорящий обведён */
-    .stage { position: relative; margin: 0 16px; flex: 1; min-height: 240px; }
-    .tile {
-      position: absolute; overflow: hidden; border-radius: 16px; border: 1px solid var(--line);
-      background: hsl(var(--h) 22% 72%); border-color: transparent;
-    }
-    .tile.main { inset: 0; }
-    .tile.me { right: 10px; bottom: 10px; width: 92px; height: 122px; border-radius: 12px; border: 2px solid var(--surface); }
-    .person::before {
-      content: ""; position: absolute; left: 50%; top: 22%; width: 26%; aspect-ratio: 1;
-      transform: translateX(-50%); border-radius: 50%; background: var(--figure);
-    }
-    .person::after {
-      content: ""; position: absolute; left: 50%; bottom: -18%; width: 62%; height: 50%;
-      transform: translateX(-50%); border-radius: 50% 50% 0 0; background: var(--figure);
-    }
-    .person { position: absolute; inset: 0; }
-    .tile .name {
-      position: absolute; left: 8px; bottom: 8px; max-width: calc(100% - 16px); padding: 3px 9px; border-radius: 8px;
-      background: var(--scrim); color: var(--on-scrim); font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-    }
-    .tile.me .name { left: 6px; bottom: 6px; padding: 2px 7px; }
-    .micoff {
-      position: absolute; top: 6px; right: 6px; width: 24px; height: 24px; border-radius: 50%;
-      background: var(--scrim); color: var(--on-scrim); display: grid; place-items: center;
-    }
-    .micoff .i { width: 14px; height: 14px; }
-
-    .strip { display: flex; gap: 8px; margin: 8px 16px 0; overflow-x: auto; scrollbar-width: none; flex: none; }
-    .strip::-webkit-scrollbar { display: none; }
-    .mini {
-      position: relative; flex: none; width: 84px; height: 84px; border-radius: 12px; overflow: hidden;
-      background: hsl(var(--h) 22% 72%); display: grid; place-items: center;
-    }
-    .mini.nocam { background: var(--surface-muted); border: 1px solid var(--line); }
-    .mini.speaking { outline: 3px solid var(--accent); outline-offset: -3px; }
-    .mini .avatar {
-      width: 36px; height: 36px; border-radius: 50%; background: var(--accent-tint); color: var(--accent);
-      display: grid; place-items: center; font-weight: 700; font-size: 14px;
-    }
-    .mini .name {
-      position: absolute; left: 4px; right: 4px; bottom: 4px; padding: 1px 6px; border-radius: 6px;
-      background: var(--scrim); color: var(--on-scrim); font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-    }
-    .mini.speaking .name::before { content: "● "; color: var(--accent-on-scrim); }
-    .mini .micoff { top: 4px; right: 4px; width: 20px; height: 20px; }
-    .mini .micoff .i { width: 12px; height: 12px; }
-
-    /* Аналитика выключена: индикатор нейтральный, шкалы нет */
-    .ana.off { background: var(--surface-muted); color: var(--ink-soft); }
-    .scale.off .scale-head { margin-bottom: 4px; }
-    .off-text { margin: 0; font-size: 14px; color: var(--ink-soft); }
-
-    /* Своя шкала */
-    .scale { margin: 12px 16px 12px; padding: 14px 16px 12px; border-radius: var(--radius); background: var(--surface); border: 1px solid var(--line); }
-    .scale-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
-    .scale-head h2 { flex: 1; margin: 0; font-size: 16px; }
-    .scale-head .of { font-size: 13px; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
-
-    .steps { margin: 0; padding: 0; list-style: none; }
-    .step { position: relative; }
-    .step button {
-      width: 100%; min-height: 44px; display: flex; align-items: center; gap: 12px; padding: 0 10px 0 4px; border-radius: 10px; text-align: left;
-      font-size: 15px; color: var(--ink-soft); transition: background .3s, color .3s;
-    }
-    .mark {
-      position: relative; z-index: 1; width: 26px; height: 26px; border-radius: 50%; flex: none; display: grid; place-items: center;
-      border: 2px solid var(--line-strong); background: var(--surface); color: var(--on-accent, var(--surface));
-      transition: background .4s, border-color .4s;
-    }
-    .mark .i { width: 14px; height: 14px; stroke-width: 2.6; opacity: 0; transform: scale(.4); transition: opacity .3s .1s, transform .3s .1s; }
-
-    /* Соединительная линия между ступенями: заполняется вслед за шкалой */
-    .step + .step::before {
-      content: ""; position: absolute; left: 15px; top: -18px; width: 2px; height: 36px; background: var(--surface-muted);
-    }
-    .step + .step::after {
-      content: ""; position: absolute; left: 15px; top: -18px; width: 2px; height: 36px; background: var(--accent);
-      transform: scaleY(0); transform-origin: top; transition: transform .45s;
-    }
-    .step.done::after, .step.now::after { transform: scaleY(1); }
-
-    /* Достигнутые ступени заполнены, чем выше — тем насыщеннее (оттенки одного зелёного, не светофор) */
-    .step[data-n="1"] { --fill: color-mix(in srgb, var(--accent) 45%, var(--surface-muted)); }
-    .step[data-n="2"] { --fill: color-mix(in srgb, var(--accent) 65%, var(--surface-muted)); }
-    .step[data-n="3"] { --fill: color-mix(in srgb, var(--accent) 85%, var(--surface-muted)); }
-    .step[data-n="4"] { --fill: var(--accent); }
-    .step.done .mark, .step.now .mark { background: var(--fill); border-color: var(--fill); }
-    .step.done .mark .i, .step.now .mark .i { opacity: 1; transform: none; }
-    .step.done button { color: var(--ink); }
-    .step.now button { background: var(--accent-tint); color: var(--ink); font-weight: 700; }
-    .step.now .mark { box-shadow: 0 0 0 4px var(--surface); }
-
-    /* Шкалу можно скрыть: остаётся строка с названием и кнопкой «Показать» */
-    .toggle {
-      display: inline-flex; align-items: center; gap: 4px; min-height: 44px; margin: -10px -8px -10px 0; padding: 0 8px;
-      border-radius: 10px; font-size: 14px; font-weight: 600; color: var(--ink-soft);
-    }
-    .toggle .i { width: 20px; height: 20px; transition: transform .3s; }
-    .scale.collapsed .toggle .i { transform: rotate(180deg); }
-    .fold { display: grid; grid-template-rows: 1fr; transition: grid-template-rows .35s; }
-    .fold > div { overflow: hidden; min-height: 0; }
-    .scale.collapsed .fold { grid-template-rows: 0fr; }
-    .scale.collapsed .scale-head { margin-bottom: 0; }
-    .scale.collapsed .fold > div { visibility: hidden; transition: visibility 0s .35s; }
-
-    .scale-note { margin: 10px 0 0; padding-top: 10px; border-top: 1px solid var(--line); font-size: 13px; color: var(--ink-soft); }
-
-    /* Полоса звонка */
-    .controls {
-      margin-top: auto; display: flex; align-items: center; justify-content: space-between; gap: 8px;
-      padding: 10px 16px 14px; border-top: 1px solid var(--line); background: var(--surface);
-    }
-    .cbtn {
-      position: relative; width: 48px; height: 48px; border-radius: 50%; flex: none;
-      border: 1px solid var(--line-strong); color: var(--ink); display: grid; place-items: center;
-    }
-    .cbtn.off { background: var(--danger); border-color: var(--danger); color: var(--on-danger); }
-    .cbtn.leave { width: 88px; border-radius: 24px; background: var(--danger); border-color: var(--danger); color: var(--on-danger); }
-    .badge {
-      position: absolute; top: -2px; right: -2px; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 10px;
-      background: var(--ink); color: var(--surface); font-size: 12px; font-weight: 700; display: grid; place-items: center;
-    }
-
-    .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-    @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
-    @media (max-width: 420px) {
-      .page { padding: 0; }
-      .page > h1, .lead, .item > h2 { display: none; }
-      .page.single { padding-top: 0; }
-      .screen { border: 0; border-radius: 0; height: 100vh; min-height: 640px; box-shadow: none; }
-    }
-  </style>
+  <link rel="stylesheet" href="../webapp/css/call.css">
+  <link rel="stylesheet" href="../webapp/css/student.css">
+  <link rel="stylesheet" href="mock-call.css">
 </head>
 <body>
   <svg width="0" height="0" style="position:absolute" aria-hidden="true">
     <symbol id="mic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></symbol>
     <symbol id="mic-off" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3M4 4l16 16"/></symbol>
     <symbol id="cam" viewBox="0 0 24 24"><rect x="3" y="6" width="12" height="12" rx="2"/><path d="M15 10l6-3v10l-6-3"/></symbol>
-    <symbol id="chat" viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/></symbol>
-    <symbol id="leave" viewBox="0 0 24 24"><path d="M3 14c5-5 13-5 18 0l-2.5 3-3.5-1.5v-3c-2-.7-4-.7-6 0v3L5.500 17z"/></symbol>
-    <symbol id="pulse" viewBox="0 0 24 24"><path d="M3 12h4l3-8 4 16 3-8h4"/></symbol>
-    <symbol id="pulse-off" viewBox="0 0 24 24"><path d="M3 12h4l3-8 4 16 3-8h4M4 4l16 16"/></symbol>
+    <symbol id="cam-off" viewBox="0 0 24 24"><rect x="3" y="6" width="12" height="12" rx="2"/><path d="M15 10l6-3v10l-6-3M4 4l16 16"/></symbol>
+    <symbol id="leave" viewBox="0 0 24 24"><path d="M3 14c5-5 13-5 18 0l-2.5 3-3.5-1.5v-3c-2-.7-4-.7-6 0v3L5.5 17z"/></symbol>
+    <symbol id="ai-star" viewBox="0 0 24 24"><path d="M12 2.5c.7 5 3.5 7.8 8.5 8.5v1c-5 .7-7.8 3.5-8.5 8.5h-1c-.7-5-3.5-7.8-8.5-8.5v-1c5-.7 7.8-3.5 8.5-8.5z"/></symbol>
     <symbol id="check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
+    <symbol id="chev-r" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></symbol>
+    <symbol id="chev-l" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></symbol>
   </svg>
 
-  <main class="page" id="page"></main>
-
-  <script>
-    const P = new URLSearchParams(location.search);
-    const LABELS = ["Пока тихо", "Есть ответ", "Участвуешь", "Активно на уроке"];
-    const micOn = P.get("mic") !== "0";
-    const all = P.get("all") === "1";
-    const anaOff = P.get("ana") === "off";
-    const PEOPLE = [
-      { name: "Иван И.", h: 150, cam: 1, mic: 1, speaking: 1 },
-      { name: "Мария С.", h: 20, cam: 1, mic: 1 },
-      { name: "Артём К.", cam: 0, mic: 0 },
-      { name: "Софья Л.", h: 330, cam: 1, mic: 0 },
-      { name: "Алиса Н.", cam: 0, mic: 1 },
-    ];
-    let hiddenSaved = false;
-    try { hiddenSaved = localStorage.getItem("scaleHidden") === "1"; } catch {}
-    const hiddenWanted = P.get("scale") ? P.get("scale") === "hidden" : hiddenSaved;
-    const NOTE = "Видна только тебе. Шкала не опускается";
-    const icon = (id) => `<svg class="i"><use href="#${id}"/></svg>`;
-
-    function stepsHTML(level) {
-      return LABELS.map((label, i) => {
-        const n = i + 1;
-        const cls = n < level ? "done" : n === level ? "now" : "";
-        return `<li class="step ${cls}" data-n="${n}"><button type="button" aria-label="${label}" ${n === level ? 'aria-current="step"' : ""}>
-          <span class="mark">${icon("check")}</span><span>${label}</span></button></li>`;
-      }).join("");
-    }
-
-    const initials = (n) => n.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase();
-    function miniHTML(p) {
-      const body = p.cam ? `<span class="person"></span>` : `<span class="avatar">${initials(p.name)}</span>`;
-      return `<div class="mini ${p.cam ? "" : "nocam"} ${p.speaking ? "speaking" : ""}" style="--h:${p.h || 0}" aria-label="${p.speaking ? "Говорит: " : ""}${p.name}">
-        ${body}${p.mic ? "" : `<span class="micoff">${icon("mic-off")}</span>`}<span class="name">${p.name}</span></div>`;
-    }
-
-    function scaleHTML(level, idx) {
-      if (anaOff) return `<div class="scale off"><div class="scale-head"><h2>Твоё участие</h2></div>
-        <p class="off-text">Аналитика выключена. Шкала не ведётся.</p></div>`;
-      return `<div class="scale ${hiddenWanted ? "collapsed" : ""}">
-          <div class="scale-head"><h2>Твоё участие</h2><span class="of">ступень <b class="cur">${level}</b> из 4</span>
-            <button type="button" class="toggle" aria-expanded="${!hiddenWanted}" aria-controls="fold${idx}">
-              <span class="toggle-text">${hiddenWanted ? "Показать" : "Скрыть"}</span><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 15l7-7 7 7"/></svg></button></div>
-          <div class="fold" id="fold${idx}"><div>
-            <ol class="steps">${stepsHTML(level)}</ol>
-            <p class="scale-note">${NOTE}</p>
-          </div></div>
-          <p class="sr" aria-live="polite" role="status"></p>
-        </div>`;
-    }
-
-    function screenHTML(level, idx) {
-      return `<section class="screen" data-level="${level}" aria-label="Звонок, экран ученика">
-        <div class="top">
-          ${anaOff ? `<span class="ana off" title="Аналитика выключена">${icon("pulse-off")}Аналитика выключена</span>`
-                   : `<span class="ana" title="Аналитика активна">${icon("pulse")}Аналитика активна</span>`}
-          <span class="timer">12:40</span>
+  <div class="app">
+    <div class="lobby" id="lobby" hidden>
+      <button class="back" aria-label="К классам"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
+      <div class="preview tile" id="preview">
+        <span class="avatar" id="previewAvatar"></span>
+        <div class="pv-ctrl">
+          <button class="cbtn" id="pvMic"><svg class="i"><use href="#mic"/></svg></button>
+          <button class="cbtn off" id="pvCam"><svg class="i"><use href="#cam-off"/></svg></button>
         </div>
-        <div class="stage">
-          <div class="tile main" style="--h:205"><span class="person"></span><span class="name">Елена В.</span></div>
-          <div class="tile me" style="--h:260"><span class="person"></span>
-            ${micOn ? "" : `<span class="micoff">${icon("mic-off")}</span>`}<span class="name">Вы</span></div>
-        </div>
-        <div class="strip" aria-label="Одноклассники в звонке">${PEOPLE.map(miniHTML).join("")}</div>
-        ${scaleHTML(level, idx)}
-        <footer class="controls">
-          <button class="cbtn ${micOn ? "" : "off"}" aria-label="${micOn ? "Выключить микрофон" : "Включить микрофон"}">${icon(micOn ? "mic" : "mic-off")}</button>
-          <button class="cbtn" aria-label="Выключить камеру">${icon("cam")}</button>
-          <button class="cbtn leave" aria-label="Выйти из звонка">${icon("leave")}</button>
-        </footer>
-      </section>`;
+      </div>
+      <div class="lobby-text">
+        <h1 id="lobbyTitle"></h1>
+        <p id="lobbyText" hidden></p>
+        <div class="actions" id="lobbyActions"></div>
+      </div>
+    </div>
+
+    <div class="body" id="call" hidden>
+      <section class="stage" id="stage" aria-label="Участники звонка">
+        <div class="banner" id="banner" hidden><span class="spin"></span>Связь пропала. Переподключаемся…</div>
+        <div class="tiles" id="tiles"></div>
+        <div class="share" id="share" hidden><div class="shared" id="shared"><span class="you" id="sharedBy"></span></div><div class="strip" id="strip"></div></div>
+        <button class="side prev" id="prev" aria-label="Предыдущая страница" hidden><svg class="i"><use href="#chev-l"/></svg></button>
+        <button class="side next" id="next" aria-label="Следующая страница" hidden><svg class="i"><use href="#chev-r"/></svg></button>
+        <div class="dots" id="pager" aria-hidden="true" hidden></div>
+      </section>
+    </div>
+    <div class="meter-pill parked" id="scale" role="img">
+      <svg class="ai" aria-hidden="true"><use href="#ai-star"/></svg>
+      <ol class="meter" id="steps" aria-hidden="true"><li></li><li></li><li></li><li></li></ol>
+    </div>
+    <div class="toast" id="toast" hidden></div>
+    <footer class="controls" id="controls" hidden>
+      <button class="cbtn" id="btnMic"><svg class="i"><use href="#mic"/></svg></button>
+      <button class="cbtn off" id="btnCam"><svg class="i"><use href="#cam-off"/></svg></button>
+      <button class="cbtn leave" id="btnLeave"><svg class="i"><use href="#leave"/></svg></button>
+    </footer>
+  </div>
+
+  <script type="module">
+    import { $, NAMES, div, iconSpan, initials, lobby, params, person, setIconButton, span } from "./mock-call.js";
+    const { createStage } = await import("../webapp/js/stage.js");
+
+    // ?n= одноклассников, ?teacher=0 учитель ещё не вошёл, ?level=1..4 своя ступень, ?ana=off,
+    // ?mic=0, ?share=1 учитель показывает экран, ?state=lobby|connecting|nomic|reconnecting|ended|over|fail
+    const n = Math.max(0, +(params.get("n") ?? 4));
+    const level = Math.min(4, Math.max(1, +(params.get("level") ?? 3)));
+    const ana = params.get("ana") !== "off";
+    const mic = params.get("mic") !== "0";
+    const state = params.get("state") ?? "live";
+
+    const pill = $("scale");
+    pill.classList.toggle("off", !ana);
+    [...$("steps").children].forEach((li, i) => li.classList.toggle("on", ana && i < level));
+
+    const me = person("me", "Вы", { mic });
+    const teacher = params.get("teacher") === "0" ? [] : [person("teacher", "Елена В.", { cam: true, speaking: true, hue: 210, screen: params.get("share") === "1" })];
+    const classmates = NAMES.slice(0, n).map((name, i) => person(`s${i}`, name, { cam: i % 3 === 1, mic: i % 4 !== 2, hue: (i * 47 + 250) % 360 }));
+    // как в приложении: учитель, затем ты, затем одноклассники
+    const people = [...teacher, me, ...classmates];
+
+    function tile(p, i) {
+      const self = p === me;
+      const el = div(`tile${p.isSpeaking ? " speaking" : ""}${self ? " self" : ""}`);
+      el.style.setProperty("--h", (i * 47 + 200) % 360);
+      const video = stage.video(p.getTrackPublication("camera"));
+      if (video) { el.classList.add("cam"); el.append(video); }
+      else el.append(span("avatar", initials(self ? "Пётр Новиков" : p.name)));
+      if (p.getTrackPublication("microphone").isMuted) el.append(iconSpan("micoff", "mic-off"));
+      if (self) { pill.classList.remove("parked"); el.append(pill); }
+      el.title = p.name;
+      return el;
     }
 
-    const levels = all ? [1, 2, 3, 4] : [Math.max(1, Math.min(4, +P.get("level") || 2))];
-    const page = document.getElementById("page");
-    page.classList.toggle("single", !all);
-    page.innerHTML = `<h1>Экран ученика в звонке</h1>
-      <p class="lead">Телефон, 375 px. Ученик видит одноклассников в звонке, но только свою шкалу: чужих шкал и мест в рейтинге на экране нет, шкала только растёт.</p>
-      <div class="gallery">${levels.map((l, i) => `<div class="item"><h2>${anaOff ? "Аналитика выключена" : `Ступень ${l}: ${LABELS[l - 1]}`}</h2>${screenHTML(l, i)}</div>`).join("")}</div>`;
+    const stage = createStage({ tile, name: (p) => p.name, redraw: () => render() });
 
-    // Скрыть и показать шкалу: выбор помним на устройстве
-    document.querySelectorAll(".toggle").forEach((btn) => btn.addEventListener("click", () => {
-      const c = btn.closest(".scale").classList.toggle("collapsed");
-      btn.setAttribute("aria-expanded", !c);
-      btn.querySelector(".toggle-text").textContent = c ? "Показать" : "Скрыть";
-      try { localStorage.setItem("scaleHidden", c ? "1" : "0"); } catch {}
-    }));
+    function render() {
+      stage.render(people, { self: me, reconnecting: state === "reconnecting" });
+      setIconButton($("btnMic"), mic, "mic");
+    }
 
-    // Прототип: нажатие на ступень выше текущей поднимает шкалу, ниже — ничего не меняет
-    document.querySelectorAll(".screen").forEach((screen) => {
-      screen.querySelectorAll(".step button").forEach((btn) => btn.addEventListener("click", () => {
-        const target = +btn.closest(".step").dataset.n;
-        if (target <= +screen.dataset.level) return;
-        screen.dataset.level = target;
-        screen.querySelectorAll(".step").forEach((s) => {
-          const n = +s.dataset.n;
-          s.classList.toggle("done", n < target);
-          s.classList.toggle("now", n === target);
-          const b = s.querySelector("button");
-          if (n === target) b.setAttribute("aria-current", "step"); else b.removeAttribute("aria-current");
-        });
-        screen.querySelector(".cur").textContent = target;
-        screen.querySelector("[role=status]").textContent = "Ступень: " + LABELS[target - 1];
-      }));
-    });
+    if (["lobby", "connecting", "nomic", "over", "ended", "fail"].includes(state)) {
+      lobby(state, { title: "Войти в урок?", avatar: "ПН" });
+    } else {
+      $("call").hidden = $("controls").hidden = false;
+      if (!mic) { $("toast").textContent = "Микрофон выключен"; $("toast").hidden = false; }
+      render();
+    }
   </script>
 </body>
 </html>

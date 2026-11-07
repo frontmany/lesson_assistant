@@ -180,7 +180,7 @@ def test_analytics_switch_is_kept_and_sent_to_student(lesson):
 
 
 def test_class_screen_lists_students_and_removes_with_undo(monkeypatch):
-    """Экран класса в мини-приложении (design/classes.html): только учителю этого класса."""
+    """Экран класса в мини-приложении (design/screens/start-class.png): только учителю этого класса."""
     from app.bot import max_bot
     from app.db import classes as db
 
