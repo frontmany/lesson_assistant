@@ -259,3 +259,17 @@ def test_exit_in_app_sends_role_choice_again(monkeypatch):
     (user_id, text, buttons), = sent
     assert user_id == MARIA and text.endswith("Кто вы?")
     assert [b["text"] for row in buttons for b in row] == ["Я учитель", "Я ученик", "Посмотреть демо"]
+
+
+def test_student_joins_class_by_code_from_the_app(monkeypatch):
+    from app.bot import max_bot
+    from app.db import classes as db
+
+    monkeypatch.setattr(max_bot, "_bot", None)
+    c = db.create_class(MARIA, "Мария Смирнова", "10А", "история")
+    student = sign_in(31, first="Софья", last="Ланская")
+    assert client.post("/api/classes/join", json={"code": "НЕТ-ТАКОГО"}, headers=student).status_code == 404
+    assert client.post("/api/classes/join", json={"code": c.invite_code.lower()}, headers=student).json() == {"id": c.id}
+    mine = client.get("/api/me/classes", headers=student).json()
+    assert [(x["name"], x["role"]) for x in mine] == [("10А", "student")]
+    assert client.post("/api/classes/join", json={"code": c.invite_code}, headers=sign_in(MARIA)).status_code == 409

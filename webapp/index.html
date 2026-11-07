@@ -160,15 +160,32 @@
       </div>
     </div>
 
-    <!-- После «Выйти»: бот уже прислал в чат выбор роли -->
-    <div class="view" id="exitView" hidden>
+    <!-- Выбор роли: новый человек и тот, кто нажал «Выйти» (как приветствие бота) -->
+    <div class="view" id="welcomeView" hidden>
       <div class="bye">
         <img class="bye-logo" src="img/sferum.png" alt="" width="96" height="96">
-        <h1>Вы вышли</h1>
-        <p>Выберите роль в чате с ботом</p>
+        <h1>Урок в MAX</h1>
+        <p>Ассистент слышит каждого ученика на уроке</p>
       </div>
-      <div class="bottom" id="exitBottom"><button class="btn primary" id="toChat">Вернуться в чат</button></div>
+      <div class="bottom col">
+        <button class="btn primary" id="asTeacher">Я учитель</button>
+        <button class="btn ghost" id="asStudent">Я ученик</button>
+        <button class="btn ghost" id="welcomeDemo">Посмотреть демо</button>
+      </div>
     </div>
+
+    <!-- Ученик входит в класс по коду -->
+    <form class="view" id="codeView" hidden>
+      <div class="top">
+        <button class="ib" type="button" id="codeBack" aria-label="К классам"><svg class="i"><use href="#i-back"/></svg></button>
+        <div class="title"><h1>Войти в класс</h1></div>
+      </div>
+      <div class="scroll">
+        <label class="field"><span>Код класса</span><input id="classCode" maxlength="40" placeholder="K7X2M9" autocomplete="off" autocapitalize="characters" required></label>
+        <p class="error" id="codeError" hidden></p>
+      </div>
+      <div class="bottom"><button class="btn primary" type="submit">Войти</button></div>
+    </form>
 
     <!-- Новый класс -->
     <form class="view" id="createView" hidden>

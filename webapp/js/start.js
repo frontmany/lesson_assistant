@@ -4,7 +4,7 @@
 // ученик входит в идущий урок; всем — «Посмотреть демо».
 
 import { openClass } from "./class.js";
-import { api, signedIn, signIn, signOut } from "./lesson.js";
+import { api, signedIn, signIn } from "./lesson.js";
 
 const $ = (id) => document.getElementById(id);
 const inMax = Boolean(window.WebApp?.initData);
@@ -60,12 +60,49 @@ function row(c) {
 }
 
 function show(view) {
-  for (const id of ["home", "classView", "inviteView", "createView", "exitView"]) $(id).hidden = id !== view;
+  for (const id of ["home", "classView", "inviteView", "createView", "welcomeView", "codeView"]) $(id).hidden = id !== view;
+}
+
+// Роль на этом устройстве: teacher, student или none (нажал «Выйти»). Без неё — по классам человека
+function storedRole() {
+  try {
+    return localStorage.getItem("role");
+  } catch {
+    return null; // хранилище недоступно: роль по классам
+  }
+}
+
+function setRole(role) {
+  try {
+    localStorage.setItem("role", role);
+  } catch {
+    // см. storedRole()
+  }
+}
+
+async function demo() {
+  try {
+    const { lesson_id: lesson } = await api("/api/demo", { method: "POST" });
+    go("teacher.html", lesson, true);
+  } catch (err) {
+    say(err.message);
+  }
+}
+
+// Выбор роли — как приветствие бота: «Я учитель», «Я ученик», «Посмотреть демо»
+function welcome() {
+  show("welcomeView");
+  $("asTeacher").onclick = () => { setRole("teacher"); home(); };
+  $("asStudent").onclick = () => { setRole("student"); home(); };
+  $("welcomeDemo").onclick = demo;
 }
 
 async function home() {
-  show("home");
   const mine = await api("/api/me/classes").catch(() => []);
+  let role = storedRole();
+  if (!role) role = mine.some((c) => c.role === "teacher") ? "teacher" : mine.length ? "student" : "none";
+  if (role === "none") return welcome();
+  show("home");
   $("classes").replaceChildren(...mine.map(row));
   $("classes").hidden = mine.length === 0;
   $("homeEmpty").hidden = mine.length > 0;
@@ -73,25 +110,34 @@ async function home() {
   $("homeScroll").hidden = !mine.length && $("text").hidden;
   $("actions").hidden = false;
 
-  $("demo").onclick = async () => {
-    try {
-      const { lesson_id: lesson } = await api("/api/demo", { method: "POST" });
-      go("teacher.html", lesson, true);
-    } catch (err) {
-      say(err.message);
-    }
-  };
-  $("create").onclick = () => openForm();
-  // Нажал «Я учитель» по ошибке — в MAX возвращаемся в чат с ботом, там выбирают роль заново;
-  // в браузере забываем вход
+  $("demo").onclick = demo;
+  // учитель создаёт класс, ученик входит в класс по коду
+  $("create").textContent = role === "teacher" ? "Создать класс" : "Войти по коду";
+  $("create").onclick = () => (role === "teacher" ? openForm() : openCode());
+  // «Выйти» — к выбору роли; бот присылает в чат то же приветствие
   $("exit").hidden = false;
   $("exit").onclick = async () => {
-    // бот присылает в чат «Кто вы?» с выбором роли; здесь — экран «Вы вышли»
+    setRole("none");
     await api("/api/me/exit", { method: "POST" }).catch(() => {});
-    signOut();
-    show("exitView");
-    $("exitBottom").hidden = !inMax;
-    $("toChat").onclick = () => window.WebApp.close();
+    welcome();
+  };
+}
+
+function openCode() {
+  show("codeView");
+  $("codeError").hidden = true;
+  $("classCode").value = "";
+  $("classCode").focus();
+  $("codeBack").onclick = () => home();
+  $("codeView").onsubmit = async (e) => {
+    e.preventDefault();
+    try {
+      await api("/api/classes/join", { method: "POST", body: { code: $("classCode").value } });
+      home();
+    } catch (err) {
+      $("codeError").textContent = err.message;
+      $("codeError").hidden = false;
+    }
   };
 }
 

@@ -161,6 +161,31 @@ def join(lesson_id: str, who: Seat = Depends(member)):
     )
 
 
+class ClassCode(BaseModel):
+    code: str
+
+
+@router.post("/classes/join")
+def join_class(body: ClassCode, user: User = Depends(current_user)):
+    """«Я ученик» → код класса в мини-приложении: те же ответы, что у бота на код."""
+    if user.max_user_id is None:
+        raise HTTPException(403, "Войти в класс можно из MAX")
+    status, c = classes.find_by_code(body.code)
+    if status == "none":
+        raise HTTPException(404, "Такого кода нет. Проверьте и введите ещё раз")
+    member = classes.membership(c.id, user.max_user_id) if c else None
+    if member is not None:
+        if member.role == "teacher":
+            raise HTTPException(409, f"Это код вашего класса {c.name}")
+        return {"id": c.id}
+    if status == "deleted":
+        raise HTTPException(410, "Этот класс удалён. Спросите у учителя")
+    if status == "old":
+        raise HTTPException(410, "Этот код устарел. Попросите у учителя новый")
+    max_bot.join_from_app(user.max_user_id, c.id, user.name or "Ученик")
+    return {"id": c.id}
+
+
 @router.post("/me/exit")
 def exit_app(user: User = Depends(current_user)):
     """«Выйти» на «Мои классы»: нажал не ту роль — бот присылает в чат выбор роли заново."""

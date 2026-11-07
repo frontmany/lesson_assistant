@@ -542,6 +542,19 @@ def lesson_started(lesson_id: str) -> None:
             log.warning("не позвал %s на урок: %s", m.max_user_id, exc)
 
 
+def join_from_app(max_user_id: int, class_id: int, name: str) -> None:
+    """Ученик вошёл по коду в мини-приложении: как «Это я» в боте — ему «Готово», учителю «… теперь в классе».
+    Без бота — только запись в базу."""
+    if _bot is None:
+        db.join(class_id, max_user_id, name[:80])
+        return
+    try:
+        _bot.join(max_user_id, class_id, name)
+    except httpx.HTTPError as exc:
+        log.warning("не сообщил о входе %s в класс %s: %s", max_user_id, class_id, exc)
+        db.join(class_id, max_user_id, name[:80])
+
+
 def role_again(max_user_id: int) -> None:
     """«Выйти» в мини-приложении: в чате снова выбор роли, бот больше ничего не ждёт. Без бота — ничего."""
     db.set_dialog(max_user_id, None)
