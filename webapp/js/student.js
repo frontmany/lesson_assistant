@@ -64,14 +64,14 @@ function lobby(kind = "ready", detail = "") {
     actions.append(button("link", "Войти без микрофона", () => enter({ mic: false })));
   } else if (kind === "ended" || kind === "over") {
     // ended — учитель только что завершил урок и закрыл звонок; over — открыта кнопка закончившегося урока
-    setLobbyText(kind === "ended" ? "Урок завершён" : "Урок уже закончился", "Карточка придёт в чат с ботом");
+    setLobbyText(kind === "ended" ? "Урок завершён" : "Урок уже закончился", ""); // без серых пояснений под заголовком
     actions.append(button("primary", "К классам", toClasses));
     $("preview").hidden = true;
     return;
   } else {
     // без прошедшего времени и рода: пол ученика неизвестен
-    // концепция: о том, что ассистент слушает, ученику говорят явно, а не строкой в соглашении
-    setLobbyText(kind === "left" ? "Ты не в звонке" : "Войти в урок?", detail || "Ассистент слушает урок, чтобы вести шкалу участия");
+    // под заголовком только ошибка (обрыв связи и т. п.), пояснений нет
+    setLobbyText(kind === "left" ? "Ты не в звонке" : "Войти в урок?", detail);
     actions.append(button("primary", kind === "left" ? "Вернуться в урок" : "Войти в урок", () => enter()));
   }
   setIconButton($("pvMic"), kind in NOMIC ? false : prefs.mic, "mic", "микрофон");

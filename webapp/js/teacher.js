@@ -77,7 +77,7 @@ function lobby(kind = "ready", detail = "") {
     actions.append(button("link", "Войти без микрофона", () => enter({ mic: false })));
   } else if (kind === "over") {
     // открыта кнопка урока, который уже завершён: в звонок не зовём, иначе урок начался бы заново
-    setLobbyText("Урок уже закончился", "Сводку бот прислал в чат");
+    setLobbyText("Урок уже закончился", ""); // без серых пояснений под заголовком
     actions.append(button("primary", "К классам", toClasses));
     $("preview").hidden = true;
     return;
@@ -318,14 +318,6 @@ function renderPanel() {
   $("expand").querySelector("use").setAttribute("href", mobile.matches ? "#chev-u" : "#chev-l");
   $("count").textContent = `Учеников: ${list.length}`;
   $("collapse").querySelector("use").setAttribute("href", mobile.matches ? "#chev-d" : "#chev-r");
-
-  // в демо подсказка висит весь урок: говорить не нужно, а сводку даёт только «Завершить урок»
-  const hint = reconnecting
-    ? "Шкалы участия обновятся, когда вернётся связь"
-    : me.demo ? "Демо — 5 минут. Говорить не нужно. В конце нажмите «Завершить урок» — сводка придёт в чат"
-    : !started ? "Шкалы участия появятся, когда ученики заговорят" : "";
-  $("hint").hidden = !hint;
-  $("hint").textContent = hint;
 
   const count = (flag) => list.filter((s) => students[s.id].flags.includes(flag)).length;
   $("chips").hidden = !compact || !started;
