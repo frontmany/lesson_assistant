@@ -29,13 +29,20 @@ def _token(identity: str, name: str, grants: api.VideoGrants) -> str:
     )
 
 
-def participant_token(lesson_id: str, identity: str, name: str) -> str:
-    """Токен учителя или ученика: говорит и слышит остальных."""
+# Что участник может показывать в звонке. Экран — только учитель: урок ведёт он,
+# а ученик со своей демонстрацией перекрыл бы класс
+STUDENT_SOURCES = ["microphone", "camera"]
+TEACHER_SOURCES = [*STUDENT_SOURCES, "screen_share", "screen_share_audio"]
+
+
+def participant_token(lesson_id: str, identity: str, name: str, teacher: bool = False) -> str:
+    """Токен учителя или ученика: говорит и слышит остальных; экран показывает только учитель."""
     grants = api.VideoGrants(
         room_join=True,
         room=room_name(lesson_id),
         can_publish=True,
         can_subscribe=True,
+        can_publish_sources=TEACHER_SOURCES if teacher else STUDENT_SOURCES,
     )
     return _token(identity, name, grants)
 

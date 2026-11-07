@@ -162,7 +162,7 @@ def join(lesson_id: str, who: Seat = Depends(member)):
     """Адрес LiveKit и токен для входа в звонок урока: под своим id и только участнику класса."""
     return JoinInfo(
         url=settings.livekit_public_url,
-        token=participant_token(lesson_id, who.participant_id, who.name),
+        token=participant_token(lesson_id, who.participant_id, who.name, teacher=who.role == "teacher"),
         participant_id=who.participant_id,
         name=who.name,
         role=who.role,
