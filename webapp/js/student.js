@@ -156,7 +156,9 @@ function face(el, p, avatarText) {
     el.append(span("avatar", initials(avatarText)));
   }
   if (micOff(p)) el.append(iconSpan("micoff", "mic-off"));
-  el.append(span("name", nameOf(p)));
+  // Подписи на плитке нет, как у учителя: имя во всплывающей подсказке и для экранного чтения
+  el.title = nameOf(p);
+  if (!el.hasAttribute("aria-label")) el.setAttribute("aria-label", nameOf(p));
 }
 
 function renderCall() {
