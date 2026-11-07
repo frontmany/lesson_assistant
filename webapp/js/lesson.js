@@ -49,8 +49,19 @@ function keep(token) {
 async function post(path, body) {
   const res = await fetch(path, { method: "POST", headers: json, body: JSON.stringify(body) });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.detail);
+  if (!res.ok) throw Object.assign(new Error(data.detail), { status: res.status });
   return data;
+}
+
+// true — значение уже было запомнено под этим ключом в этой вкладке; иначе запоминает
+function once(key, value) {
+  try {
+    if (sessionStorage.getItem(key) === value) return true;
+    sessionStorage.setItem(key, value);
+  } catch {
+    // хранилище недоступно: кнопка бота сработает и при возврате
+  }
+  return false;
 }
 
 // Узнать, кто открыл приложение. Возвращает start_param из MAX, если он есть:
@@ -68,6 +79,9 @@ export async function signIn() {
   if (initData) {
     const { token, start_param: startParam } = await post("/api/auth/max", { init_data: initData });
     keep(token);
+    // MAX отдаёт тот же start_param при каждом переходе внутри приложения: «Назад» из демо
+    // снова запускал бы демо. Кнопку бота выполняем один раз на запуск (initData у запуска свой)
+    if (once("launch", initData)) return null;
     return startParam;
   }
   session = stored();
@@ -85,6 +99,19 @@ export async function api(path, { method = "GET", body } = {}) {
     throw Object.assign(new Error(detail), { status: res.status });
   }
   return res.json();
+}
+
+// Почему экран урока не открылся — словами для человека, а не «Failed to fetch» (#98, п. 4)
+export function failText(err) {
+  if (err?.status === 401) return "Ссылка устарела. Откройте урок заново из чата с ботом";
+  if (err instanceof TypeError) return "Нет связи с сервером. Проверьте интернет и попробуйте снова";
+  return err?.message || "Попробуйте снова";
+}
+
+// Чат с ботом — откуда урок открывается заново. null — сервер его не знает
+export async function botLink() {
+  const health = await fetch("/api/health").then((r) => r.json()).catch(() => ({}));
+  return health.bot ?? null;
 }
 
 // Кто я в этом уроке: { participant_id, name, role }

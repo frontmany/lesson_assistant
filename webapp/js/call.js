@@ -1,4 +1,4 @@
-// Звонок урока на LiveKit. Код: Фёдор.
+// Звонок урока на LiveKit.
 // SDK подключается в HTML: livekit-client.umd.js даёт глобальный LivekitClient.
 
 import { LESSON_ID, api } from "./lesson.js";

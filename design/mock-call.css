@@ -1,0 +1,20 @@
+/* Только то, чего в макете нет без LiveKit: камера и показ экрана — картинкой вместо видео.
+   Всё остальное — настоящие стили приложения (webapp/css). */
+
+.fakecam { position: absolute; inset: 0; background: hsl(var(--h) 30% 62%); overflow: hidden; }
+.fakecam::before {
+  content: ""; position: absolute; left: 50%; top: 20%; width: 24%; aspect-ratio: 1;
+  transform: translateX(-50%); border-radius: 50%; background: hsl(var(--h) 30% 82%);
+}
+.fakecam::after {
+  content: ""; position: absolute; left: 50%; bottom: -22%; width: 60%; height: 52%;
+  transform: translateX(-50%); border-radius: 50% 50% 0 0; background: hsl(var(--h) 30% 82%);
+}
+.tile.self .fakecam { transform: scaleX(-1); }
+
+.fakescreen {
+  position: absolute; inset: 0; display: grid; place-content: center; gap: 10px; text-align: center;
+  background: var(--surface); color: var(--ink);
+}
+.fakescreen h3 { margin: 0; font-size: clamp(18px, 3vw, 32px); }
+.fakescreen p { margin: 0; color: var(--ink-soft); font-size: clamp(14px, 1.6vw, 18px); }

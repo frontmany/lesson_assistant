@@ -1,10 +1,11 @@
-// Экран ученика в звонке (#22) по макету Варвары design/student-call.html. Код: Фёдор.
-// Учитель крупно, своя плитка в углу, одноклассники лентой без шкал, своя шкала
-// из четырёх ступеней (только растёт, можно скрыть). Учитель может выключить
-// ученику аналитику — тогда вместо шкалы «Аналитика выключена».
+// Экран ученика в звонке (#22).
+// Раскладка та же, что у учителя (stage.js): сетка плиток, страницы, показ экрана.
+// Панели класса нет; своя шкала из четырёх ступеней — внизу своей плитки (только растёт).
+// Учитель может выключить ученику аналитику — тогда шкала серая, «Аналитика выключена».
 
 import { DisconnectReason, joinCall } from "./call.js";
-import { LEVEL_LABELS, loadRoster, signIn, subscribe, whoAmI } from "./lesson.js";
+import { LEVEL_LABELS, botLink, failText, loadRoster, signIn, subscribe, whoAmI } from "./lesson.js";
+import { createStage } from "./stage.js";
 import { inMax, micAccess, openInBrowser, openMaxSettings, openSystemSettings } from "./mic.js";
 
 const { RoomEvent, Track } = window.LivekitClient;
@@ -20,23 +21,24 @@ const NOMIC = {
 
 const $ = (id) => document.getElementById(id);
 
-await signIn();
+// ошибка входа (устаревшая ссылка в браузере, нет сети) — не тупик: текст и кнопки (#98, п. 4)
+await signIn().catch((err) => fail(err));
 // Ученик — тот, кого сервер узнал по данным запуска MAX (#24); учителя отправляем на его экран
 const me = await whoAmI().catch((err) => fail(err));
 if (me.role === "teacher") location.replace(`teacher.html${location.search}`);
 const studentId = me.participant_id;
-let roster = await loadRoster();
+let roster = await loadRoster().catch((err) => fail(err));
 
 const prefs = { mic: true, cam: false };
 let room = null;
 let leaving = false;
-let startedAt = 0;
 let reached = 1; // шкала только растёт
 let analytics = me.analytics;
 let reconnecting = false;
-const videos = new Map();
 
 $("previewAvatar").textContent = initials(me.name);
+// Плашка шкалы одна на весь урок: при перерисовке ряда она переезжает в новую свою плитку
+const meterPill = $("scale");
 buildSteps();
 renderScale();
 
@@ -53,13 +55,21 @@ function lobby(kind = "ready", detail = "") {
     setLobbyText("Подключаемся к уроку", "");
     actions.append(button("primary", "Подключаемся…", null, true, true));
   } else if (kind in NOMIC) {
-    const [text, action, run] = NOMIC[kind];
-    setLobbyText("Нет доступа к микрофону", text);
+    // без серой подсказки под заголовком: что делать, говорит сама кнопка
+    const [, action, run] = NOMIC[kind];
+    setLobbyText("Нет доступа к микрофону", "");
     if (action) actions.append(button("primary", action, run));
     if (run !== openInBrowser) actions.append(button(action ? "secondary" : "primary", "Попробовать снова", () => enter()));
     actions.append(button("link", "Войти без микрофона", () => enter({ mic: false })));
+  } else if (kind === "ended" || kind === "over") {
+    // ended — учитель только что завершил урок и закрыл звонок; over — открыта кнопка закончившегося урока
+    setLobbyText(kind === "ended" ? "Урок завершён" : "Урок уже закончился", ""); // без серых пояснений под заголовком
+    actions.append(button("primary", "К классам", toClasses));
+    $("preview").hidden = true;
+    return;
   } else {
     // без прошедшего времени и рода: пол ученика неизвестен
+    // под заголовком только ошибка (обрыв связи и т. п.), пояснений нет
     setLobbyText(kind === "left" ? "Ты не в звонке" : "Войти в урок?", detail);
     actions.append(button("primary", kind === "left" ? "Вернуться в урок" : "Войти в урок", () => enter()));
   }
@@ -97,7 +107,6 @@ async function enter({ mic = prefs.mic } = {}) {
     return lobby("ready", `Не удалось войти: ${err.message}`);
   }
   leaving = false;
-  startedAt = Date.now();
   roster = await loadRoster().catch(() => roster);
   for (const event of [
     RoomEvent.ParticipantConnected, RoomEvent.ParticipantDisconnected,
@@ -107,7 +116,7 @@ async function enter({ mic = prefs.mic } = {}) {
     RoomEvent.ActiveSpeakersChanged,
   ]) room.on(event, () => requestAnimationFrame(renderCall));
   show("call");
-  if (!mic) toast("Микрофон выключен. Тебя не слышно");
+  if (!mic) toast("Микрофон выключен");
   renderCall();
 }
 
@@ -115,6 +124,8 @@ function onState(state, reason) {
   reconnecting = state === "reconnecting" || state === "signalReconnecting";
   if (state === "disconnected" && !leaving && room) {
     room = null;
+    // учитель нажал «Завершить урок»: сервер закрыл комнату у всего класса
+    if (reason === DisconnectReason.ROOM_DELETED) return lobby("ended");
     return lobby("ready", reason === DisconnectReason.DUPLICATE_IDENTITY
       ? "Урок открыт в другом окне, здесь звонок закрыт"
       : "Связь с уроком потеряна");
@@ -126,7 +137,7 @@ function onState(state, reason) {
 
 function nameOf(p) {
   if (p === room.localParticipant) return "Вы";
-  if (p.identity === roster.teacher.id || p.identity === roster.virtual_teacher?.id) return short(roster.teacher.name);
+  if (isTeacher(p)) return short(roster.teacher.name);
   return roster.students.find((s) => s.id === p.identity)?.name ?? (p.name || p.identity);
 }
 
@@ -134,68 +145,38 @@ function isTeacher(p) {
   return p.identity === roster.teacher.id || p.identity === roster.virtual_teacher?.id;
 }
 
-function videoFor(p) {
-  const pub = p.getTrackPublication(Track.Source.Camera);
-  const track = pub?.track;
-  if (!track || pub.isMuted) return null;
-  if (!videos.has(track.sid)) videos.set(track.sid, track.attach());
-  return videos.get(track.sid);
-}
-
-function micOff(p) {
-  const pub = p.getTrackPublication(Track.Source.Microphone);
-  return !pub || pub.isMuted;
-}
-
-function face(el, p, avatarText) {
-  const video = videoFor(p);
-  if (video) el.append(video);
-  else {
-    el.classList.add("nocam");
-    el.append(span("avatar", initials(avatarText)));
+// Плитка — как у учителя. На своей внизу шкала; учителя нет — его плитки нет, пустой не рисуем
+function tile(p, i) {
+  const self = p === room.localParticipant;
+  const el = div(`tile${p.isSpeaking ? " speaking" : ""}${self ? " self" : ""}`);
+  el.style.setProperty("--h", (i * 47 + 200) % 360);
+  const video = stage.video(p.getTrackPublication(Track.Source.Camera));
+  if (video) {
+    el.classList.add("cam");
+    el.append(video);
+  } else {
+    el.append(span("avatar", initials(self ? me.name : isTeacher(p) ? roster.teacher.name : nameOf(p))));
   }
-  if (micOff(p)) el.append(iconSpan("micoff", "mic-off"));
-  el.append(span("name", nameOf(p)));
+  const mic = p.getTrackPublication(Track.Source.Microphone);
+  if (!mic || mic.isMuted) el.append(iconSpan("micoff", "mic-off"));
+  if (self) el.append(meterPill);
+  // Подписи на плитке нет: имя во всплывающей подсказке и для экранного чтения
+  el.title = nameOf(p);
+  el.setAttribute("aria-label", `${p.isSpeaking ? "Говорит: " : ""}${nameOf(p)}`);
+  return el;
 }
 
+const stage = createStage({ tile, name: nameOf, redraw: () => renderCall() });
+
+// Порядок: учитель, затем ты, затем одноклассники
 function renderCall() {
   if (!room) return;
   const remote = [...room.remoteParticipants.values()];
-  const teacher = remote.find(isTeacher);
-  const classmates = remote.filter((p) => !isTeacher(p));
-
-  const stage = [];
-  const main = div("st-tile main");
-  if (teacher) {
-    face(main, teacher, roster.teacher.name);
-    main.classList.toggle("speaking", teacher.isSpeaking);
-  } else {
-    main.classList.add("nocam");
-    main.append(span("name", "Учитель ещё не вошёл"));
-  }
-  stage.push(main);
-  const mine = div("st-tile me");
-  face(mine, room.localParticipant, me.name);
-  stage.push(mine);
-  $("stage").replaceChildren(...stage);
-
-  $("strip").replaceChildren(...classmates.map((p) => {
-    const el = div(`mini${p.isSpeaking ? " speaking" : ""}`);
-    el.setAttribute("aria-label", `${p.isSpeaking ? "Говорит: " : ""}${nameOf(p)}`);
-    face(el, p, nameOf(p));
-    return el;
-  }));
-
-  $("banner").hidden = !reconnecting;
+  const all = [...remote.filter(isTeacher), room.localParticipant, ...remote.filter((p) => !isTeacher(p))];
+  stage.render(all, { self: room.localParticipant, reconnecting });
   setIconButton($("btnMic"), room.localParticipant.isMicrophoneEnabled, "mic", "микрофон");
   setIconButton($("btnCam"), room.localParticipant.isCameraEnabled, "cam", "камеру");
 }
-
-setInterval(() => {
-  if (!room) return;
-  const s = Math.floor((Date.now() - startedAt) / 1000);
-  $("timer").textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
-}, 1000);
 
 $("btnMic").onclick = async () => {
   const on = !room.localParticipant.isMicrophoneEnabled;
@@ -205,7 +186,7 @@ $("btnMic").onclick = async () => {
   } catch {
     return toast("Нет доступа к микрофону");
   }
-  if (!on) toast("Микрофон выключен. Тебя не слышно");
+  if (!on) toast("Микрофон выключен");
   renderCall();
 };
 
@@ -228,67 +209,29 @@ $("btnLeave").onclick = async () => {
 // ---------- своя шкала ----------
 
 function buildSteps() {
-  $("steps").replaceChildren(...Object.entries(LEVEL_LABELS).map(([n, label]) => {
+  $("steps").replaceChildren(...Object.keys(LEVEL_LABELS).map((n) => {
     const li = document.createElement("li");
-    li.className = "step";
     li.dataset.n = n;
-    const b = document.createElement("button");
-    b.type = "button";
-    b.setAttribute("aria-label", label);
-    const mark = span("mark", "");
-    mark.append(svg("check"));
-    b.append(mark, span("", label));
-    li.append(b);
     return li;
   }));
 }
 
+// Шкала только растёт: сегменты до достигнутой ступени заполнены, сверху её название.
+// Учитель выключил аналитику — шкала серая, вместо ступени «Аналитика выключена»
 function renderScale() {
   const off = !analytics;
-  $("ana").classList.toggle("off", off);
-  $("ana").querySelector("use").setAttribute("href", off ? "#pulse-off" : "#pulse");
-  $("anaText").textContent = off ? "Аналитика выключена" : "Аналитика активна";
-  $("scale").classList.toggle("off", off);
-  for (const id of ["of", "toggle", "fold"]) $(id).hidden = off;
-  $("offText").hidden = !off;
-  $("cur").textContent = reached;
-  for (const li of $("steps").children) {
-    const n = +li.dataset.n;
-    li.classList.toggle("done", n < reached);
-    li.classList.toggle("now", n === reached);
-    const b = li.querySelector("button");
-    if (n === reached) b.setAttribute("aria-current", "step");
-    else b.removeAttribute("aria-current");
-  }
+  const label = off ? "Аналитика выключена" : `Твоё участие: ${LEVEL_LABELS[reached]}`;
+  meterPill.classList.toggle("off", off);
+  meterPill.title = label;
+  meterPill.setAttribute("aria-label", label);
+  for (const li of $("steps").children) li.classList.toggle("on", !off && +li.dataset.n <= reached);
 }
-
-// Скрыть или показать шкалу: выбор помним на устройстве
-let collapsed = false;
-try {
-  collapsed = localStorage.getItem("scaleHidden") === "1";
-} catch {
-  // хранилище недоступно: шкала просто открыта
-}
-function applyCollapsed() {
-  $("scale").classList.toggle("collapsed", collapsed);
-  $("toggle").setAttribute("aria-expanded", String(!collapsed));
-  $("toggleText").textContent = collapsed ? "Показать" : "Скрыть";
-}
-applyCollapsed();
-$("toggle").onclick = () => {
-  collapsed = !collapsed;
-  applyCollapsed();
-  try {
-    localStorage.setItem("scaleHidden", collapsed ? "1" : "0");
-  } catch {
-    // см. выше
-  }
-};
 
 subscribe((event) => {
+  // мок до начала урока — не настоящее участие: шкала только растёт, и опустить её потом нельзя (#78)
+  if (event.mock) return;
   if (event.type === "analytics" && (event.student_id == null || event.student_id === studentId)) {
     analytics = event.enabled;
-    if (analytics) reached = 1; // аналитику включили снова: шкала с первой ступени, как у сервера
     renderScale();
   }
   if (event.type === "scale" && event.student_id === studentId && analytics) {
@@ -303,6 +246,12 @@ subscribe((event) => {
 function show(screen) {
   $("lobby").hidden = screen !== "lobby";
   $("call").hidden = screen !== "call";
+  $("controls").hidden = screen !== "call";
+  // плашка шкалы ждёт своей плитки: до входа и после выхода её не видно
+  // (по id, а не meterPill: show зовётся и из fail, до объявления констант)
+  const pill = $("scale");
+  if (screen !== "call") document.body.append(pill);
+  pill.classList.toggle("parked", screen !== "call");
 }
 
 let toastTimer;
@@ -315,8 +264,18 @@ function toast(text) {
 }
 
 function fail(err) {
-  setLobbyText("Не удалось открыть урок", err.message);
-  $("lobbyActions").replaceChildren();
+  show("lobby");
+  setLobbyText("Не удалось открыть урок", failText(err));
+  const actions = $("lobbyActions");
+  // устаревшую ссылку повтор не спасёт: урок открывается заново из чата с ботом
+  actions.replaceChildren(...(err?.status === 401 ? [] : [button("primary", "Попробовать снова", () => location.reload())]));
+  if (inMax()) actions.append(button(err?.status === 401 ? "primary" : "secondary", "К классам", toClasses));
+  else {
+    // в браузере урок заново открывается из чата с ботом
+    botLink().then((link) => {
+      if (link) actions.append(button(err?.status === 401 ? "primary" : "secondary", "Открыть из чата с ботом", () => location.assign(link)));
+    });
+  }
   $("preview").hidden = true;
   throw err;
 }
@@ -377,4 +336,12 @@ function iconSpan(cls, icon) {
   return el;
 }
 
-lobby();
+// К списку классов; данные запуска MAX (#WebAppData) несём с собой, а home=1 — чтобы
+// стартовая страница не открыла этот же урок снова по start_param из них
+function toClasses() {
+  location.replace(`index.html?home=1${location.hash}`);
+}
+
+$("lobbyBack").onclick = toClasses;
+
+lobby(me.ended ? "over" : "ready");

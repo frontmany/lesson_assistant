@@ -6,5 +6,5 @@
 
 - [ ] Работает в Docker-контейнере
 - [ ] `pytest` проходит
-- [ ] Если поменялся формат событий — обновлены `app/models.py`, `webapp/mock/` и `docs/contracts.md`
+- [ ] Если поменялся формат событий — обновлены `backend/app/models.py`, `webapp/mock/` и `docs/contracts.md`
 - [ ] Если поменялся запуск — обновлён README

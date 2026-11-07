@@ -1,149 +1,30 @@
-/* Экран ученика в звонке (#22). Стили из макета Варвары design/student-call.html (#8):
-   меняем макет — переносим сюда. Своих цветов нет, всё из tokens.css. Экран до входа — call.css. */
+/* Экран ученика в звонке (#22). Своих цветов нет, всё из tokens.css.
+   Раскладка та же, что у учителя (call.css, js/stage.js): сетка плиток, страницы, показ экрана.
+   Панели класса нет; вместо неё своя шкала — внизу своей плитки. */
 
-.st-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 16px 8px; }
-.st-ana {
-  display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px 5px 8px; border-radius: 999px;
-  background: var(--accent-tint); color: var(--accent); font-size: 13px; font-weight: 600;
+/* Своя шкала: зелёная звезда «AI» и четыре сегмента прямо на плитке.
+   Учитель выключил аналитику — звезда и сегменты серые */
+.meter-pill {
+  position: absolute; left: 8px; right: 8px; bottom: 8px; z-index: 2; display: flex; align-items: center; gap: 6px;
+  padding: 4px 6px; transition: opacity .3s;
 }
-.st-ana .i { width: 16px; height: 16px; }
-.st-timer { font-size: 13px; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.parked { display: none; } /* до входа в звонок плашка ждёт своей плитки */
+.tile.self .avatar { margin-bottom: 14px; } /* аватар над плашкой шкалы, а не под ней */
+.meter-pill .ai { width: 15px; height: 15px; flex: none; fill: var(--accent); stroke: none; }
+.meter { flex: 1; display: flex; gap: 3px; margin: 0; padding: 0; list-style: none; }
+.meter li { flex: 1; height: 4px; border-radius: 2px; background: var(--line-strong); transition: background .45s; }
+.meter li.on { background: var(--accent); }
+.meter-pill.off { opacity: .75; }
+.meter-pill.off .ai { fill: var(--ink-soft); }
+.meter-pill.off .meter li { background: var(--line); }
 
-/* Видео: учитель на весь блок, своя плитка в углу. Ниже лента одноклассников без шкал: говорящий обведён */
-.st-stage { position: relative; margin: 0 16px; flex: 1; min-height: 240px; }
-.st-tile {
-  position: absolute; overflow: hidden; border-radius: 16px; border: 1px solid var(--line);
-  background: hsl(var(--h) 22% 72%); border-color: transparent;
-}
-.st-tile.main { inset: 0; }
-.st-tile.me { right: 10px; bottom: 10px; width: 92px; height: 122px; border-radius: 12px; border: 2px solid var(--surface); }
-.person::before {
-  content: ""; position: absolute; left: 50%; top: 22%; width: 26%; aspect-ratio: 1;
-  transform: translateX(-50%); border-radius: 50%; background: var(--figure);
-}
-.person::after {
-  content: ""; position: absolute; left: 50%; bottom: -18%; width: 62%; height: 50%;
-  transform: translateX(-50%); border-radius: 50% 50% 0 0; background: var(--figure);
-}
-.person { position: absolute; inset: 0; }
-.st-tile .name {
-  position: absolute; left: 8px; bottom: 8px; max-width: calc(100% - 16px); padding: 3px 9px; border-radius: 8px;
-  background: var(--scrim); color: var(--on-scrim); font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
-.st-tile.me .name { left: 6px; bottom: 6px; padding: 2px 7px; }
-.micoff {
-  position: absolute; top: 6px; right: 6px; width: 24px; height: 24px; border-radius: 50%;
-  background: var(--scrim); color: var(--on-scrim); display: grid; place-items: center;
-}
-.micoff .i { width: 14px; height: 14px; }
+/* В полосе рядом с показом экрана плитки маленькие: шкала тоньше */
+.strip .meter-pill { left: 4px; right: 4px; bottom: 4px; padding: 2px 4px; gap: 4px; }
+.strip .meter-pill .ai { width: 12px; height: 12px; }
 
-.st-strip { display: flex; gap: 8px; margin: 8px 16px 0; overflow-x: auto; scrollbar-width: none; flex: none; }
-.st-strip::-webkit-scrollbar { display: none; }
-.mini {
-  position: relative; flex: none; width: 84px; height: 84px; border-radius: 12px; overflow: hidden;
-  background: hsl(var(--h) 22% 72%); display: grid; place-items: center;
-}
-.mini.nocam { background: var(--surface-muted); border: 1px solid var(--line); }
-.mini.speaking { outline: 3px solid var(--accent); outline-offset: -3px; }
-.mini .avatar {
-  width: 36px; height: 36px; border-radius: 50%; background: var(--accent-tint); color: var(--accent);
-  display: grid; place-items: center; font-weight: 700; font-size: 14px;
-}
-.mini .name {
-  position: absolute; left: 4px; right: 4px; bottom: 4px; padding: 1px 6px; border-radius: 6px;
-  background: var(--scrim); color: var(--on-scrim); font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
-.mini.speaking .name::before { content: "● "; color: var(--accent-on-scrim); }
-.mini .micoff { top: 4px; right: 4px; width: 20px; height: 20px; }
-.mini .micoff .i { width: 12px; height: 12px; }
-
-/* Аналитика выключена: индикатор нейтральный, шкалы нет */
-.st-ana.off { background: var(--surface-muted); color: var(--ink-soft); }
-.st-scale.off .scale-head { margin-bottom: 4px; }
-.off-text { margin: 0; font-size: 14px; color: var(--ink-soft); }
-
-/* Своя шкала */
-.st-scale { margin: 12px 16px 12px; padding: 14px 16px 12px; border-radius: var(--radius); background: var(--surface); border: 1px solid var(--line); }
-.scale-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
-.scale-head h2 { flex: 1; margin: 0; font-size: 16px; }
-.scale-head .of { font-size: 13px; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
-
-.steps { margin: 0; padding: 0; list-style: none; }
-.step { position: relative; }
-.step button {
-  width: 100%; min-height: 44px; display: flex; align-items: center; gap: 12px; padding: 0 10px 0 4px; border-radius: 10px; text-align: left;
-  font-size: 15px; color: var(--ink-soft); transition: background .3s, color .3s;
-}
-.mark {
-  position: relative; z-index: 1; width: 26px; height: 26px; border-radius: 50%; flex: none; display: grid; place-items: center;
-  border: 2px solid var(--line-strong); background: var(--surface); color: var(--on-accent, var(--surface));
-  transition: background .4s, border-color .4s;
-}
-.mark .i { width: 14px; height: 14px; stroke-width: 2.6; opacity: 0; transform: scale(.4); transition: opacity .3s .1s, transform .3s .1s; }
-
-/* Соединительная линия между ступенями: заполняется вслед за шкалой */
-.step + .step::before {
-  content: ""; position: absolute; left: 15px; top: -18px; width: 2px; height: 36px; background: var(--surface-muted);
-}
-.step + .step::after {
-  content: ""; position: absolute; left: 15px; top: -18px; width: 2px; height: 36px; background: var(--accent);
-  transform: scaleY(0); transform-origin: top; transition: transform .45s;
-}
-.step.done::after, .step.now::after { transform: scaleY(1); }
-
-/* Достигнутые ступени заполнены, чем выше — тем насыщеннее (оттенки одного зелёного, не светофор) */
-.step[data-n="1"] { --fill: color-mix(in srgb, var(--accent) 45%, var(--surface-muted)); }
-.step[data-n="2"] { --fill: color-mix(in srgb, var(--accent) 65%, var(--surface-muted)); }
-.step[data-n="3"] { --fill: color-mix(in srgb, var(--accent) 85%, var(--surface-muted)); }
-.step[data-n="4"] { --fill: var(--accent); }
-.step.done .mark, .step.now .mark { background: var(--fill); border-color: var(--fill); }
-.step.done .mark .i, .step.now .mark .i { opacity: 1; transform: none; }
-.step.done button { color: var(--ink); }
-.step.now button { background: var(--accent-tint); color: var(--ink); font-weight: 700; }
-.step.now .mark { box-shadow: 0 0 0 4px var(--surface); }
-
-/* Шкалу можно скрыть: остаётся строка с названием и кнопкой «Показать» */
-.toggle {
-  display: inline-flex; align-items: center; gap: 4px; min-height: 44px; margin: -10px -8px -10px 0; padding: 0 8px;
-  border-radius: 10px; font-size: 14px; font-weight: 600; color: var(--ink-soft);
-}
-.toggle .i { width: 20px; height: 20px; transition: transform .3s; }
-.st-scale.collapsed .toggle .i { transform: rotate(180deg); }
-.fold { display: grid; grid-template-rows: 1fr; transition: grid-template-rows .35s; }
-.fold > div { overflow: hidden; min-height: 0; }
-.st-scale.collapsed .fold { grid-template-rows: 0fr; }
-.st-scale.collapsed .scale-head { margin-bottom: 0; }
-.st-scale.collapsed .fold > div { visibility: hidden; transition: visibility 0s .35s; }
-
-.scale-note { margin: 10px 0 0; padding-top: 10px; border-top: 1px solid var(--line); font-size: 13px; color: var(--ink-soft); }
-
-/* Полоса звонка */
-.st-controls {
-  margin-top: auto; display: flex; align-items: center; justify-content: space-between; gap: 8px;
-  padding: 10px 16px 14px; border-top: 1px solid var(--line); background: var(--surface);
-}
-.cbtn {
-  position: relative; width: 48px; height: 48px; border-radius: 50%; flex: none;
-  border: 1px solid var(--line-strong); color: var(--ink); display: grid; place-items: center;
-}
-.cbtn.off { background: var(--danger); border-color: var(--danger); color: var(--on-danger); }
-.cbtn.leave { width: 88px; border-radius: 24px; background: var(--danger); border-color: var(--danger); color: var(--on-danger); }
-.badge {
-  position: absolute; top: -2px; right: -2px; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 10px;
-  background: var(--ink); color: var(--surface); font-size: 12px; font-weight: 700; display: grid; place-items: center;
+@media (prefers-reduced-motion: reduce) {
+  .meter li, .meter-pill { transition: none; }
 }
 
-/* Живой звонок: экран на всю высоту телефона, на широком окне по центру */
-.st-screen { position: relative; display: flex; flex-direction: column; overflow: hidden; background: var(--bg); width: 100%; max-width: 480px; height: 100vh; height: 100dvh; margin: 0 auto; border: 0; border-radius: 0; box-shadow: none; }
-.st-tile video, .mini video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
-.st-tile.me video { transform: scaleX(-1); }
-.st-tile .avatar, .st-tile.nocam { display: grid; place-items: center; }
-.st-tile.nocam { background: var(--surface-muted); border: 1px solid var(--line); }
-.st-tile .avatar {
-  position: absolute; inset: 0; margin: auto; width: 72px; height: 72px; border-radius: 50%;
-  background: var(--accent-tint); color: var(--accent); font-weight: 700; font-size: 24px;
-}
-.st-tile.me .avatar { width: 40px; height: 40px; font-size: 14px; }
-.st-tile.speaking { outline: 3px solid var(--accent); outline-offset: -3px; }
-.st-strip:empty { display: none; }
-.step button { cursor: default; }
+/* только для экранного чтения */
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }

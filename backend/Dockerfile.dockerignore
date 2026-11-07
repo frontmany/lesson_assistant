@@ -1,0 +1,17 @@
+.git
+.venv
+venv
+__pycache__
+.pytest_cache
+.env
+models
+design
+docs
+scripts
+backend/analytics
+backend/tests
+*.md
+!README.md
+saved_phrases
+# живые фразы — только для analytics/compare_asr.py, серверу не нужны
+backend/data/asr_check

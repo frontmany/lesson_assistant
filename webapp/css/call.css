@@ -1,5 +1,5 @@
-/* Экран звонка учителя (#14). Стили из макета Варвары design/teacher-call.html (#4, #7):
-   меняем макет — переносим сюда. Своих цветов нет, всё из tokens.css. */
+/* Экран звонка учителя и ученика (#14). На этих же стилях собраны макеты design/*-call.html.
+   Своих цветов нет, всё из tokens.css. */
 
 * { box-sizing: border-box; }
 html, body { height: 100%; }
@@ -13,11 +13,9 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 .body { flex: 1; min-height: 0; display: flex; gap: 16px; padding: 16px; }
 
 /* Сцена с плитками */
-.stage { position: relative; flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
-.tiles { flex: 1; min-height: 0; display: grid; gap: 8px; }
-.tiles.few { justify-content: center; align-content: center; grid-template-rows: none !important; }
-.tiles.few .tile { aspect-ratio: 4 / 3; max-height: 100%; }
-.tiles.few.one .tile { aspect-ratio: 16 / 9; }
+.stage { position: relative; flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: 8px; }
+/* размер плиток считает teacher.js (renderStage): прямоугольники одной формы, сетка по центру */
+.tiles { flex: 1; min-height: 0; overflow: hidden; display: grid; gap: 8px; justify-content: center; align-content: center; touch-action: pan-y; } /* горизонтальный свайп — листаем страницы */
 
 .tile {
   position: relative; min-width: 0; min-height: 0; overflow: hidden; container-type: size;
@@ -63,9 +61,15 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 .ana .i { width: 16px; height: 16px; }
 
 /* Страницы плиток */
-.pager { align-self: center; display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--ink-soft); }
-.pager .pb { width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--line-strong); display: grid; place-items: center; }
-.pager .pb.dis { opacity: .4; }
+/* Страницы плиток: стрелки по бокам сцены, по центру по высоте; точки под плитками */
+.side { position: absolute; top: 50%; z-index: 3; width: 40px; height: 40px; margin-top: -20px; border-radius: 50%;
+  display: grid; place-items: center; background: var(--surface); border: 1px solid var(--line-strong); box-shadow: var(--shadow-float); }
+.side.prev { left: -6px; }
+.side.next { right: -6px; }
+.side:disabled { opacity: 0; pointer-events: none; }
+.dots { align-self: center; display: flex; gap: 6px; padding: 2px 0; }
+.dots span { width: 6px; height: 6px; border-radius: 50%; background: var(--line-strong); }
+.dots span.on { background: var(--ink); }
 
 /* Демонстрация экрана */
 .share { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 200px; gap: 8px; }
@@ -91,7 +95,6 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 .panel-head .count { flex: 1; font-size: 13px; color: var(--ink-soft); }
 .iconbtn { position: relative; width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; color: var(--ink-soft); }
 .iconbtn:hover, .iconbtn.open { background: var(--surface-muted); }
-.legend, .hint { margin: 0; padding: 0 16px 8px; font-size: 13px; color: var(--ink-soft); }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 16px 8px; }
 .chip { position: relative; padding: 4px 10px; border-radius: 999px; font-size: 13px; font-weight: 600; background: var(--surface-muted); color: var(--ink-soft); }
 .chip.on { background: var(--ink); color: var(--surface); }
@@ -180,6 +183,11 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 }
 .level i { width: 3px; border-radius: 2px; background: var(--accent-on-scrim); }
 .level span { margin-left: 6px; }
+/* стрелка «К классам» на экране входа */
+.lobby { position: relative; }
+.lobby .back { position: absolute; top: 16px; left: 16px; width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; color: var(--ink); background: transparent; }
+.lobby .back:hover { background: var(--surface-muted); }
+.lobby .back .i { width: 24px; height: 24px; }
 .lobby-text { max-width: 360px; }
 .lobby h1 { margin: 0 0 8px; font-size: 26px; line-height: 1.2; }
 .lobby p { margin: 0 0 16px; color: var(--ink-soft); font-size: 15px; line-height: 1.45; }
@@ -188,7 +196,7 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
   display: inline-flex; align-items: center; justify-content: center; gap: 10px;
   padding: 12px 24px; border-radius: 999px; font-weight: 600;
 }
-.primary { background: var(--accent); color: var(--surface); }
+.primary { background: var(--accent); color: #fff; } /* белый текст в обеих темах, как на стартовой странице */
 .primary[disabled] { opacity: .75; cursor: default; }
 .secondary { background: var(--surface-muted); border: 1px solid var(--line-strong); }
 .link { min-height: 44px; padding: 0 12px; font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
@@ -203,7 +211,7 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 
 /* Телефон */
 @media (max-width: 700px) {
-  .lobby { flex-direction: column; justify-content: flex-start; gap: 20px; padding: 16px; }
+  .lobby { flex-direction: column; justify-content: flex-start; gap: 20px; padding: 68px 16px 16px; }
   .lobby.ended { justify-content: center; }
   .preview { width: 100%; aspect-ratio: 4 / 5; }
   .lobby-text { max-width: none; width: 100%; }
@@ -217,7 +225,6 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
   .toast { bottom: 80px; font-size: 13px; }
   .body { flex-direction: column; gap: 8px; padding: 8px; }
   .panel { width: auto; height: 50%; flex: none; }
-  .legend { display: none; }
   .tile .name { font-size: 13px; padding: 2px 7px; }
   .share { grid-template-columns: 1fr; grid-template-rows: auto auto; align-content: start; }
   .shared { aspect-ratio: 1 / 1; padding: 44px 6% 5%; gap: 8px; }
@@ -227,6 +234,8 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
   .controls { gap: 8px; padding: 10px 10px 14px; justify-content: space-between; }
   .cbtn { width: 44px; height: 44px; }
   .cbtn.leave { width: auto; flex: 1; max-width: 72px; border-radius: 22px; }
+  /* на телефоне страницы листаются свайпом: стрелок нет */
+  .side { display: none; }
 }
 
 /* Живой звонок: то, чего нет в статичном макете */
@@ -235,12 +244,10 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 .tile.self video { transform: scaleX(-1); }
 .shared video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: var(--slide); }
 .shared { padding: 0; }
-.pager .pb:disabled { opacity: .4; cursor: default; }
 .chip { cursor: pointer; }
 .stu-last { margin: 6px 0 0; font-size: 13px; color: var(--ink-soft); overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .stu.compact .stu-last { display: none; }
 .switch { cursor: pointer; }
-.cbtn.armed { box-shadow: 0 0 0 3px var(--warn-tint); }
 .lobby-error { color: var(--danger); }
 
 /* Свёрнутая панель класса: стрелка на её месте выдвигает её обратно */
