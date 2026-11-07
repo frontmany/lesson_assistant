@@ -268,3 +268,19 @@ def test_student_switched_off_just_before_end_is_not_in_results(monkeypatch):
     assert artem_id not in results.get_summary(lesson.id).dropped
     assert results.get_card(lesson.id, artem_id) is None
     assert not [m for m in api.sent if m[0] == 11]
+
+
+def test_template_question_is_not_addressed_to_another_student(demo):
+    # в демо последний вопрос учителя — «Иван, какой налог…?»: Дмитрию его нельзя задать как есть
+    roster, utterances, levels = demo
+    s = summary.build_summary(roster, utterances, levels, {"dmitry_p": 5})
+    question = s.ask_next[0].question
+    assert not question.startswith("Иван")
+    assert question == "Какой налог Пётр ввёл вместо подворного?"
+
+
+def test_short_or_named_questions_are_not_offered(demo):
+    roster, _, _ = demo
+    assert summary._question_for_class("Вопросы есть?", roster) == ""
+    assert summary._question_for_class("Что Иван сказал про флот?", roster) == ""
+    assert summary._question_for_class("Ребята, кто знает, когда основан Петербург?", roster) == "Кто знает, когда основан Петербург?"
