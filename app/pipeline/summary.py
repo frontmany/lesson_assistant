@@ -130,8 +130,12 @@ def template_summary(roster: Roster, utterances: list[dict], levels: Levels, str
     by_score = sorted(ids, key=lambda sid: -levels[sid][1])
     carried = [sid for sid in by_score if levels[sid][0] == 4][:MAX_CARRIED]
     dropped = [sid for sid in ids if levels[sid][0] == 1]
-    # спросить тех, кто выпал, начиная с тех, кто молчит дольше; вопрос — из вопросов учителя
-    questions = [u["text"] for u in utterances if "kind" not in u and u["text"].strip().endswith("?")]
+    # спросить тех, кто выпал, начиная с тех, кто молчит дольше; вопрос — из вопросов учителя,
+    # без обращения к другому ученику: «Иван, какой налог…?» Дмитрию задать как есть нельзя
+    questions = [
+        q for q in (_question_for_class(u["text"], roster) for u in utterances if "kind" not in u and u["text"].strip().endswith("?"))
+        if q
+    ]
     ask = sorted(dropped, key=lambda sid: -streaks.get(sid, 0))[:MAX_ASK]
     return Summary(
         lesson_id=roster.lesson_id,
@@ -139,10 +143,53 @@ def template_summary(roster: Roster, utterances: list[dict], levels: Levels, str
         dropped=dropped,
         weak_topics=[],
         ask_next=[
-            AskNext(student_id=sid, topic=roster.topic or roster.subject, question=_last_sentence(q))
+            AskNext(student_id=sid, topic=roster.topic or roster.subject, question=q)
             for sid, q in zip(ask, reversed(questions))
         ],
     )
+
+
+# обращение к классу в начале вопроса учителя: «Ребята, кто знает…?» → «Кто знает…?»
+ADDRESS_WORDS = {"ребята", "дети", "класс", "друзья", "итак", "так", "хорошо", "ладно", "верно", "отлично"}
+
+
+def _question_for_class(text: str, roster: Roster) -> str:
+    """Вопрос учителя, который можно задать любому: без обращения в начале и без имён учеников.
+
+    «Иван, какой налог Пётр ввёл вместо подворного?» → «Какой налог Пётр ввёл вместо подворного?».
+    Обращение снимается, только если это имя ученика или слово вроде «Ребята»:
+    «Пётр Первый, когда родился?» остаётся как есть.
+    Пусто — вопрос не подходит: короткий («Вопросы есть?») или называет ученика внутри фразы,
+    в любом падеже («Что Ивана спросили?»).
+    """
+    stems = [_name_stem(s.name) for s in roster.students]
+    stems = [x for x in stems if len(x) >= 3]
+
+    def is_student(word: str) -> bool:
+        w = _norm_word(word)
+        return any(w.startswith(x) and len(w) - len(x) <= 3 for x in stems)
+
+    q = _last_sentence(text)
+    head, comma, rest = q.partition(",")
+    words = head.split()
+    if comma and rest.strip() and 1 <= len(words) <= 2 and all(
+        is_student(w) or _norm_word(w) in ADDRESS_WORDS for w in words
+    ):
+        rest = rest.strip()
+        q = rest[0].upper() + rest[1:]
+    if len(q.split()) < 3 or any(is_student(w) for w in re.findall(r"\w+", q)):
+        return ""
+    return q
+
+
+def _name_stem(name: str) -> str:
+    """Основа имени для поиска в любом падеже: «Мария» → «мари», «Дмитрий» → «дмитри», «Иван» → «иван»."""
+    first = _norm_word(name.split()[0]) if name.split() else ""
+    return first[:-1] if first[-1:] in "аяйьоеи" else first
+
+
+def _norm_word(word: str) -> str:
+    return word.lower().replace("ё", "е")
 
 
 def _last_sentence(text: str) -> str:

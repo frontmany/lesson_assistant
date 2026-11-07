@@ -4,9 +4,13 @@
 поэтому сервер всегда знает, чей это звук.
 """
 
+import logging
+
 from livekit import api
 
 from app.config import settings
+
+log = logging.getLogger(__name__)
 
 ASSISTANT_IDENTITY = "assistant"
 
@@ -46,6 +50,21 @@ def assistant_token(lesson_id: str) -> str:
         can_subscribe=True,
     )
     return _token(ASSISTANT_IDENTITY, "Ассистент", grants)
+
+
+async def close_room(lesson_id: str) -> bool:
+    """Закрыть комнату урока: учеников выводит из звонка, их экран показывает «Урок завершён».
+
+    False — LiveKit не ответил: урок на сервере всё равно завершён, ученики выйдут сами.
+    """
+    url = settings.livekit_url.replace("ws://", "http://", 1).replace("wss://", "https://", 1)
+    try:
+        async with api.LiveKitAPI(url, settings.livekit_api_key, settings.livekit_api_secret) as lk:
+            await lk.room.delete_room(api.DeleteRoomRequest(room=room_name(lesson_id)))
+    except Exception as exc:  # сеть, LiveKit недоступен или комнаты уже нет
+        log.warning("комната урока %s не закрыта: %s", lesson_id, exc)
+        return False
+    return True
 
 
 def bot_token(lesson_id: str, identity: str, name: str) -> str:

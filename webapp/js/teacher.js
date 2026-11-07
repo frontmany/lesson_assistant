@@ -74,10 +74,16 @@ function lobby(kind = "ready", detail = "") {
     // в браузер уводим одной кнопкой: повтор здесь ничего не даст
     if (run !== openInBrowser) actions.append(button(action ? "secondary" : "primary", "Попробовать снова", () => enter()));
     actions.append(button("link", "Войти без микрофона", () => enter({ mic: false })));
+  } else if (kind === "over") {
+    // открыта кнопка урока, который уже завершён: в звонок не зовём, иначе урок начался бы заново
+    setLobbyText("Урок уже закончился", "Сводку бот прислал в чат");
+    actions.append(button("primary", "К классам", toClasses));
+    $("preview").hidden = true;
+    return;
   } else {
     setLobbyText("Готовы войти?", detail); // под заголовком только ошибка входа, если была
     $("lobbyText").classList.toggle("lobby-error", Boolean(detail));
-    actions.append(button("primary", "Войти в урок", () => enter()));
+    actions.append(button("primary", "Войти в урок", () => enter(me.demo ? { mic: false } : {})));
   }
   setIconButton($("pvMic"), kind in NOMIC ? false : prefs.mic, "mic", "микрофон");
   setIconButton($("pvCam"), prefs.cam, "cam", "камеру");
@@ -124,7 +130,7 @@ async function enter({ mic = prefs.mic } = {}) {
   resetStudents();
   watchRoom();
   show("call");
-  if (!mic) toast("Микрофон выключен. Ученики вас не слышат");
+  if (!mic && !me.demo) toast("Микрофон выключен. Ученики вас не слышат");
   render();
 }
 
@@ -315,8 +321,10 @@ function renderPanel() {
   $("count").textContent = `Учеников: ${list.length}`;
   $("collapse").querySelector("use").setAttribute("href", mobile.matches ? "#chev-d" : "#chev-r");
 
+  // в демо подсказка висит весь урок: говорить не нужно, а сводку даёт только «Завершить урок»
   const hint = reconnecting
     ? "Шкалы участия обновятся, когда вернётся связь"
+    : me.demo ? "Демо — 5 минут. Говорить не нужно. В конце нажмите «Завершить урок» — сводка придёт в чат"
     : !started ? "Шкалы участия появятся, когда ученики заговорят" : "";
   $("hint").hidden = !hint;
   $("hint").textContent = hint;
@@ -489,7 +497,7 @@ $("btnLeave").onclick = async () => {
 
 // После урока — обратно к классам на стартовую страницу. Закрыть мини-приложение
 // или открыть чат нельзя: в MAX web и на десктопе мост эти команды не выполняет
-$("backToClasses").onclick = () => location.replace(`index.html${location.hash}`);
+$("backToClasses").onclick = () => toClasses();
 
 // ---------- общее ----------
 
@@ -589,15 +597,23 @@ function fail(err) {
   throw err;
 }
 
-// Стрелка на экране входа — к списку классов; данные запуска MAX (#WebAppData) несём с собой
-$("lobbyBack").onclick = () => location.replace(`index.html${location.hash}`);
+// К списку классов; данные запуска MAX (#WebAppData) несём с собой, а home=1 — чтобы
+// стартовая страница не начала этот же урок снова по start_param из них
+function toClasses() {
+  location.replace(`index.html?home=1${location.hash}`);
+}
+
+$("lobbyBack").onclick = toClasses;
 
 // Урок только что начали («Начать урок», демо): входим сразу. «Готовы войти?» — для тех, кто присоединяется
 const params = new URLSearchParams(location.search);
-if (params.get("now") === "1") {
+if (me.ended) {
+  lobby("over");
+} else if (params.get("now") === "1") {
   params.delete("now");
   history.replaceState(null, "", `${location.pathname}?${params}${location.hash}`);
-  enter();
+  // в демо говорить не нужно: без проверки микрофона, которая на iPhone и компьютере уводит в браузер
+  enter({ mic: !me.demo });
 } else {
   lobby();
 }
