@@ -20,7 +20,7 @@ def test_health_tells_whether_dev_links_work(monkeypatch):
 
 
 def test_webapp_is_served():
-    assert "Урок в MAX" in client.get("/").text
+    assert "Сферум AI" in client.get("/").text
 
 
 def test_summary():
