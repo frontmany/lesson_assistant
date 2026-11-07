@@ -61,9 +61,16 @@ function lobby(kind = "ready", detail = "") {
     if (action) actions.append(button("primary", action, run));
     if (run !== openInBrowser) actions.append(button(action ? "secondary" : "primary", "Попробовать снова", () => enter()));
     actions.append(button("link", "Войти без микрофона", () => enter({ mic: false })));
+  } else if (kind === "ended" || kind === "over") {
+    // ended — учитель только что завершил урок и закрыл звонок; over — открыта кнопка закончившегося урока
+    setLobbyText(kind === "ended" ? "Урок завершён" : "Урок уже закончился", "Карточка придёт в чат с ботом");
+    actions.append(button("primary", "К классам", toClasses));
+    $("preview").hidden = true;
+    return;
   } else {
     // без прошедшего времени и рода: пол ученика неизвестен
-    setLobbyText(kind === "left" ? "Ты не в звонке" : "Войти в урок?", detail);
+    // концепция: о том, что ассистент слушает, ученику говорят явно, а не строкой в соглашении
+    setLobbyText(kind === "left" ? "Ты не в звонке" : "Войти в урок?", detail || "Ассистент слушает урок, чтобы вести шкалу участия");
     actions.append(button("primary", kind === "left" ? "Вернуться в урок" : "Войти в урок", () => enter()));
   }
   setIconButton($("pvMic"), kind in NOMIC ? false : prefs.mic, "mic", "микрофон");
@@ -110,7 +117,7 @@ async function enter({ mic = prefs.mic } = {}) {
     RoomEvent.ActiveSpeakersChanged,
   ]) room.on(event, () => requestAnimationFrame(renderCall));
   show("call");
-  if (!mic) toast("Микрофон выключен. Тебя не слышно");
+  if (!mic) toast("Микрофон выключен");
   renderCall();
 }
 
@@ -118,6 +125,8 @@ function onState(state, reason) {
   reconnecting = state === "reconnecting" || state === "signalReconnecting";
   if (state === "disconnected" && !leaving && room) {
     room = null;
+    // учитель нажал «Завершить урок»: сервер закрыл комнату у всего класса
+    if (reason === DisconnectReason.ROOM_DELETED) return lobby("ended");
     return lobby("ready", reason === DisconnectReason.DUPLICATE_IDENTITY
       ? "Урок открыт в другом окне, здесь звонок закрыт"
       : "Связь с уроком потеряна");
@@ -211,7 +220,7 @@ $("btnMic").onclick = async () => {
   } catch {
     return toast("Нет доступа к микрофону");
   }
-  if (!on) toast("Микрофон выключен. Тебя не слышно");
+  if (!on) toast("Микрофон выключен");
   renderCall();
 };
 
@@ -344,7 +353,12 @@ function iconSpan(cls, icon) {
   return el;
 }
 
-// Стрелка на экране входа — к списку классов; данные запуска MAX (#WebAppData) несём с собой
-$("lobbyBack").onclick = () => location.replace(`index.html${location.hash}`);
+// К списку классов; данные запуска MAX (#WebAppData) несём с собой, а home=1 — чтобы
+// стартовая страница не открыла этот же урок снова по start_param из них
+function toClasses() {
+  location.replace(`index.html?home=1${location.hash}`);
+}
 
-lobby();
+$("lobbyBack").onclick = toClasses;
+
+lobby(me.ended ? "over" : "ready");

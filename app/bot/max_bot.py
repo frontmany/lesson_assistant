@@ -449,14 +449,18 @@ class Bot:
 
     def lesson_started(self, user_id: int, c, lesson_id: str) -> None:
         """Шаг 10."""
-        self.api.send(user_id, f"Урок начался: {c.name}, {c.subject}.", [[self.open_app("Войти в урок", f"l{lesson_id}")]])
+        self.api.send(
+            user_id, f"Урок начался: {c.name}, {c.subject}.\nАссистент слушает урок, чтобы вести шкалу участия.",
+            [[self.open_app("Войти в урок", f"l{lesson_id}")]],
+        )
 
     def demo(self, user: dict) -> None:
         lesson = db.demo_lesson(user["user_id"], full_name(user))
         self.api.send(
             user["user_id"],
-            "Демо-урок: вы учитель, а класс заходит записью урока истории. "
-            "Ассистент слушает каждого ученика, и в панели класса растут шкалы участия.",
+            "Демо-урок: вы смотрите урок глазами учителя, класс и учитель — запись урока истории. "
+            "Ассистент слушает каждого ученика, и в панели класса растут шкалы участия. "
+            "5 минут. Говорить не нужно. В конце нажмите «Завершить урок» — сводка придёт в чат.",
             [[self.open_app("Открыть демо", f"l{lesson.id}")]],
         )
 

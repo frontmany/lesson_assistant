@@ -200,8 +200,12 @@ function openForm(c = null) {
 }
 
 try {
-  // start_param передаёт кнопка бота; ?start= — то же самое для разработки
-  const start = (await signIn()) ?? new URLSearchParams(location.search).get("start");
+  // start_param передаёт кнопка бота; ?start= — то же самое для разработки.
+  // ?home=1 — «К классам» с экрана урока: подписанные данные запуска несут тот же
+  // start_param, и без этого флага урок открылся бы снова
+  const params = new URLSearchParams(location.search);
+  const launch = await signIn();
+  const start = params.has("home") ? null : launch ?? params.get("start");
   if (start === "demo") {
     // «Посмотреть демо» в боте: свой демо-урок, сразу в звонок
     const { lesson_id: lesson } = await api("/api/demo", { method: "POST" });
