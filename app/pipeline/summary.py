@@ -149,22 +149,43 @@ def template_summary(roster: Roster, utterances: list[dict], levels: Levels, str
     )
 
 
+# обращение к классу в начале вопроса учителя: «Ребята, кто знает…?» → «Кто знает…?»
+ADDRESS_WORDS = {"ребята", "дети", "класс", "друзья", "итак", "так", "хорошо", "ладно", "верно", "отлично"}
+
+
 def _question_for_class(text: str, roster: Roster) -> str:
     """Вопрос учителя, который можно задать любому: без обращения в начале и без имён учеников.
 
     «Иван, какой налог Пётр ввёл вместо подворного?» → «Какой налог Пётр ввёл вместо подворного?».
-    Пусто — вопрос не подходит: короткий («Вопросы есть?») или называет ученика внутри фразы.
+    Обращение снимается, только если это имя ученика или слово вроде «Ребята»:
+    «Пётр Первый, когда родился?» остаётся как есть.
+    Пусто — вопрос не подходит: короткий («Вопросы есть?») или называет ученика внутри фразы,
+    в любом падеже («Что Ивана спросили?»).
     """
+    stems = [_name_stem(s.name) for s in roster.students]
+    stems = [x for x in stems if len(x) >= 3]
+
+    def is_student(word: str) -> bool:
+        w = _norm_word(word)
+        return any(w.startswith(x) and len(w) - len(x) <= 3 for x in stems)
+
     q = _last_sentence(text)
     head, comma, rest = q.partition(",")
     words = head.split()
-    if comma and rest.strip() and 1 <= len(words) <= 2 and all(w[:1].isupper() for w in words):
+    if comma and rest.strip() and 1 <= len(words) <= 2 and all(
+        is_student(w) or _norm_word(w) in ADDRESS_WORDS for w in words
+    ):
         rest = rest.strip()
         q = rest[0].upper() + rest[1:]
-    names = {_norm_word(s.name.split()[0]) for s in roster.students if s.name.split()}
-    if len(q.split()) < 3 or names & {_norm_word(w) for w in re.findall(r"\w+", q)}:
+    if len(q.split()) < 3 or any(is_student(w) for w in re.findall(r"\w+", q)):
         return ""
     return q
+
+
+def _name_stem(name: str) -> str:
+    """Основа имени для поиска в любом падеже: «Мария» → «мари», «Дмитрий» → «дмитри», «Иван» → «иван»."""
+    first = _norm_word(name.split()[0]) if name.split() else ""
+    return first[:-1] if first[-1:] in "аяйьоеи" else first
 
 
 def _norm_word(word: str) -> str:

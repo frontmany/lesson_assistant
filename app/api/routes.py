@@ -418,10 +418,11 @@ async def stop_virtual_class(lesson_id: str):
 @router.post("/lessons/{lesson_id}/end", dependencies=[Depends(teacher)])
 async def end(lesson_id: str):
     """Учитель нажал «Завершить урок»: ответ приходит, когда очередь дораспознана и ассистент вышел."""
-    ended = await runner.end(lesson_id)
+    # урок кончается у всего класса: ученики выходят из звонка и видят «Урок завершён».
+    # Комнату закрываем сразу, не дожидаясь, пока очередь дораспознается: runner.end до
+    # первого await уже велел ассистенту выйти, а ученикам незачем сидеть в пустом звонке
+    ended, _ = await asyncio.gather(runner.end(lesson_id), call.close_room(lesson_id))
     classes.mark_ended(lesson_id)
-    # урок кончается у всего класса: ученики выходят из звонка и видят «Урок завершён»
-    await call.close_room(lesson_id)
     return {"lesson_id": lesson_id, "ended": ended}
 
 

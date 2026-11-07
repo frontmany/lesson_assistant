@@ -284,3 +284,13 @@ def test_short_or_named_questions_are_not_offered(demo):
     assert summary._question_for_class("Вопросы есть?", roster) == ""
     assert summary._question_for_class("Что Иван сказал про флот?", roster) == ""
     assert summary._question_for_class("Ребята, кто знает, когда основан Петербург?", roster) == "Кто знает, когда основан Петербург?"
+
+
+def test_question_filter_knows_names_in_any_case_and_keeps_non_student_subject(demo):
+    roster, _, _ = demo
+    # имя ученика в другом падеже — вопрос про конкретного ученика, классу не подходит
+    assert summary._question_for_class("Что Ивана спросили про флот?", roster) == ""
+    assert summary._question_for_class("Кто помнит, что ответила Марии?", roster) == ""
+    # «Пётр Первый» — не обращение к ученику: вопрос остаётся целиком
+    assert summary._question_for_class("Пётр Первый, когда родился?", roster) == "Пётр Первый, когда родился?"
+    assert summary._question_for_class("Дмитрий, что такое подушная подать?", roster) == "Что такое подушная подать?"
