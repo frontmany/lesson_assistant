@@ -30,6 +30,8 @@ import ssl
 import threading
 import time
 
+from pathlib import Path
+
 import certifi
 import httpx
 
@@ -44,6 +46,22 @@ log = logging.getLogger(__name__)
 MINCIFRY_ROOT_CA = ROOT / "certs" / "russian_trusted_root_ca.pem"
 
 UPDATE_TYPES = "message_created,message_callback,bot_started"
+# Обложка для первого сообщения /start (design/bot/cover.png)
+COVER = Path(__file__).parent / "assets" / "cover.png"
+# Что показывает бот — первым сообщением на /start, до «Кто вы?»
+INTRO = (
+    "Это демонстрационный бот Сферум AI, помощника учителя на уроках в Сферуме.\n\n"
+    "Учитель создаёт класс и подключает учеников, класс интегрируется со звонком Сферума. "
+    "На уроке появляется невидимый ассистент: он анализирует происходящее и обновляет шкалу участия "
+    "каждого ученика. Учитель видит участие всего класса, а ученик видит только свою шкалу. "
+    "После урока учитель получает сводку: кто вытянул урок, кто выпал и кого спросить в следующий раз. "
+    "Ученик получает личную карточку о своём прогрессе.\n\n"
+    "Пока вместо звонка Сферума работает его локальная имитация. "
+    "В будущем урок будет запускаться прямо в Сферуме отсюда.\n\n"
+    "Быстрее всего начать с «Посмотреть демо»."
+)
+# Команды в подсказке «/» в MAX
+COMMANDS = [{"name": "start", "description": "Что умеет бот и с чего начать"}]
 POLL_TIMEOUT_S = 30
 
 
@@ -85,6 +103,37 @@ class MaxApi:
             body["attachments"] = [{"type": "inline_keyboard", "payload": {"buttons": buttons}}]
         self.http.post("/messages", params={"user_id": user_id}, json=body).raise_for_status()
 
+    def upload_image(self, path: Path) -> str:
+        """Загрузить картинку в MAX: токен для вложения {"type": "image"}.
+
+        POST /uploads?type=image даёт адрес, туда файл уходит полем data; в ответе
+        {"photos": {<id>: {"token": ...}}}.
+        """
+        url = self.http.post("/uploads", params={"type": "image"}).json()["url"]
+        with path.open("rb") as f:
+            res = self.http.post(url, files={"data": (path.name, f, "image/png")})
+        res.raise_for_status()
+        body = res.json()
+        if body.get("token"):
+            return body["token"]
+        return next(iter(body["photos"].values()))["token"]
+
+    def send_image(self, user_id: int, token: str, text: str, retries: int = 4) -> None:
+        """Сообщение с картинкой. MAX обрабатывает файл после загрузки: пока не готов —
+        attachment.not.ready, повторяем с растущей паузой."""
+        body = {"text": text, "attachments": [{"type": "image", "payload": {"token": token}}]}
+        for attempt in range(retries + 1):
+            res = self.http.post("/messages", params={"user_id": user_id}, json=body)
+            if res.status_code < 400:
+                return
+            if "attachment.not.ready" not in res.text or attempt == retries:
+                res.raise_for_status()
+            time.sleep(0.5 * 2 ** attempt)
+
+    def set_commands(self, commands: list[dict]) -> None:
+        """Список команд для подсказки «/» в MAX."""
+        self.http.patch("/me/commands", json={"commands": commands}).raise_for_status()
+
     def answer(self, callback_id: str, notification: str | None = None, message: str | None = None) -> None:
         """Ответить на нажатие кнопки: всплывающим уведомлением или заменой сообщения с кнопкой.
 
@@ -123,6 +172,7 @@ class Bot:
     def __init__(self, api: MaxApi, bot_name: str) -> None:
         self.api = api
         self.bot_name = bot_name
+        self._cover: str | None = None  # токен загруженной обложки: грузим один раз на запуск
 
     # ---------- входящие ----------
 
@@ -134,7 +184,7 @@ class Bot:
             if payload:
                 self.code(user, payload)
             else:
-                self.greet(user["user_id"])
+                self.start(user["user_id"])
         elif kind == "message_created":
             sender = update["message"].get("sender") or {}
             if sender and not sender.get("is_bot"):
@@ -145,8 +195,11 @@ class Bot:
 
     def text(self, user: dict, body: str) -> None:
         user_id = user["user_id"]
-        step, class_id = db.dialog_step(user_id)
         body = body.strip()
+        if body.split("@")[0].lower() == "/start":
+            db.set_dialog(user_id, None)
+            return self.start(user_id)
+        step, class_id = db.dialog_step(user_id)
         if step == "class_name":
             # нажал «Я учитель» по ошибке и прислал код класса — значит, он ученик
             if db.code_candidates(body) and db.find_by_code(body)[0] != "none":
@@ -219,6 +272,17 @@ class Bot:
         }.get(action)
 
     # ---------- кто вы ----------
+
+    def start(self, user_id: int) -> None:
+        """/start и первый вход: что это за бот (с обложкой), следом — как обычно, «Кто вы?» или меню."""
+        try:
+            if self._cover is None:
+                self._cover = self.api.upload_image(COVER)
+            self.api.send_image(user_id, self._cover, INTRO)
+        except Exception as exc:  # обложка не загрузилась — пояснение всё равно нужно
+            log.warning("обложка /start не отправлена: %s", exc)
+            self.api.send(user_id, INTRO)
+        self.greet(user_id)
 
     def greet(self, user_id: int) -> None:
         mine = db.classes_of(user_id)
@@ -684,6 +748,10 @@ def run_polling(stop: threading.Event | None = None) -> None:
         log.info("бот %s (%s) слушает обновления", me.get("name"), me.get("username"))
         api = MaxApi(http)
         _bot = Bot(api, settings.max_bot_name or me["username"])
+        try:
+            api.set_commands(COMMANDS)
+        except httpx.HTTPError as exc:
+            log.warning("команды бота не записаны: %s", exc)
         marker = None
         while stop is None or not stop.is_set():
             try:
