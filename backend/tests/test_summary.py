@@ -37,6 +37,14 @@ def gigachat(monkeypatch):
     return answers, asked
 
 
+
+async def finish_and_report(lesson_id, roster, utterances, board):
+    """Конец урока и сводка: сводка — отдельная задача после конца урока, ждём и её."""
+    task = await runner.finish_lesson(lesson_id, roster, utterances, board)
+    if task is not None:
+        await task
+
+
 def test_template_summary_without_key(demo):
     roster, utterances, levels = demo
     s = summary.build_summary(roster, utterances, levels, {"dmitry_p": 5})
@@ -180,7 +188,7 @@ def test_finished_lesson_is_saved_and_sent(monkeypatch):
     board = Scoreboard([ivan_id, artem_id], 6.0, 2400)
     board.add(ivan_id, "response", utterances[1]["text"], 4.0, 9.0)
 
-    asyncio.run(runner.finish_lesson(lesson.id, roster, utterances, board))
+    asyncio.run(finish_and_report(lesson.id, roster, utterances, board))
 
     assert results.get_summary(lesson.id).dropped == [artem_id]
     assert results.get_card(lesson.id, ivan_id).went_well[0].startswith("Ответ, когда к тебе обратились")
@@ -205,7 +213,7 @@ def test_demo_summary_counts_only_recorded_class(monkeypatch):
     utterances = [{"student_id": ivan, "t": 4.0, "end": 9.0, "text": "Искал союзников против Османской империи.", "kind": "answer"}]
     board.add(ivan, "answer", utterances[0]["text"], 4.0, 9.0)
 
-    asyncio.run(runner.finish_lesson(lesson.id, roster, utterances, board))
+    asyncio.run(finish_and_report(lesson.id, roster, utterances, board))
 
     (to_teacher,) = api.sent  # ученикам из записи карточки не уходят
     assert to_teacher[0] == 1
@@ -263,7 +271,7 @@ def test_student_switched_off_just_before_end_is_not_in_results(monkeypatch):
     board.add(ivan_id, "answer", utterances[0]["text"], 4.0, 9.0)
     runner.set_analytics(lesson.id, False, artem_id)
 
-    asyncio.run(runner.finish_lesson(lesson.id, roster, utterances, board))
+    asyncio.run(finish_and_report(lesson.id, roster, utterances, board))
 
     assert artem_id not in results.get_summary(lesson.id).dropped
     assert results.get_card(lesson.id, artem_id) is None

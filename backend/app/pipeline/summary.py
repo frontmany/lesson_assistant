@@ -61,8 +61,18 @@ def transcript(roster: Roster, utterances: list[dict]) -> str:
     return "\n".join(lines) or "(реплик нет)"
 
 
-def _strings(items, limit: int) -> list[str]:
-    out = [re.sub(r"\s+", " ", str(i)).strip().rstrip(".") for i in items or [] if str(i).strip()]
+def _list(items, field: str) -> list:
+    """Поле-список из ответа GigaChat. Строка вместо списка — ответ не по схеме: иначе её
+    обошли бы по буквам и учитель прочёл бы «Класс не уверен: Т, а, б». Тогда — шаблон."""
+    if items is None:
+        return []
+    if not isinstance(items, list):
+        raise llm.LlmError(f"{field}: ждали список, пришло {type(items).__name__}")
+    return items
+
+
+def _strings(items, limit: int, field: str = "список") -> list[str]:
+    out = [re.sub(r"\s+", " ", str(i)).strip().rstrip(".") for i in _list(items, field) if str(i).strip()]
     return out[:limit]
 
 
@@ -100,14 +110,14 @@ def _llm_summary(roster: Roster, utterances: list[dict], levels: Levels, streaks
     except ValidationError as exc:
         raise llm.LlmError(f"ask_next не по схеме: {exc}") from exc
 
-    def known(ids) -> list[str]:
-        return [i for i in dict.fromkeys(ids or []) if i in names]
+    def known(field: str) -> list[str]:
+        return [i for i in dict.fromkeys(_list(data.get(field), field)) if isinstance(i, str) and i in names]
 
     return Summary(
         lesson_id=roster.lesson_id,
-        carried=known(data.get("carried"))[:MAX_CARRIED],
-        dropped=known(data.get("dropped")),
-        weak_topics=_strings(data.get("weak_topics"), MAX_TOPICS),
+        carried=known("carried")[:MAX_CARRIED],
+        dropped=known("dropped"),
+        weak_topics=_strings(data.get("weak_topics"), MAX_TOPICS, "weak_topics"),
         ask_next=[
             a.model_copy(update={"topic": a.topic.strip() or roster.topic, "question": a.question.strip()})
             for a in ask if a.student_id in names and a.question.strip()
@@ -243,8 +253,8 @@ def _llm_cards(roster: Roster, utterances: list[dict], levels: Levels) -> dict[s
             student_id=sid,
             level=levels[sid][0],
             # хвалить молчавшего не за что: такую похвалу модель придумала
-            went_well=_strings(item.get("went_well"), MAX_POINTS) if _said(utterances, sid) else [],
-            to_repeat=_strings(item.get("to_repeat"), MAX_POINTS),
+            went_well=_strings(item.get("went_well"), MAX_POINTS, "went_well") if _said(utterances, sid) else [],
+            to_repeat=_strings(item.get("to_repeat"), MAX_POINTS, "to_repeat"),
         )
     return cards
 

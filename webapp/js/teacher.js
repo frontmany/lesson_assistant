@@ -122,8 +122,18 @@ async function enter({ mic = prefs.mic } = {}) {
   startedAt = Date.now();
   // Учитель в звонке: ассистент начинает слушать, ученики получают «Урок начался».
   // Демо-урок сервер начинает сразу с записанным классом
-  await api(`/api/lessons/${LESSON_ID}/start`, { method: "POST" })
-    .catch((err) => console.warn("урок не начался на сервере", err));
+  const started = await api(`/api/lessons/${LESSON_ID}/start`, { method: "POST" }).then(
+    () => true,
+    // 409 — урок уже завершён (вышли из звонка, и комната 5 минут стояла пустой):
+    // в звонок без ассистента не пускаем, новый урок — из «Моих классов»
+    (err) => (err.status === 409 ? false : (console.warn("урок не начался на сервере", err), true)),
+  );
+  if (!started) {
+    leaving = true;
+    await room.disconnect();
+    room = null;
+    return lobby("over");
+  }
   // Состав мог поменяться: виртуальный класс заменяет учеников записанными.
   // Шкалы и метки из мока, пришедшие до начала урока, сбрасываем (#78)
   roster = await loadRoster();

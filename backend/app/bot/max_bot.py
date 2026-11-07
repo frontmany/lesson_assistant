@@ -418,9 +418,7 @@ class Bot:
         students = db.students_of(class_id)
         db.delete_class(class_id)
         c = db.get_class(class_id)
-        # ученики не должны ждать урока, которого не будет (#98, п. 19)
-        for m in students:
-            self.api.send(m.max_user_id, f"Учитель удалил класс {label(c)}. Уроков в нём больше не будет.")
+        self.tell_students(students, class_deleted_text(c))
         self.api.send(user_id, f"Класс {label(c)} удалён. Вернуть можно в течение {db.RESTORE_DAYS} дней.",
                       [[callback("Вернуть", f"restore:{class_id}")]])
 
@@ -430,8 +428,7 @@ class Bot:
             return
         if db.restore_class(class_id):
             self.api.send(user_id, f"Класс {label(c)} снова с вами: ученики и ссылка остались прежними.")
-            for m in db.students_of(class_id):
-                self.api.send(m.max_user_id, f"Учитель вернул класс {label(c)}. Когда начнётся урок, я напишу.")
+            self.tell_students(db.students_of(class_id), class_restored_text(c))
         else:
             self.api.send(user_id, f"Вернуть {c.name} уже нельзя: прошло {db.RESTORE_DAYS} дней.")
 
@@ -521,7 +518,7 @@ class Bot:
             return
         db.remove_member(member_id)
         c = db.get_class(m.class_id)
-        self.api.send(m.max_user_id, f"Учитель убрал вас из класса {label(c)}. Если это ошибка, напишите учителю.")
+        self.tell_students([m], student_removed_text(c))
         self.api.send(user_id, f"Убрано из класса {label(c)}: {db.short_name(m.name)}",
                       [[callback("Вернуть", f"unkick:{member_id}")]])
 
@@ -531,8 +528,17 @@ class Bot:
             return
         db.restore_member(member_id)
         c = db.get_class(m.class_id)
-        self.api.send(m.max_user_id, f"Учитель вернул вас в класс {label(c)}. Когда начнётся урок, я напишу.")
+        self.tell_students([m], student_returned_text(c))
         self.api.send(user_id, f"{db.short_name(m.name)} снова в классе {label(c)}.")
+
+    def tell_students(self, members, text: str) -> None:
+        """Сообщение ученикам класса. Кто заблокировал бота или на ком упал MAX, не обрывает
+        рассылку остальным и подтверждение учителю."""
+        for m in members:
+            try:
+                self.api.send(m.max_user_id, text)
+            except httpx.HTTPError as exc:
+                log.warning("не написал ученику %s: %s", m.max_user_id, exc)
 
     def ask_leave(self, user_id: int, class_id: int) -> None:
         c = db.get_class(class_id)
@@ -601,6 +607,16 @@ class Bot:
 MAX_NAMES = 4  # дальше «и ещё N»: полный список — в мини-приложении
 
 
+_MD = re.compile(r"([\\`*_~\[\]()#>|])")
+
+
+def md(text: str) -> str:
+    """Чужой текст в сообщении с разметкой: имя ученика, тема, ответ GigaChat. Знаки разметки
+    экранируем, иначе «[Подробнее](ссылка)» в имени стало бы ссылкой в сводке учителю,
+    а «Аня_2010» сломала бы жирные заголовки."""
+    return _MD.sub(r"\\\1", text)
+
+
 def _names(ids: list[str], names: dict[str, str]) -> str:
     shown = [names[i] for i in ids if i in names]
     rest = len(shown) - MAX_NAMES
@@ -609,13 +625,13 @@ def _names(ids: list[str], names: dict[str, str]) -> str:
 
 def _title(roster) -> str:
     subject = roster.subject[:1].lower() + roster.subject[1:]
-    return f"{roster.class_name}, {subject}"
+    return md(f"{roster.class_name}, {subject}")
 
 
 def summary_text(roster, summary, minutes: int) -> str:
     """Сводка учителю одним сообщением: пустые блоки не показываем, «кого спросить» — внизу, ближе к кнопке."""
-    names = {s.id: s.name for s in roster.students}
-    about = [roster.topic] if roster.topic else []
+    names = {s.id: md(s.name) for s in roster.students}
+    about = [md(roster.topic)] if roster.topic else []
     about += [f"{minutes} {plural(minutes, 'минута', 'минуты', 'минут')}", students_count(len(roster.students))]
     blocks = [f"**Итоги урока: {_title(roster)}**\n" + ", ".join(about)]
     if summary.carried:
@@ -623,11 +639,11 @@ def summary_text(roster, summary, minutes: int) -> str:
     if summary.dropped:
         blocks.append(f"**Выпали**\n{_names(summary.dropped, names)}")
     if summary.weak_topics:
-        blocks.append("**Класс не уверен**\n" + ", ".join(summary.weak_topics))
+        blocks.append("**Класс не уверен**\n" + ", ".join(md(t) for t in summary.weak_topics))
     asks = [a for a in summary.ask_next if a.student_id in names]
     for i, a in enumerate(asks):
         head = "**Спросить в следующий раз**\n" if i == 0 else ""
-        blocks.append(f"{head}{names[a.student_id]} — {a.topic}\n«{a.question}»")
+        blocks.append(f"{head}{names[a.student_id]} — {md(a.topic)}\n«{md(a.question)}»")
     if len(blocks) == 1:
         blocks.append("Для сводки данных пока мало: нужны хотя бы несколько реплик учеников.")
     return "\n\n".join(blocks)
@@ -635,11 +651,11 @@ def summary_text(roster, summary, minutes: int) -> str:
 
 def card_text(roster, card) -> str:
     """Карточка ученика: про него на «ты», без ступени — в карточке она читалась бы как оценка."""
-    blocks = [f"**Твоя карточка: {_title(roster)}**" + (f"\n{roster.topic}" if roster.topic else "")]
+    blocks = [f"**Твоя карточка: {_title(roster)}**" + (f"\n{md(roster.topic)}" if roster.topic else "")]
     if card.went_well:
-        blocks.append("**Что получилось**\n" + "\n".join(card.went_well))
+        blocks.append("**Что получилось**\n" + "\n".join(md(x) for x in card.went_well))
     if card.to_repeat:
-        blocks.append("**Что повторить**\n" + "\n".join(card.to_repeat))
+        blocks.append("**Что повторить**\n" + "\n".join(md(x) for x in card.to_repeat))
     blocks.append("Карточка не показывается классу.")
     return "\n\n".join(blocks)
 
@@ -666,6 +682,30 @@ def full_name(user: dict) -> str:
 # ---------- запуск ----------
 
 _bot: Bot | None = None
+
+
+# Ученики не должны ждать урока, которого не будет (#98, п. 19): одни тексты и для бота,
+# и для мини-приложения — что бы учитель ни нажал, ученики узнают одинаково
+def class_deleted_text(c) -> str:
+    return f"Учитель удалил класс {label(c)}. Уроков в нём больше не будет."
+
+
+def class_restored_text(c) -> str:
+    return f"Учитель вернул класс {label(c)}. Когда начнётся урок, я напишу."
+
+
+def student_removed_text(c) -> str:
+    return f"Учитель убрал вас из класса {label(c)}. Если это ошибка, напишите учителю."
+
+
+def student_returned_text(c) -> str:
+    return f"Учитель вернул вас в класс {label(c)}. Когда начнётся урок, я напишу."
+
+
+def tell(members, text: str) -> None:
+    """Из мини-приложения: то же сообщение ученикам, что шлёт бот. Без бота — ничего."""
+    if _bot is not None:
+        _bot.tell_students(members, text)
 
 
 def lesson_started(lesson_id: str) -> None:
