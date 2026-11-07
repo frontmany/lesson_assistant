@@ -46,7 +46,7 @@ log = logging.getLogger(__name__)
 MINCIFRY_ROOT_CA = ROOT / "certs" / "russian_trusted_root_ca.pem"
 
 UPDATE_TYPES = "message_created,message_callback,bot_started"
-# Обложка для первого сообщения /start (design/bot/cover.png)
+# Обложка для первого сообщения /start: квадратная — MAX показывает картинку почти квадратом и срезает края (design/bot/start-card.png)
 COVER = Path(__file__).parent / "assets" / "cover.png"
 # Что показывает бот — первым сообщением на /start, до «Кто вы?»
 INTRO = (
@@ -56,9 +56,7 @@ INTRO = (
     "каждого ученика. Учитель видит участие всего класса, а ученик видит только свою шкалу. "
     "После урока учитель получает сводку: кто вытянул урок, кто выпал и кого спросить в следующий раз. "
     "Ученик получает личную карточку о своём прогрессе.\n\n"
-    "Пока вместо звонка Сферума работает его локальная имитация. "
-    "В будущем урок будет запускаться прямо в Сферуме отсюда.\n\n"
-    "Быстрее всего начать с «Посмотреть демо»."
+    "Быстрее всего начать с «Посмотреть демо»"
 )
 # Команды в подсказке «/» в MAX
 COMMANDS = [{"name": "start", "description": "Что умеет бот и с чего начать"}]
@@ -118,10 +116,13 @@ class MaxApi:
             return body["token"]
         return next(iter(body["photos"].values()))["token"]
 
-    def send_image(self, user_id: int, token: str, text: str, retries: int = 4) -> None:
-        """Сообщение с картинкой. MAX обрабатывает файл после загрузки: пока не готов —
+    def send_image(self, user_id: int, token: str, text: str, buttons: list[list[dict]] | None = None,
+                   retries: int = 4) -> None:
+        """Сообщение с картинкой (и кнопками). MAX обрабатывает файл после загрузки: пока не готов —
         attachment.not.ready, повторяем с растущей паузой."""
         body = {"text": text, "attachments": [{"type": "image", "payload": {"token": token}}]}
+        if buttons:
+            body["attachments"].append({"type": "inline_keyboard", "payload": {"buttons": buttons}})
         for attempt in range(retries + 1):
             res = self.http.post("/messages", params={"user_id": user_id}, json=body)
             if res.status_code < 400:
@@ -226,6 +227,7 @@ class Bot:
             "student": lambda: self.as_student(user_id),
             "demo": lambda: self.demo(user),  # кнопка из старых сообщений: теперь «Посмотреть демо» открывает приложение
             "back": lambda: self.back(user_id),
+            "begin": lambda: self.greet(user_id),  # «Начать» под вступлением /start
             "me": lambda: self.join(user_id, int(arg), full_name(user)),
             "rename": lambda: self.ask_name(user_id, int(arg)),
             "kick": lambda: self.kick(user_id, int(arg)),
@@ -274,28 +276,32 @@ class Bot:
     # ---------- кто вы ----------
 
     def start(self, user_id: int) -> None:
-        """/start и первый вход: что это за бот (с обложкой), следом — как обычно, «Кто вы?» или меню."""
+        """/start и первый вход: что это за бот (с обложкой) и «Начать» — по ней «Кто вы?» или меню."""
+        begin = [[callback("Начать", "begin")]]
         try:
             if self._cover is None:
                 self._cover = self.api.upload_image(COVER)
-            self.api.send_image(user_id, self._cover, INTRO)
+            self.api.send_image(user_id, self._cover, INTRO, begin)
         except Exception as exc:  # обложка не загрузилась — пояснение всё равно нужно
             log.warning("обложка /start не отправлена: %s", exc)
-            self.api.send(user_id, INTRO)
-        self.greet(user_id)
+            self.api.send(user_id, INTRO, begin)
 
     def greet(self, user_id: int) -> None:
+        """Меню по текущей роли — той же, что в мини-приложении: учителю его классы, ученику его.
+        Учитель, который где-то ещё и ученик, не получает оба меню сразу."""
         mine = db.classes_of(user_id)
-        teaching = [c for c, m in mine if m.role == "teacher"]
-        learning = [c for c, m in mine if m.role == "student"]
-        if not mine:
-            return self.choose_role(user_id)
-        if teaching:
-            self.teacher_menu(user_id, teaching)
-        if len(learning) == 1:
-            self.student_class(user_id, learning[0].id)
-        elif learning:
-            self.choose(user_id, [(label(c), f"class:{c.id}") for c in learning])
+        role = db.role_of(user_id)
+        if role == "teacher":
+            teaching = [c for c, m in mine if m.role == "teacher"]
+            return self.teacher_menu(user_id, teaching) if teaching else self.ask_class_name(user_id, first=True)
+        if role == "student":
+            learning = [c for c, m in mine if m.role == "student"]
+            if len(learning) == 1:
+                return self.student_class(user_id, learning[0].id)
+            if learning:
+                return self.choose(user_id, [(label(c), f"class:{c.id}") for c in learning])
+            return self.ask_code(user_id)
+        self.choose_role(user_id)
 
     def choose_role(self, user_id: int) -> None:
         """Шаг 1: кто вы. И «Выйти» в мини-приложении — выбрать роль заново.
@@ -453,8 +459,12 @@ class Bot:
         self.api.send(user_id, "Введите код класса. Его назовёт учитель.", [[callback("Назад", "back")]])
 
     def back(self, user_id: int) -> None:
-        """Нажал не ту кнопку: бот перестаёт ждать название или код и возвращает к выбору."""
+        """Нажал не ту кнопку: бот перестаёт ждать название или код и возвращает назад —
+        к меню своей роли, а если в этой роли классов нет, к выбору «Кто вы?»."""
         db.set_dialog(user_id, None)
+        role = db.role_of(user_id)
+        if not any(m.role == role for _, m in db.classes_of(user_id)):
+            return self.choose_role(user_id)
         self.greet(user_id)
 
     def code(self, user: dict, text: str) -> None:
