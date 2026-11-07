@@ -289,6 +289,11 @@ def test_role_is_shared_by_bot_and_app(monkeypatch):
     # «Я учитель» в чате — приложение уже знает
     max_bot.Bot(Api(), "ideya_bot").press({"user_id": MARIA}, "cb", "teacher")
     assert client.get("/api/me/role", headers=me).json()["role"] == "teacher"
+    # «Назад» в чате снова спрашивает «Кто вы?» — роли нет и в приложении
+    bot = max_bot.Bot(Api(), "ideya_bot")
+    bot.press({"user_id": MARIA}, "cb", "student")
+    bot.press({"user_id": MARIA}, "cb", "back")
+    assert client.get("/api/me/role", headers=me).json()["role"] == "none"
     # «Выйти» в приложении — роли нет, даже если классы есть
     db.create_class(MARIA, "Мария Смирнова", "10А", "история")
     client.post("/api/me/exit", headers=me)
