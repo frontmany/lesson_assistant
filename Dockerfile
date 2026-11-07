@@ -4,9 +4,10 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1
 
-WORKDIR /srv
+# Та же раскладка, что в репозитории: /srv/backend и /srv/webapp
+WORKDIR /srv/backend
 
-COPY requirements.txt .
+COPY backend/requirements.txt .
 RUN pip install -r requirements.txt
 
 # Модели распознавания скачиваются при сборке, и запуск контейнера не зависит
@@ -21,11 +22,11 @@ RUN if [ "$PRELOAD_MODEL" = "1" ]; then \
       python -c "import onnx_asr; from faster_whisper import WhisperModel; [onnx_asr.load_model(m, '/srv/models/' + m) if m.startswith('gigaam') else WhisperModel(m, device='cpu', compute_type='int8', download_root='/srv/models') for m in {'${WHISPER_MODEL_TEACHER}', '${WHISPER_MODEL_STUDENT}'}]"; \
     fi
 
-COPY app ./app
-COPY webapp ./webapp
-COPY data ./data
-COPY prompts ./prompts
-COPY certs ./certs
+COPY backend/app ./app
+COPY backend/data ./data
+COPY backend/prompts ./prompts
+COPY backend/certs ./certs
+COPY webapp /srv/webapp
 
 EXPOSE 8000
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

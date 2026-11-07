@@ -15,7 +15,7 @@ models/
 *.db
 
 # аудио: исходные записи урока храним вне репозитория, если они больше 50 МБ
-data/demo_lesson/tracks/*.raw
+backend/data/demo_lesson/tracks/*.raw
 
 # IDE и ОС
 .idea/
