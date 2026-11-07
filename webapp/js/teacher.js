@@ -220,16 +220,14 @@ function renderStage() {
     $("pager").hidden = $("prev").hidden = $("next").hidden = true;
   } else {
     const tiles = $("tiles");
-    const size = pageSize(tiles);
+    const { size, cols: maxCols, w } = layout(all.length, tiles.clientWidth, tiles.clientHeight);
     const pages = Math.max(1, Math.ceil(all.length / size));
     page = Math.min(page, pages);
     const visible = all.slice((page - 1) * size, page * size);
-    const c = visible.length;
-    const cols = bestCols(c, tiles);
-    const few = !mobile.matches && c <= 2;
-    tiles.className = `tiles${few ? " few" : ""}${few && c === 1 ? " one" : ""}`;
-    tiles.style.gridTemplateColumns = `repeat(${cols}, minmax(0, ${few ? (c === 1 ? "960px" : "420px") : "1fr"}))`;
-    tiles.style.gridTemplateRows = `repeat(${Math.ceil(c / cols)}, minmax(0, 1fr))`;
+    const cols = Math.max(1, Math.min(maxCols, visible.length));
+    tiles.className = "tiles";
+    tiles.style.gridTemplateColumns = `repeat(${cols}, ${w}px)`;
+    tiles.style.gridTemplateRows = `repeat(${Math.ceil(visible.length / cols)}, ${w / tileRatio()}px)`;
     tiles.replaceChildren(...visible.map((p, i) => tile(p, (page - 1) * size + i)));
     $("pager").hidden = pages === 1;
     $("pager").replaceChildren(...Array.from({ length: pages }, (_, i) => span(i + 1 === page ? "on" : "")));
@@ -251,38 +249,37 @@ function moreTile(n) {
 $("prev").onclick = () => { page--; renderStage(); };
 $("next").onclick = () => { page++; renderStage(); };
 
-// Сколько плиток на странице — от места на сцене, а не числом: плитка не меньше TILE_MIN.
-// На телефоне с открытой аналитикой это 2–4 плитки, на большом экране — до 16
-const TILE_MIN = { mobile: [140, 110], desktop: [200, 140] };
+// Раскладка плиток. Плитка всегда одной формы (TILE_RATIO) и не мельче TILE_MIN_W:
+// кто не помещается, уходит на следующую страницу, а не сжимает всех. Сетка — по центру сцены
+const TILE_RATIO = { mobile: 4 / 3, desktop: 16 / 9 }; // на телефоне сцена узкая и высокая
+const TILE_MIN_W = { mobile: 150, desktop: 260 };
+const TILE_MAX_W = 960; // один участник не разъезжается на весь монитор
 const GAP = 8;
 const MAX_TILES = 16;
 
-function grid(box) {
-  const [w, h] = mobile.matches ? TILE_MIN.mobile : TILE_MIN.desktop;
-  const maxCols = Math.max(1, Math.floor((box.clientWidth + GAP) / (w + GAP)));
-  const maxRows = Math.max(1, Math.floor((box.clientHeight + GAP) / (h + GAP)));
-  return { maxCols, maxRows };
+function tileRatio() {
+  return mobile.matches ? TILE_RATIO.mobile : TILE_RATIO.desktop;
 }
 
-function pageSize(box) {
-  const { maxCols, maxRows } = grid(box);
-  return Math.min(MAX_TILES, maxCols * maxRows);
-}
-
-// Столбцы, при которых плитки ближе всего к 4:3 и крупнее всего
-function bestCols(c, box) {
-  const { maxCols, maxRows } = grid(box);
-  let best = 1;
-  let bestSide = 0;
-  for (let cols = 1; cols <= Math.min(c, maxCols); cols++) {
-    const rows = Math.ceil(c / cols);
-    if (rows > maxRows) continue;
-    const w = (box.clientWidth - (cols - 1) * GAP) / cols;
-    const h = (box.clientHeight - (rows - 1) * GAP) / rows;
-    const side = Math.min(w, h * 4 / 3);
-    if (side > bestSide) { bestSide = side; best = cols; }
+// { cols, w, size }: столбцы, ширина плитки в px и сколько плиток на странице
+function layout(n, width, height) {
+  const ratio = tileRatio();
+  const minW = Math.min(mobile.matches ? TILE_MIN_W.mobile : TILE_MIN_W.desktop, width);
+  const span = (total, k) => (total - (k - 1) * GAP) / k;
+  const maxCols = Math.max(1, Math.floor((width + GAP) / (minW + GAP)));
+  // все на одной странице, если плитки при этом не мельче минимума — берём самые крупные
+  let best = null;
+  if (n <= MAX_TILES) {
+    for (let cols = 1; cols <= Math.min(n, maxCols); cols++) {
+      const w = Math.min(span(width, cols), span(height, Math.ceil(n / cols)) * ratio, TILE_MAX_W);
+      if (w >= minW && (!best || w > best.w)) best = { cols, w, size: n };
+    }
   }
-  return best;
+  if (best || n === 0) return best ?? { cols: 1, w: 0, size: 1 };
+  // не помещаются: плитки минимального размера по ширине, сколько рядов влезает — столько на страницу
+  const w = Math.max(0, Math.min(span(width, maxCols), height * ratio, TILE_MAX_W));
+  const rows = Math.max(1, Math.floor((height + GAP) / (w / ratio + GAP)));
+  return { cols: maxCols, w, size: Math.min(MAX_TILES, maxCols * rows) };
 }
 
 // Сцена поменяла размер (панель аналитики, поворот телефона, окно) — пересчитываем страницу
