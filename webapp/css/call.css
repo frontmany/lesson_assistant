@@ -13,11 +13,9 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 .body { flex: 1; min-height: 0; display: flex; gap: 16px; padding: 16px; }
 
 /* Сцена с плитками */
-.stage { position: relative; flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
-.tiles { flex: 1; min-height: 0; display: grid; gap: 8px; touch-action: pan-y; } /* горизонтальный свайп — листаем страницы */
-.tiles.few { justify-content: center; align-content: center; grid-template-rows: none !important; }
-.tiles.few .tile { aspect-ratio: 4 / 3; max-height: 100%; }
-.tiles.few.one .tile { aspect-ratio: 16 / 9; }
+.stage { position: relative; flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: 8px; }
+/* размер плиток считает teacher.js (renderStage): прямоугольники одной формы, сетка по центру */
+.tiles { flex: 1; min-height: 0; overflow: hidden; display: grid; gap: 8px; justify-content: center; align-content: center; touch-action: pan-y; } /* горизонтальный свайп — листаем страницы */
 
 .tile {
   position: relative; min-width: 0; min-height: 0; overflow: hidden; container-type: size;
