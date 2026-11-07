@@ -76,7 +76,7 @@
 }
 .mark {
   position: relative; z-index: 1; width: 26px; height: 26px; border-radius: 50%; flex: none; display: grid; place-items: center;
-  border: 2px solid var(--line-strong); background: var(--surface); color: var(--on-accent, var(--surface));
+  border: 2px solid var(--line-strong); background: var(--surface); color: #fff; /* галочка на зелёной ступени — белая в обеих темах */
   transition: background .4s, border-color .4s;
 }
 .mark .i { width: 14px; height: 14px; stroke-width: 2.6; opacity: 0; transform: scale(.4); transition: opacity .3s .1s, transform .3s .1s; }

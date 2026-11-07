@@ -199,7 +199,7 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
   display: inline-flex; align-items: center; justify-content: center; gap: 10px;
   padding: 12px 24px; border-radius: 999px; font-weight: 600;
 }
-.primary { background: var(--accent); color: var(--surface); }
+.primary { background: var(--accent); color: #fff; } /* белый текст в обеих темах, как на стартовой странице */
 .primary[disabled] { opacity: .75; cursor: default; }
 .secondary { background: var(--surface-muted); border: 1px solid var(--line-strong); }
 .link { min-height: 44px; padding: 0 12px; font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
