@@ -94,11 +94,12 @@ async def _play_mock(ws: WebSocket, student: str | None = None) -> None:
     """Проиграть события из webapp/mock/events.json.
 
     Поле `after` в моке — пауза в секундах перед событием, клиенту оно не уходит.
+    `mock: true` — экран при старте урока сбрасывает то, что пришло из мока (#78).
     """
     for event in mocks.load("events.json"):
         await asyncio.sleep(event.pop("after", 1.0))
         if _allowed(student, event):
-            await ws.send_json(event)
+            await ws.send_json({**event, "mock": True})
 
 
 async def _send_live(ws: WebSocket, queue: asyncio.Queue, student: str | None = None) -> None:
