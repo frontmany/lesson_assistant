@@ -56,9 +56,7 @@ INTRO = (
     "каждого ученика. Учитель видит участие всего класса, а ученик видит только свою шкалу. "
     "После урока учитель получает сводку: кто вытянул урок, кто выпал и кого спросить в следующий раз. "
     "Ученик получает личную карточку о своём прогрессе.\n\n"
-    "Пока вместо звонка Сферума работает его локальная имитация. "
-    "В будущем урок будет запускаться прямо в Сферуме отсюда.\n\n"
-    "Быстрее всего начать с «Посмотреть демо»."
+    "Быстрее всего начать с «Посмотреть демо»"
 )
 # Команды в подсказке «/» в MAX
 COMMANDS = [{"name": "start", "description": "Что умеет бот и с чего начать"}]
@@ -118,10 +116,13 @@ class MaxApi:
             return body["token"]
         return next(iter(body["photos"].values()))["token"]
 
-    def send_image(self, user_id: int, token: str, text: str, retries: int = 4) -> None:
-        """Сообщение с картинкой. MAX обрабатывает файл после загрузки: пока не готов —
+    def send_image(self, user_id: int, token: str, text: str, buttons: list[list[dict]] | None = None,
+                   retries: int = 4) -> None:
+        """Сообщение с картинкой (и кнопками). MAX обрабатывает файл после загрузки: пока не готов —
         attachment.not.ready, повторяем с растущей паузой."""
         body = {"text": text, "attachments": [{"type": "image", "payload": {"token": token}}]}
+        if buttons:
+            body["attachments"].append({"type": "inline_keyboard", "payload": {"buttons": buttons}})
         for attempt in range(retries + 1):
             res = self.http.post("/messages", params={"user_id": user_id}, json=body)
             if res.status_code < 400:
@@ -226,6 +227,7 @@ class Bot:
             "student": lambda: self.as_student(user_id),
             "demo": lambda: self.demo(user),  # кнопка из старых сообщений: теперь «Посмотреть демо» открывает приложение
             "back": lambda: self.back(user_id),
+            "begin": lambda: self.greet(user_id),  # «Начать» под вступлением /start
             "me": lambda: self.join(user_id, int(arg), full_name(user)),
             "rename": lambda: self.ask_name(user_id, int(arg)),
             "kick": lambda: self.kick(user_id, int(arg)),
@@ -274,15 +276,15 @@ class Bot:
     # ---------- кто вы ----------
 
     def start(self, user_id: int) -> None:
-        """/start и первый вход: что это за бот (с обложкой), следом — как обычно, «Кто вы?» или меню."""
+        """/start и первый вход: что это за бот (с обложкой) и «Начать» — по ней «Кто вы?» или меню."""
+        begin = [[callback("Начать", "begin")]]
         try:
             if self._cover is None:
                 self._cover = self.api.upload_image(COVER)
-            self.api.send_image(user_id, self._cover, INTRO)
+            self.api.send_image(user_id, self._cover, INTRO, begin)
         except Exception as exc:  # обложка не загрузилась — пояснение всё равно нужно
             log.warning("обложка /start не отправлена: %s", exc)
-            self.api.send(user_id, INTRO)
-        self.greet(user_id)
+            self.api.send(user_id, INTRO, begin)
 
     def greet(self, user_id: int) -> None:
         mine = db.classes_of(user_id)

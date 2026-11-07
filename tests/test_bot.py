@@ -30,8 +30,8 @@ class FakeApi:
         assert path.exists()
         return f"token-{self.uploads}"
 
-    def send_image(self, user_id, token, text):
-        self.sent.append((user_id, text, None))
+    def send_image(self, user_id, token, text, buttons=None):
+        self.sent.append((user_id, text, buttons))
         self.images = [*getattr(self, "images", []), (user_id, token)]
 
     def to(self, user_id):
@@ -85,6 +85,7 @@ def join(b, user_id, code, **name):
 def test_stranger_chooses_teacher_student_or_demo(bot):
     b, api = bot
     b.handle(started(MARIA))
+    b.handle(press(MARIA, "begin"))  # «Начать» под вступлением
     message = api.to(MARIA)[-1]
     assert message[0] == "Здравствуйте! Я помогаю вести уроки в MAX. Кто вы?"
     assert [x["text"] for x in buttons(message)] == ["Я учитель", "Я ученик", "Посмотреть демо"]
@@ -421,18 +422,21 @@ def test_removed_student_and_class_of_deleted_class_are_told(bot):
 # ---------- /start: что это за бот ----------
 
 
-def test_start_sends_intro_with_cover_then_greeting(bot):
+def test_start_sends_intro_with_cover_and_begin_button(bot):
     from app.bot.max_bot import INTRO
 
     b, api = bot
     b.handle(started(MARIA))
-    messages = api.to(MARIA)
-    assert messages[0][0] == INTRO and "Сферум" in INTRO
+    intro = api.to(MARIA)
+    # одно сообщение: обложка, пояснение и «Начать»; «Кто вы?» — только по кнопке
+    assert len(intro) == 1 and intro[0][0] == INTRO and "Сферум AI" in INTRO
     assert api.images == [(MARIA, "token-1")]
-    assert messages[1][0] == "Здравствуйте! Я помогаю вести уроки в MAX. Кто вы?"
+    assert [x["text"] for x in buttons(intro[0])] == ["Начать"]
+    b.handle(press(MARIA, payload_of(intro[0], "Начать")))
+    assert api.to(MARIA)[-1][0] == "Здравствуйте! Я помогаю вести уроки в MAX. Кто вы?"
     # /start текстом — то же самое, обложка не грузится второй раз
     b.handle(text(MARIA, "/start"))
-    assert api.to(MARIA)[-2][0] == INTRO and api.uploads == 1
+    assert api.to(MARIA)[-1][0] == INTRO and api.uploads == 1
 
 
 def test_start_resets_waiting_for_code(bot):
