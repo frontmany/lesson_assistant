@@ -161,6 +161,48 @@ def join(lesson_id: str, who: Seat = Depends(member)):
     )
 
 
+class ClassCode(BaseModel):
+    code: str
+
+
+@router.post("/classes/join")
+def join_class(body: ClassCode, user: User = Depends(current_user)):
+    """«Я ученик» → код класса в мини-приложении: те же ответы, что у бота на код."""
+    if user.max_user_id is None:
+        raise HTTPException(403, "Войти в класс можно из MAX")
+    status, c = classes.find_by_code(body.code)
+    if status == "none":
+        raise HTTPException(404, "Такого кода нет. Проверьте и введите ещё раз")
+    member = classes.membership(c.id, user.max_user_id) if c else None
+    if member is not None:
+        if member.role == "teacher":
+            raise HTTPException(409, f"Это код вашего класса {c.name}")
+        return {"id": c.id}
+    if status == "deleted":
+        raise HTTPException(410, "Этот класс удалён. Спросите у учителя")
+    if status == "old":
+        raise HTTPException(410, "Этот код устарел. Попросите у учителя новый")
+    max_bot.join_from_app(user.max_user_id, c.id, user.name or "Ученик")
+    return {"id": c.id}
+
+
+@router.post("/me/exit")
+async def exit_app(user: User = Depends(current_user)):
+    """«Выйти» на «Мои классы»: всё начатое сбрасывается, бот присылает в чат выбор роли заново.
+
+    Незавершённые уроки учителя закрываются: звонок не остаётся висеть «Урок идёт» у учеников.
+    """
+    if user.max_user_id is None:
+        return {"ended": []}
+    ended = classes.open_lessons_of_teacher(user.max_user_id)
+    for lesson_id in ended:
+        await runner.stop_virtual(lesson_id)
+        await runner.end(lesson_id)
+        classes.mark_ended(lesson_id)
+    max_bot.role_again(user.max_user_id)
+    return {"ended": ended}
+
+
 @router.get("/me/classes")
 def my_classes(user: User = Depends(current_user)):
     """Классы вошедшего для стартовой страницы: учителю — «Начать урок», ученику — идущий урок.
@@ -185,10 +227,10 @@ def demo(user: User = Depends(current_user)):
     return {"lesson_id": classes.demo_lesson(user.max_user_id, user.name or None).id}
 
 
-def _taught_class(class_id: int, user: User):
-    """Класс, которым управляет вошедший учитель: иначе 404 или 403."""
+def _taught_class(class_id: int, user: User, deleted: bool = False):
+    """Класс, которым управляет вошедший учитель: иначе 404 или 403. deleted — и удалённый (для «Вернуть»)."""
     c = classes.get_class(class_id)
-    if c is None or c.deleted_at is not None:
+    if c is None or (c.deleted_at is not None and not deleted):
         raise HTTPException(404, "Такого класса нет")
     m = classes.membership(class_id, user.max_user_id) if user.max_user_id is not None else None
     if m is None or m.role != "teacher":
@@ -203,6 +245,37 @@ def _class_student(class_id: int, member_id: int):
     return m
 
 
+class NewClass(BaseModel):
+    name: str
+    subject: str
+
+
+def _class_fields(body: NewClass) -> tuple[str, str]:
+    """Класс и предмет с теми же проверками, что в боте: «10А, история»."""
+    name, subject = body.name.strip(), body.subject.strip()
+    if not name or not subject or len(name) > 40 or len(subject) > 60:
+        raise HTTPException(422, "Укажите класс и предмет. Например: 10А и история")
+    return name, subject.lower()
+
+
+@router.post("/classes")
+def create_class(body: NewClass, user: User = Depends(current_user)):
+    """«Создать класс» в мини-приложении: как в боте, вошедший становится учителем класса."""
+    if user.max_user_id is None:
+        raise HTTPException(403, "Создать класс можно из MAX")
+    name, subject = _class_fields(body)
+    c = classes.create_class(user.max_user_id, user.name or "Учитель", name, subject)
+    return {"id": c.id}
+
+
+@router.patch("/classes/{class_id}")
+def update_class(class_id: int, body: NewClass, user: User = Depends(current_user)):
+    """Карандаш на экране класса: новое название и предмет."""
+    _taught_class(class_id, user)
+    classes.update_class(class_id, *_class_fields(body))
+    return {"updated": class_id}
+
+
 @router.get("/classes/{class_id}")
 def class_card(class_id: int, user: User = Depends(current_user)):
     """Экран класса в мини-приложении (design/classes.html): ученики по алфавиту, ссылка и код для приглашения."""
@@ -211,7 +284,26 @@ def class_card(class_id: int, user: User = Depends(current_user)):
         "id": c.id, "name": c.name, "subject": c.subject,
         "code": c.invite_code, "link": max_bot.invite_link(c.invite_code),
         "students": [{"id": m.id, "name": classes.short_name(m.name)} for m in classes.students_of(c.id)],
+        "lesson": live.id if (live := classes.live_lesson(c.id)) else None,
     }
+
+
+@router.delete("/classes/{class_id}")
+def delete_class(class_id: int, user: User = Depends(current_user)):
+    """Удалить класс: как в боте, 30 дней его можно вернуть («Вернуть» на экране)."""
+    _taught_class(class_id, user)
+    if classes.live_lesson(class_id):
+        raise HTTPException(409, "Идёт урок: удалить класс можно после него")
+    classes.delete_class(class_id)
+    return {"deleted": class_id}
+
+
+@router.post("/classes/{class_id}/restore")
+def restore_class(class_id: int, user: User = Depends(current_user)):
+    _taught_class(class_id, user, deleted=True)
+    if not classes.restore_class(class_id):
+        raise HTTPException(410, "Класс удалён больше 30 дней назад")
+    return {"restored": class_id}
 
 
 @router.delete("/classes/{class_id}/students/{member_id}")

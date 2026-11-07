@@ -206,3 +206,83 @@ def test_class_screen_lists_students_and_removes_with_undo(monkeypatch):
     assert client.delete(f"/api/classes/{c.id}/students/{artem.id}", headers=student).status_code == 403
     other = db.create_class(77, "Ольга", "9Б", "физика")
     assert client.delete(f"/api/classes/{other.id}/students/{artem.id}", headers=sign_in(77)).status_code == 404
+
+
+def test_class_is_created_from_the_app():
+    teacher = sign_in(MARIA)
+    made = client.post("/api/classes", json={"name": " 7Б ", "subject": "География"}, headers=teacher)
+    assert made.status_code == 200
+    card = client.get(f"/api/classes/{made.json()['id']}", headers=teacher).json()
+    assert (card["name"], card["subject"], card["students"], card["lesson"]) == ("7Б", "география", [], None)
+    assert client.post("/api/classes", json={"name": "7Б", "subject": " "}, headers=teacher).status_code == 422
+
+
+def test_class_is_deleted_and_restored_from_the_app():
+    from app.db import classes as db
+
+    teacher = sign_in(MARIA)
+    c = db.create_class(MARIA, "Мария Смирнова", "10А", "история")
+    assert client.delete(f"/api/classes/{c.id}", headers=teacher).status_code == 200
+    assert client.get(f"/api/classes/{c.id}", headers=teacher).status_code == 404
+    assert all(x["id"] != c.id for x in client.get("/api/me/classes", headers=teacher).json())
+    assert client.post(f"/api/classes/{c.id}/restore", headers=teacher).status_code == 200
+    assert client.get(f"/api/classes/{c.id}", headers=teacher).status_code == 200
+    db.join(c.id, 31, "Софья Ланская")
+    assert client.delete(f"/api/classes/{c.id}", headers=sign_in(31)).status_code == 403
+
+
+def test_class_is_renamed_from_the_app():
+    from app.db import classes as db
+
+    teacher = sign_in(MARIA)
+    c = db.create_class(MARIA, "Мария Смирнова", "10", "р")
+    assert client.patch(f"/api/classes/{c.id}", json={"name": "10А", "subject": "Русский"}, headers=teacher).status_code == 200
+    card = client.get(f"/api/classes/{c.id}", headers=teacher).json()
+    assert (card["name"], card["subject"]) == ("10А", "русский")
+    assert client.patch(f"/api/classes/{c.id}", json={"name": "", "subject": "х"}, headers=teacher).status_code == 422
+    db.join(c.id, 31, "Софья Ланская")
+    assert client.patch(f"/api/classes/{c.id}", json={"name": "1", "subject": "х"}, headers=sign_in(31)).status_code == 403
+
+
+
+def test_exit_in_app_sends_role_choice_again(monkeypatch):
+    from app.bot import max_bot
+
+    sent = []
+
+    class Api:
+        def send(self, user_id, text, buttons=None, markdown=False):
+            sent.append((user_id, text, buttons))
+
+    monkeypatch.setattr(max_bot, "_bot", max_bot.Bot(Api(), "ideya_bot"))
+    assert client.post("/api/me/exit", headers=sign_in(MARIA)).status_code == 200
+    (user_id, text, buttons), = sent
+    assert user_id == MARIA and text.endswith("Кто вы?")
+    assert [b["text"] for row in buttons for b in row] == ["Я учитель", "Я ученик", "Посмотреть демо"]
+
+
+def test_exit_ends_teachers_unfinished_lessons():
+    c = db.create_class(MARIA, "Мария Смирнова", "10А", "история")
+    lesson_id = db.lesson_for_class(c.id).id
+    db.mark_live(lesson_id)
+    other = db.create_class(77, "Ольга", "9Б", "физика")
+    db.join(other.id, MARIA, "Мария Смирнова")
+    foreign = db.lesson_for_class(other.id).id
+
+    assert client.post("/api/me/exit", headers=sign_in(MARIA)).json()["ended"] == [lesson_id]
+    assert db.live_lesson(c.id) is None
+    assert db.lesson_for_class(other.id).id == foreign  # урок чужого класса, где Мария ученица, идёт
+
+
+def test_student_joins_class_by_code_from_the_app(monkeypatch):
+    from app.bot import max_bot
+    from app.db import classes as db
+
+    monkeypatch.setattr(max_bot, "_bot", None)
+    c = db.create_class(MARIA, "Мария Смирнова", "10А", "история")
+    student = sign_in(31, first="Софья", last="Ланская")
+    assert client.post("/api/classes/join", json={"code": "НЕТ-ТАКОГО"}, headers=student).status_code == 404
+    assert client.post("/api/classes/join", json={"code": c.invite_code.lower()}, headers=student).json() == {"id": c.id}
+    mine = client.get("/api/me/classes", headers=student).json()
+    assert [(x["name"], x["role"]) for x in mine] == [("10А", "student")]
+    assert client.post("/api/classes/join", json={"code": c.invite_code}, headers=sign_in(MARIA)).status_code == 409

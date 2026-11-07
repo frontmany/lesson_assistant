@@ -165,7 +165,7 @@ class Bot:
             "teacher": lambda: self.ask_class_name(user_id, first=not db.classes_of(user_id)),
             "newclass": lambda: self.ask_class_name(user_id, first=False),
             "student": lambda: self.ask_code(user_id),
-            "demo": lambda: self.demo(user),
+            "demo": lambda: self.demo(user),  # кнопка из старых сообщений: теперь «Посмотреть демо» открывает приложение
             "back": lambda: self.back(user_id),
             "me": lambda: self.join(user_id, int(arg), full_name(user)),
             "rename": lambda: self.ask_name(user_id, int(arg)),
@@ -197,17 +197,21 @@ class Bot:
         teaching = [c for c, m in mine if m.role == "teacher"]
         learning = [c for c, m in mine if m.role == "student"]
         if not mine:
-            # шаг 1
-            return self.api.send(user_id, "Здравствуйте! Я помогаю вести уроки в MAX. Кто вы?", [
-                [callback("Я учитель", "teacher"), callback("Я ученик", "student")],
-                [callback("Посмотреть демо", "demo")],
-            ])
+            return self.choose_role(user_id)
         if teaching:
             self.teacher_menu(user_id, teaching)
         if len(learning) == 1:
             self.student_class(user_id, learning[0].id)
         elif learning:
             self.choose(user_id, [(c.name, f"class:{c.id}") for c in learning])
+
+    def choose_role(self, user_id: int) -> None:
+        """Шаг 1: кто вы. И «Выйти» в мини-приложении — выбрать роль заново."""
+        self.api.send(user_id, "Здравствуйте! Я помогаю вести уроки в MAX. Кто вы?", [
+            [callback("Я учитель", "teacher"), callback("Я ученик", "student")],
+            # сразу открывает демо в мини-приложении, без второго сообщения «Открыть демо»
+            [self.open_app("Посмотреть демо", "demo")],
+        ])
 
     def teacher_menu(self, user_id: int, teaching: list) -> None:
         """Шаг 12: классы учителя и что с ними делать."""
@@ -536,6 +540,30 @@ def lesson_started(lesson_id: str) -> None:
             _bot.lesson_started(m.max_user_id, c, lesson_id)
         except httpx.HTTPError as exc:
             log.warning("не позвал %s на урок: %s", m.max_user_id, exc)
+
+
+def join_from_app(max_user_id: int, class_id: int, name: str) -> None:
+    """Ученик вошёл по коду в мини-приложении: как «Это я» в боте — ему «Готово», учителю «… теперь в классе».
+    Без бота — только запись в базу."""
+    if _bot is None:
+        db.join(class_id, max_user_id, name[:80])
+        return
+    try:
+        _bot.join(max_user_id, class_id, name)
+    except httpx.HTTPError as exc:
+        log.warning("не сообщил о входе %s в класс %s: %s", max_user_id, class_id, exc)
+        db.join(class_id, max_user_id, name[:80])
+
+
+def role_again(max_user_id: int) -> None:
+    """«Выйти» в мини-приложении: в чате снова выбор роли, бот больше ничего не ждёт. Без бота — ничего."""
+    db.set_dialog(max_user_id, None)
+    if _bot is None:
+        return
+    try:
+        _bot.choose_role(max_user_id)
+    except httpx.HTTPError as exc:
+        log.warning("не прислал выбор роли %s: %s", max_user_id, exc)
 
 
 def lesson_finished(roster, summary, cards, minutes: int) -> None:

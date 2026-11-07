@@ -166,6 +166,13 @@ def new_code(class_id: int) -> Class:
         return c
 
 
+def update_class(class_id: int, name: str, subject: str) -> None:
+    """Изменить название и предмет: ученики, ссылка и уроки остаются."""
+    with db.session() as s:
+        c = s.get(Class, class_id)
+        c.name, c.subject = name, subject
+
+
 def delete_class(class_id: int) -> None:
     with db.session() as s:
         s.get(Class, class_id).deleted_at = now()
@@ -299,6 +306,15 @@ def mark_live(lesson_id: str) -> bool:
             return False
         lesson.live_at = now()
         return True
+
+
+def open_lessons_of_teacher(max_user_id: int) -> list[str]:
+    """Незавершённые уроки классов, где человек учитель: их закрывает «Выйти»."""
+    with db.session() as s:
+        return list(s.scalars(select(Lesson.id).join(Member, Member.class_id == Lesson.class_id).where(
+            Member.max_user_id == max_user_id, Member.role == "teacher", Member.left_at.is_(None),
+            Lesson.ended_at.is_(None),
+        )))
 
 
 def mark_ended(lesson_id: str) -> None:
