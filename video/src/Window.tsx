@@ -2,32 +2,34 @@ import React from 'react';
 import { Img, staticFile } from 'remotion';
 import { C, FONT } from './theme';
 
-/** Строка шкалы участия учителя: step от 1 до 4, дробное значение — полоска растёт. */
+/**
+ * Строка шкалы в панели «Класс» (как .stu в webapp/css/call.css):
+ * имя, пометка рядом с именем, четыре сегмента и последняя реплика под ними.
+ * step от 1 до 4, дробное значение — сегмент заполняется постепенно.
+ */
 export type Row = {
   name: string;
   step: number;
   tag?: { text: string; warn?: boolean; o: number };
+  quote?: string;
+  quoteO?: number;
   off?: boolean;
 };
 
-const LEVELS = ['Пока тихо', 'Есть ответ', 'Участвует', 'Активно'];
-const TOPS = [97, 201, 305, 376, 447];
-const HEIGHTS = [104, 104, 71, 71, 71];
-
-const Bars: React.FC<{ step: number; off?: boolean }> = ({ step, off }) => (
-  <div style={{ display: 'flex', gap: 5, position: 'absolute', left: 17, right: 17 }}>
+const Bars: React.FC<{ step: number }> = ({ step }) => (
+  <div style={{ display: 'flex', gap: 4, marginTop: 9 }}>
     {[0, 1, 2, 3].map((i) => {
       const fill = Math.max(0, Math.min(1, step - i));
       return (
-        <div key={i} style={{ flex: 1, height: 7, borderRadius: 4, background: C.muted, overflow: 'hidden' }}>
-          <div style={{ width: `${fill * 100}%`, height: '100%', background: off ? C.accentSoft : C.accent }} />
+        <div key={i} style={{ flex: 1, height: 8, borderRadius: 4, background: C.muted, overflow: 'hidden' }}>
+          <div style={{ width: `${fill * 100}%`, height: '100%', background: C.accent }} />
         </div>
       );
     })}
   </div>
 );
 
-/** Повтор правой панели «Класс» из макета teacher-call: на ней шкалы растут. */
+/** Повтор правой панели «Класс» из актуального экрана: на ней шкалы растут. */
 export const ClassPanel: React.FC<{ rows: Row[] }> = ({ rows }) => (
   <div
     style={{
@@ -41,66 +43,53 @@ export const ClassPanel: React.FC<{ rows: Row[] }> = ({ rows }) => (
       borderRadius: 14,
       fontFamily: FONT,
       color: C.ink,
+      boxSizing: 'border-box',
     }}
   >
-    <div style={{ position: 'absolute', left: 17, top: 22, fontSize: 15, fontWeight: 700 }}>
-      Класс <span style={{ fontSize: 12, fontWeight: 400, color: C.inkSoft, marginLeft: 6 }}>Учеников: 5</span>
+    <div style={{ display: 'flex', alignItems: 'center', height: 54, padding: '0 16px 0 17px', gap: 8 }}>
+      <span style={{ fontSize: 15, fontWeight: 700 }}>Класс</span>
+      <span style={{ flex: 1, fontSize: 13, color: C.inkSoft }}>Учеников: {rows.length}</span>
+      <span style={{ fontSize: 22, color: C.inkSoft, lineHeight: 1 }}>›</span>
     </div>
-    <div
-      style={{ position: 'absolute', left: 17, top: 56, right: 17, fontSize: 12, lineHeight: '16px', color: C.inkSoft }}
-    >
-      Шкала участия: пока тихо · есть ответ · участвует · активно
-    </div>
-    {rows.map((r, i) => {
-      const level = r.off ? 'аналитика выключена' : LEVELS[Math.min(3, Math.floor(r.step + 0.001) - 1)];
-      return (
-        <div
-          key={r.name}
-          style={{
-            position: 'absolute',
-            left: 0,
-            right: 0,
-            top: TOPS[i],
-            height: HEIGHTS[i],
-            borderTop: `1px solid ${C.line}`,
-          }}
-        >
-          <div
-            style={{ position: 'absolute', left: 17, top: 17, fontSize: 14.5, fontWeight: 600, color: r.off ? '#97a0ae' : C.ink }}
-          >
-            {r.name}
+    <div style={{ padding: '0 16px' }}>
+      {rows.map((r) => (
+        <div key={r.name} style={{ padding: '15px 0', borderTop: `1px solid ${C.line}`, boxSizing: 'border-box' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, height: 32 }}>
+            <span style={{ fontSize: 15, fontWeight: 600, opacity: r.off ? 0.5 : 1, whiteSpace: 'nowrap' }}>{r.name}</span>
+            {r.tag && !r.off && (
+              <span
+                style={{
+                  fontSize: 13,
+                  padding: '4px 10px',
+                  borderRadius: 99,
+                  whiteSpace: 'nowrap',
+                  background: r.tag.warn ? C.warnTint : C.accentTint,
+                  color: r.tag.warn ? C.warnInk : C.accent,
+                  opacity: r.tag.o,
+                }}
+              >
+                {r.tag.text}
+              </span>
+            )}
+            <span style={{ flex: 1 }} />
+            {r.off && <span style={{ fontSize: 13, color: C.inkSoft, opacity: 0.5, whiteSpace: 'nowrap' }}>аналитика выключена</span>}
+            <span style={{ fontSize: 18, color: C.inkSoft, width: 24, textAlign: 'center' }}>⋮</span>
           </div>
-          <div style={{ position: 'absolute', right: 40, top: 19, fontSize: 12, color: r.off ? '#97a0ae' : C.inkSoft }}>
-            {level}
+          <div style={{ opacity: r.off ? 0.5 : 1 }}>
+            <Bars step={r.step} />
           </div>
-          <div style={{ position: 'absolute', right: 17, top: 14, fontSize: 18, color: C.inkSoft }}>⋮</div>
-          <div style={{ position: 'absolute', left: 0, right: 0, top: 52 }}>
-            <Bars step={r.step} off={r.off} />
-          </div>
-          {r.tag && (
-            <div
-              style={{
-                position: 'absolute',
-                left: 17,
-                top: 70,
-                fontSize: 12,
-                padding: '4px 10px',
-                borderRadius: 99,
-                background: r.tag.warn ? C.warnTint : C.accentTint,
-                color: r.tag.warn ? C.warnInk : C.accent,
-                opacity: r.tag.o,
-              }}
-            >
-              {r.tag.text}
+          {r.quote && (
+            <div style={{ marginTop: 11, fontSize: 13, lineHeight: '18px', color: C.inkSoft, opacity: r.quoteO ?? 1 }}>
+              {r.quote}
             </div>
           )}
         </div>
-      );
-    })}
+      ))}
+    </div>
   </div>
 );
 
-/** Окно учителя 1280×800: картинка макета и поверх неё живая панель класса. */
+/** Окно учителя 1280×800: актуальный экран и поверх него живая панель класса. */
 export const TeacherWindow: React.FC<{
   rows: Row[];
   scale?: number;
@@ -134,15 +123,16 @@ export const TeacherWindow: React.FC<{
   </div>
 );
 
-/** Меню «Аналитика для ученика» с переключателем. on: 1 — включена, 0 — выключена. */
-export const AnalyticsMenu: React.FC<{ name: string; on: number; o: number }> = ({ name, on, o }) => (
+/** Меню за троеточием: «Аналитика для ученика» с переключателем. on: 1 — включена, 0 — выключена. */
+export const AnalyticsMenu: React.FC<{ on: number; o: number }> = ({ on, o }) => (
   <div
     style={{
       position: 'absolute',
-      left: 967,
-      top: 372,
-      width: 280,
-      padding: '14px 15px',
+      left: 935,
+      top: 391,
+      width: 279,
+      padding: '12px 14px',
+      boxSizing: 'border-box',
       background: C.surface,
       border: `1px solid ${C.line}`,
       borderRadius: 12,
@@ -150,30 +140,38 @@ export const AnalyticsMenu: React.FC<{ name: string; on: number; o: number }> = 
       fontFamily: FONT,
       opacity: o,
       transform: `translateY(${(1 - o) * 8}px)`,
+      display: 'flex',
+      alignItems: 'center',
+      gap: 12,
     }}
   >
-    <div style={{ fontSize: 12, color: C.inkSoft }}>{name}</div>
-    <div style={{ display: 'flex', alignItems: 'center', marginTop: 10 }}>
-      <div style={{ flex: 1 }}>
-        <div style={{ fontSize: 13.5, fontWeight: 700, color: C.ink }}>Аналитика для ученика</div>
-        <div style={{ fontSize: 11.5, lineHeight: '15px', color: C.inkSoft, marginTop: 3 }}>
-          Когда выключена, ученик не попадает в шкалу
-        </div>
+    <div style={{ flex: 1 }}>
+      <div style={{ fontSize: 14, fontWeight: 700, color: C.ink }}>Аналитика для ученика</div>
+      <div style={{ fontSize: 13, lineHeight: '17px', color: C.inkSoft, marginTop: 2 }}>
+        Когда выключена, ученик не попадает в шкалу
       </div>
+    </div>
+    <div
+      style={{
+        width: 40,
+        height: 24,
+        borderRadius: 12,
+        flex: 'none',
+        background: on > 0.5 ? C.accent : C.muted,
+        position: 'relative',
+      }}
+    >
       <div
         style={{
-          width: 40,
-          height: 24,
-          borderRadius: 12,
-          marginLeft: 12,
-          background: on > 0.5 ? C.accent : '#b9b4a6',
-          position: 'relative',
+          position: 'absolute',
+          top: 3,
+          left: 3 + on * 16,
+          width: 18,
+          height: 18,
+          borderRadius: 9,
+          background: on > 0.5 ? C.surface : C.inkSoft,
         }}
-      >
-        <div
-          style={{ position: 'absolute', top: 3, left: 3 + on * 16, width: 18, height: 18, borderRadius: 9, background: '#fff' }}
-        />
-      </div>
+      />
     </div>
   </div>
 );

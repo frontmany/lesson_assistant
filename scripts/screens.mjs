@@ -50,6 +50,7 @@ for (const [name, q] of [["n1", "n=1"], ["n2", "n=2"], ["n30", "n=30"], ["share"
 }
 add("teacher-call-d-n30-panel-closed", mock("teacher-call.html?n=30&panel=0"), D);
 add("teacher-call-d-menu", mock("teacher-call.html?n=6&menu=s1"), D);
+add("teacher-call-d-n30-dark", mock("teacher-call.html?n=30"), D, { dark: true });
 add("teacher-call-m-menu", mock("teacher-call.html?n=6&menu=s1&panel=1"), M);
 add("teacher-call-m-n6-sheet", mock("teacher-call.html?n=6&panel=1"), M);
 add("teacher-call-m-n6-sheet-dark", mock("teacher-call.html?n=6&panel=1"), M, { dark: true });
@@ -67,6 +68,7 @@ for (const st of ["lobby", "nomic", "reconnecting", "ended"]) {
 
 // ---------- звонок ученика ----------
 for (const l of [1, 2, 3, 4]) add(`student-call-m-l${l}`, mock(`student-call.html?level=${l}`), M);
+for (const l of [1, 2, 4]) add(`student-call-m-l${l}-dark`, mock(`student-call.html?level=${l}`), M, { dark: true });
 add("student-call-m-l3-dark", mock("student-call.html?level=3"), M, { dark: true });
 add("student-call-m-muted", mock("student-call.html?level=2&mic=0"), M);
 add("student-call-m-ana-off", mock("student-call.html?ana=off"), M);

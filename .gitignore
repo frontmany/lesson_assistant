@@ -38,3 +38,7 @@ saved_phrases/
 # промо-ролик (video/): зависимости и рендеры не коммитим, MP4 прикладываем к PR
 video/node_modules/
 video/out/
+# копии из design/screens и webapp/fonts, их делает video/scripts/assets.mjs
+video/public/fonts/
+video/public/screens/*
+!video/public/screens/reg-*.png

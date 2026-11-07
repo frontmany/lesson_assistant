@@ -3,9 +3,10 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "remotion studio src/index.ts",
-    "render": "remotion render src/index.ts Promo out/promo.mp4",
-    "still": "remotion still src/index.ts Promo"
+    "assets": "node scripts/assets.mjs",
+    "dev": "npm run assets && remotion studio src/index.ts",
+    "render": "npm run assets && remotion render src/index.ts Promo out/promo.mp4",
+    "still": "npm run assets && remotion still src/index.ts Promo"
   },
   "dependencies": {
     "@remotion/cli": "4.0.484",

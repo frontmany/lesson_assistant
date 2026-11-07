@@ -94,11 +94,36 @@ export const ClassInBot: React.FC<{ len: number }> = ({ len }) => {
 export const Lesson: React.FC<{ len: number }> = ({ len }) => {
   const f = useF();
   const rows: Row[] = [
-    { name: 'Артём К.', step: 1, tag: { text: 'давно не отвечал', warn: true, o: prog(f, 250, 275, 0, 1) } },
-    { name: 'Алиса Н.', step: 1 + prog(f, 120, 200, 0, 1), tag: { text: 'тихий, но точный', o: prog(f, 215, 240, 0, 1) } },
-    { name: 'Иван И.', step: 1 + prog(f, 40, 150, 0, 1) + prog(f, 160, 210, 0, 1) },
-    { name: 'Мария С.', step: 1 + prog(f, 80, 170, 0, 1) },
-    { name: 'Софья Л.', step: 1, off: true },
+    {
+      name: 'Софья Л.',
+      step: 1,
+      tag: { text: 'давно не отвечал', warn: true, o: prog(f, 250, 275, 0, 1) },
+      quote: '«Бороды брили, чтобы было как в Европе.»',
+      quoteO: prog(f, 20, 50, 0, 1),
+    },
+    {
+      name: 'Алиса Н.',
+      step: 1 + prog(f, 120, 200, 0, 1),
+      tag: { text: 'редко, но развёрнуто', o: prog(f, 215, 240, 0, 1) },
+    },
+    {
+      name: 'Иван И.',
+      step: 1 + prog(f, 40, 150, 0, 1) + prog(f, 160, 210, 0, 1),
+      quote: '«Пётр построил флот на Балтике и основал Петербург.»',
+      quoteO: prog(f, 150, 185, 0, 1),
+    },
+    {
+      name: 'Мария С.',
+      step: 1 + prog(f, 80, 170, 0, 1),
+      quote: '«Налог брали с каждого мужчины, а не с двора.»',
+      quoteO: prog(f, 170, 205, 0, 1),
+    },
+    {
+      name: 'Артём К.',
+      step: 1 + prog(f, 100, 230, 0, 3),
+      quote: '«Армию набирали рекрутами, по одному с двадцати дворов.»',
+      quoteO: prog(f, 230, 265, 0, 1),
+    },
   ];
   const push = prog(f, 0, len, 1, 1.05);
   return (
@@ -120,36 +145,72 @@ export const Lesson: React.FC<{ len: number }> = ({ len }) => {
   );
 };
 
+/** Увеличенная плитка ученика: звезда AI и четыре сегмента внизу плитки (на экране 750×1624). */
+const OwnTile: React.FC<{ srcs: string[]; opacities: number[]; width: number }> = ({ srcs, opacities, width }) => {
+  const k = width / 350;
+  return (
+    <div
+      style={{
+        width,
+        height: 263 * k,
+        overflow: 'hidden',
+        position: 'relative',
+        borderRadius: 18 * k,
+        boxShadow: '0 30px 70px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.10)',
+      }}
+    >
+      {srcs.map((s, i) => (
+        <Img
+          key={s}
+          src={staticFile(`screens/${s}`)}
+          style={{
+            position: 'absolute',
+            left: -385 * k,
+            top: -333 * k,
+            width: 750 * k,
+            opacity: opacities[i],
+          }}
+        />
+      ))}
+    </div>
+  );
+};
+
 /* 4. Ученик видит только свою шкалу */
 export const StudentView: React.FC<{ len: number }> = ({ len }) => {
   const f = useF();
   const shots = ['student-call-m-l1-dark.png', 'student-call-m-l2-dark.png', 'student-call-m-l3-dark.png', 'student-call-m-l4-dark.png'];
   const marks = [0, 70, 140, 215];
-  const W = 400;
+  const ops = shots.map((_, i) => (i === 0 ? 1 : rise(f, marks[i], 18)));
+  const W = 330;
   const e = rise(f, 8, 30);
+  const z = rise(f, 30, 30);
   return (
     <SceneFade len={len} bg={C.bg}>
       <TextCol
-       
         title="Ученик видит только свою шкалу"
         sub="Её не видит никто другой. Шкала только растёт и не падает."
       />
       <div
         style={{
           position: 'absolute',
-          left: 1200,
-          top: 107,
+          left: 870,
+          top: 150,
           width: W,
           height: W * PH,
           opacity: e,
           transform: `translateY(${(1 - e) * 40}px)`,
         }}
       >
-        {shots.map((s, i) => (
-          <div key={s} style={{ position: 'absolute', inset: 0, opacity: i === 0 ? 1 : rise(f, marks[i], 18) }}>
-            <Shot src={s} width={W} ratio={PH} radius={36} />
+        {shots.map((sh, i) => (
+          <div key={sh} style={{ position: 'absolute', inset: 0, opacity: ops[i] }}>
+            <Shot src={sh} width={W} ratio={PH} radius={32} />
           </div>
         ))}
+      </div>
+      <div style={{ position: 'absolute', left: 1280, top: 340, opacity: z, transform: `translateX(${(1 - z) * 40}px)` }}>
+        <OwnTile srcs={shots} opacities={ops} width={500} />
+        <div style={{ marginTop: 22, fontSize: 28, color: C.inkSoft, textAlign: 'center' }}>Шкала в своей плитке</div>
       </div>
     </SceneFade>
   );
@@ -162,39 +223,26 @@ export const SwitchOff: React.FC<{ len: number }> = ({ len }) => {
   const on = 1 - prog(f, 100, 112, 0, 1);
   const off = f >= 150;
   const rows: Row[] = [
-    { name: 'Артём К.', step: 1, tag: { text: 'давно не отвечал', warn: true, o: 1 } },
-    { name: 'Алиса Н.', step: 2, tag: { text: 'тихий, но точный', o: 1 } },
-    { name: 'Иван И.', step: 3 },
-    { name: 'Мария С.', step: 2 },
-    { name: 'Софья Л.', step: off ? 1 : 2, off },
+    { name: 'Софья Л.', step: 1, tag: { text: 'давно не отвечал', warn: true, o: 1 }, quote: '«Бороды брили, чтобы было как в Европе.»' },
+    { name: 'Алиса Н.', step: 2, tag: { text: 'редко, но развёрнуто', o: 1 } },
+    { name: 'Иван И.', step: 3, quote: '«Пётр построил флот на Балтике и основал Петербург.»' },
+    { name: 'Мария С.', step: 2, quote: '«Налог брали с каждого мужчины, а не с двора.»', off },
+    { name: 'Артём К.', step: 4, quote: '«Армию набирали рекрутами, по одному с двадцати дворов.»' },
   ];
   const ph = rise(f, 172, 24);
-  const phoneH = 360 * PH * 0.9;
   return (
     <SceneFade len={len} bg={C.bg}>
       <TopTitle title="Учитель выключает аналитику одному ученику" sub="Он остаётся в уроке, но не попадает в шкалу." />
       <div style={{ position: 'absolute', left: 60, top: 220, opacity: rise(f, 6, 24) }}>
         <TeacherWindow rows={rows} scale={0.98}>
-          <AnalyticsMenu name={nb("Софья Л.")} on={on} o={menuO} />
+          <AnalyticsMenu on={on} o={menuO} />
         </TeacherWindow>
       </div>
-      <div style={{ position: 'absolute', left: 1440, top: 220, opacity: ph, transform: `translateY(${(1 - ph) * 30}px)` }}>
-        <Shot src="student-call-m-ana-off-dark.png" width={360} ratio={PH} crop={0.9} radius={32} />
-      </div>
-      <div
-        style={{
-          position: 'absolute',
-          left: 1440,
-          width: 360,
-          top: 220 + phoneH + 18,
-          textAlign: 'center',
-          fontSize: 28,
-          color: C.inkSoft,
-          opacity: ph,
-          fontFamily: FONT,
-        }}
-      >
-        Так видит ученик
+      <div style={{ position: 'absolute', left: 1360, top: 300, opacity: ph, transform: `translateY(${(1 - ph) * 30}px)` }}>
+        <OwnTile srcs={['student-call-m-ana-off-dark.png']} opacities={[1]} width={440} />
+        <div style={{ marginTop: 22, fontSize: 28, color: C.inkSoft, textAlign: 'center', fontFamily: FONT }}>
+          Так видит ученик
+        </div>
       </div>
     </SceneFade>
   );
@@ -274,7 +322,7 @@ export const Finale: React.FC<{ len: number }> = ({ len }) => {
             transform: `translateY(${(1 - t) * 30}px)`,
           }}
         >
-          {nb('Урок в MAX')}
+          {nb('Сферум AI')}
         </div>
         <div style={{ width: 360 * line, height: 6, borderRadius: 3, background: C.accentSoft, marginTop: 20 }} />
         <div style={{ marginTop: 44, fontSize: 44, color: '#c9d0dc', opacity: u }}>Ассистент слышит каждого ученика.</div>
