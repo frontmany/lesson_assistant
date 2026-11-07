@@ -3,7 +3,10 @@
 # Мини-приложение: http://localhost:8000
 services:
   app:
-    build: .
+    # контекст — весь репозиторий: в образ идут backend/ и webapp/
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
     env_file: .env
     environment:
       LIVEKIT_URL: ws://livekit:7880
@@ -13,7 +16,7 @@ services:
       - "8000:8000"
     volumes:
       - models:/srv/models  # модели распознавания скачиваются один раз, а не при каждом запуске
-      - ./saved_phrases:/srv/saved_phrases  # фразы по SAVE_PHRASES_DIR, только тестовые уроки команды
+      - ./saved_phrases:/srv/saved_phrases  # фразы по SAVE_PHRASES_DIR — для набора замеров (backend/analytics)
     depends_on:
       livekit:
         condition: service_started

@@ -1,4 +1,4 @@
-// Экран звонка учителя (#14) по макету Варвары design/teacher-call.html. Код: Фёдор.
+// Экран звонка учителя (#14), макет — design/teacher-call.html.
 // Состояния: до входа → подключаемся → в уроке (связь может пропасть) → урок завершён.
 // Плитки строятся по участникам LiveKit, панель класса — по событиям урока из WebSocket.
 
@@ -290,7 +290,7 @@ function menu(s) {
 async function setAnalytics(studentId, enabled) {
   students[studentId].off = !enabled;
   renderPanel();
-  // TODO(Ярослав): сервер пока только отвечает тем же и не рассылает состояние по WebSocket
+  // сервер рассылает новое состояние всем по WebSocket, свой экран меняется сразу
   await api(`/api/lessons/${LESSON_ID}/analytics`, {
     method: "POST",
     body: { type: "analytics", enabled, student_id: studentId },
