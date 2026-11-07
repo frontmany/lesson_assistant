@@ -2,243 +2,13 @@
 <html lang="ru">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Макет: звонок учителя</title>
-  <!-- Макет экрана звонка учителя (issue #4). Состояния задаются в адресе, список в design/README.md:
-       ?n=6 (сколько человек в звонке, 1–30), ?share=1 (демонстрация экрана), ?panel=0|1 (панель класса),
-       ?mode=start (начало урока без шкал), ?menu=artem_k (открытое меню ученика), ?page=2 (страница плиток),
-       ?state=lobby|connecting|nomic|muted|reconnecting|ended (состояния звонка, issue #7), без него «в уроке».
-       Телефон: окно уже 700 px. Цвета и тени берём из токенов, своих значений здесь нет. -->
+  <!-- Макет экрана учителя. Стили и сетка плиток — настоящие (webapp/css, webapp/js/stage.js),
+       участники и шкалы подставные. Состояние — в адресе, см. design/README.md -->
   <link rel="stylesheet" href="../webapp/css/tokens.css">
-  <style>
-    * { box-sizing: border-box; }
-    html, body { height: 100%; }
-    body { margin: 0; font-family: var(--font); background: var(--bg); color: var(--ink); }
-    button { font: inherit; color: inherit; cursor: pointer; border: 0; background: none; padding: 0; }
-
-    .i { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex: none; }
-    .i.sm { width: 18px; height: 18px; }
-
-    .app { height: 100vh; display: flex; flex-direction: column; }
-    .body { flex: 1; min-height: 0; display: flex; gap: 16px; padding: 16px; }
-
-    /* Сцена с плитками */
-    .stage { position: relative; flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
-    .tiles { flex: 1; min-height: 0; display: grid; gap: 8px; }
-    .tiles.few { justify-content: center; align-content: center; grid-template-rows: none !important; }
-    .tiles.few .tile { aspect-ratio: 4 / 3; max-height: 100%; }
-    .tiles.few.one .tile { aspect-ratio: 16 / 9; }
-
-    .tile {
-      position: relative; min-width: 0; min-height: 0; overflow: hidden; container-type: size;
-      border-radius: 12px; background: var(--surface-muted); border: 1px solid var(--line);
-      display: grid; place-items: center;
-    }
-    .tile.cam { background: hsl(var(--h) 22% 72%); border-color: transparent; }
-    .person { position: absolute; inset: 0; }
-    .person::before {
-      content: ""; position: absolute; left: 50%; top: 22%; width: 24%; aspect-ratio: 1;
-      transform: translateX(-50%); border-radius: 50%; background: var(--figure);
-    }
-    .person::after {
-      content: ""; position: absolute; left: 50%; bottom: -18%; width: 58%; height: 52%;
-      transform: translateX(-50%); border-radius: 50% 50% 0 0; background: var(--figure);
-    }
-    .avatar {
-      width: clamp(32px, 30cqmin, 84px); aspect-ratio: 1; border-radius: 50%;
-      background: var(--accent-tint); color: var(--accent);
-      display: grid; place-items: center; font-weight: 700; font-size: clamp(12px, 11cqmin, 28px);
-    }
-    .tile .name {
-      position: absolute; left: 8px; bottom: 8px; max-width: calc(100% - 16px);
-      padding: 3px 9px; border-radius: 8px; background: var(--scrim); color: var(--on-scrim);
-      font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-    }
-    .micoff {
-      position: absolute; top: 8px; right: 8px; width: 26px; height: 26px; border-radius: 50%;
-      background: var(--scrim); color: var(--on-scrim); display: grid; place-items: center;
-    }
-    .micoff .i { width: 16px; height: 16px; }
-    .tile.speaking { outline: 3px solid var(--accent); outline-offset: -3px; }
-    .tile.speaking .name::before { content: "● "; color: var(--accent-on-scrim); }
-
-    .more-tile { background: var(--surface); color: var(--ink-soft); font-weight: 700; font-size: 20px; }
-    .more-tile small { display: block; font-size: 13px; font-weight: 500; margin-top: 2px; }
-
-    /* Значок аналитики: маленький, в углу */
-    .ana {
-      position: absolute; top: 8px; left: 8px; z-index: 2; width: 26px; height: 26px; border-radius: 50%;
-      background: var(--scrim); color: var(--on-scrim); display: grid; place-items: center;
-    }
-    .ana .i { width: 16px; height: 16px; }
-
-    /* Страницы плиток */
-    .pager { align-self: center; display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--ink-soft); }
-    .pager .pb { width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--line-strong); display: grid; place-items: center; }
-    .pager .pb.dis { opacity: .4; }
-
-    /* Демонстрация экрана */
-    .share { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 200px; gap: 8px; }
-    .shared {
-      position: relative; border-radius: 12px; background: var(--slide); color: var(--on-slide); padding: 6% 7%;
-      display: flex; flex-direction: column; gap: 14px; min-height: 0; overflow: hidden;
-    }
-    .shared h3 { margin: 0; font-size: clamp(18px, 3.4cqw, 34px); }
-    .shared p { margin: 0; padding-top: 10px; border-top: 1px solid var(--on-slide-soft); font-size: clamp(14px, 1.7vw, 22px); }
-    .shared .you {
-      position: absolute; left: 8px; bottom: 8px; padding: 3px 9px; border-radius: 8px;
-      background: var(--scrim); color: var(--on-scrim); font-size: 13px; font-weight: 600;
-    }
-    .strip { display: grid; grid-template-rows: repeat(4, minmax(0, 1fr)); gap: 8px; min-height: 0; }
-
-    /* Панель класса */
-    .panel {
-      width: 360px; flex: none; min-height: 0; display: flex; flex-direction: column;
-      background: var(--surface); border-radius: var(--radius); border: 1px solid var(--line);
-    }
-    .panel-head { display: flex; align-items: center; gap: 8px; padding: 14px 12px 8px 16px; }
-    .panel-head h2 { margin: 0; font-size: 16px; }
-    .panel-head .count { flex: 1; font-size: 13px; color: var(--ink-soft); }
-    .iconbtn { position: relative; width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; color: var(--ink-soft); }
-    .iconbtn:hover, .iconbtn.open { background: var(--surface-muted); }
-    .legend, .hint { margin: 0; padding: 0 16px 8px; font-size: 13px; color: var(--ink-soft); }
-    .chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 16px 8px; }
-    .chip { position: relative; padding: 4px 10px; border-radius: 999px; font-size: 13px; font-weight: 600; background: var(--surface-muted); color: var(--ink-soft); }
-    .chip.on { background: var(--ink); color: var(--surface); }
-    .plist { flex: 1; min-height: 0; overflow-y: auto; padding: 0 16px 8px; }
-
-    .stu { position: relative; padding: 11px 0; border-top: 1px solid var(--line); }
-    .stu-line { display: flex; align-items: center; gap: 8px; }
-    .stu-name { flex: 1; min-width: 0; font-weight: 600; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .stu-label { font-size: 13px; color: var(--ink-soft); white-space: nowrap; }
-    .stu .iconbtn { margin-right: -8px; }
-    .bars { display: flex; gap: 4px; margin-top: 8px; }
-    .bar { flex: 1; height: 8px; border-radius: 4px; background: var(--surface-muted); }
-    .bar.on { background: var(--accent); }
-    .flag { display: inline-block; margin-top: 8px; font-size: 13px; padding: 4px 10px; border-radius: 999px; white-space: nowrap; }
-    .flag.long_silence { background: var(--warn-tint); color: var(--warn-ink); }
-    .flag.quiet_but_precise { background: var(--accent-tint); color: var(--accent); }
-    .stu.off .stu-name, .stu.off .bars, .stu.off .stu-label { opacity: .5; }
-
-    .stu.compact { padding: 4px 0; }
-    .stu.compact .flag { margin: 0; font-size: 12px; padding: 2px 8px; }
-    .stu.compact .bars { margin: 0; width: 56px; flex: none; gap: 2px; }
-    .stu.compact .bar { height: 6px; }
-    .stu.compact .stu-name { font-size: 14px; }
-
-    /* Меню за троеточием */
-    .menu {
-      position: absolute; right: 0; top: calc(100% - 4px); z-index: 5; width: 280px; padding: 10px;
-      background: var(--surface); border-radius: 12px; border: 1px solid var(--line);
-      box-shadow: var(--shadow-float); /* taste-skill-ignore: меню поверх панели */
-    }
-    .menu-title { font-size: 13px; color: var(--ink-soft); padding: 2px 4px 8px; }
-    .menu-item { display: flex; align-items: center; gap: 12px; padding: 6px 4px; font-size: 14px; font-weight: 600; }
-    .menu-item span:first-child { flex: 1; }
-    .menu-item small { display: block; margin-top: 2px; font-size: 13px; font-weight: 400; color: var(--ink-soft); }
-
-    .switch .track { display: block; width: 40px; height: 24px; border-radius: 999px; background: var(--accent); position: relative; flex: none; }
-    .switch .track::after { content: ""; position: absolute; top: 3px; right: 3px; width: 18px; height: 18px; border-radius: 50%; background: var(--surface); }
-    .switch.off .track { background: var(--surface-muted); }
-    .switch.off .track::after { right: auto; left: 3px; background: var(--ink-soft); }
-
-    /* Панель управления */
-    .controls {
-      display: flex; align-items: center; justify-content: center; gap: 12px;
-      padding: 12px 16px; border-top: 1px solid var(--line); background: var(--surface);
-    }
-    .cbtn {
-      position: relative; width: 48px; height: 48px; border-radius: 50%; flex: none;
-      background: transparent; border: 1px solid var(--line-strong); color: var(--ink); display: grid; place-items: center;
-    }
-    .pv-ctrl .cbtn { background: var(--surface); }
-    .cbtn.off { background: var(--danger); border-color: var(--danger); color: var(--on-danger); }
-    .cbtn.active { background: var(--accent-tint); border-color: var(--accent); color: var(--accent); }
-    .cbtn.leave { width: 72px; border-radius: 24px; background: var(--danger); border-color: var(--danger); color: var(--on-danger); }
-    .badge {
-      position: absolute; top: -2px; right: -2px; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 10px;
-      background: var(--ink); color: var(--surface); font-size: 12px; font-weight: 700; display: grid; place-items: center;
-    }
-
-    /* Состояния звонка */
-    .app { position: relative; }
-    .spin {
-      width: 16px; height: 16px; border-radius: 50%; flex: none;
-      border: 2px solid currentColor; border-right-color: transparent; animation: spin 1s linear infinite;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
-    .banner {
-      position: absolute; top: 12px; left: 50%; transform: translateX(-50%); z-index: 4;
-      display: flex; align-items: center; gap: 10px; padding: 10px 16px; border-radius: 12px;
-      background: var(--warn-tint); color: var(--warn-ink); font-size: 14px; font-weight: 600; white-space: nowrap;
-      box-shadow: var(--shadow-float); /* taste-skill-ignore: плашка поверх плиток */
-    }
-    .stage.dim .tiles, .stage.dim .share { filter: grayscale(.8); opacity: .5; }
-    .toast {
-      position: absolute; left: 50%; bottom: 88px; transform: translateX(-50%); z-index: 4;
-      display: flex; align-items: center; gap: 10px; padding: 10px 16px; border-radius: 12px;
-      background: var(--ink); color: var(--surface); font-size: 14px; font-weight: 600; white-space: nowrap;
-    }
-    .toast .i { width: 18px; height: 18px; }
-
-    .lobby { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; gap: 48px; padding: 32px; }
-    .preview { width: min(640px, 55vw); aspect-ratio: 16 / 9; flex: none; }
-    .pv-ctrl { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); display: flex; gap: 12px; }
-    .level {
-      position: absolute; top: 12px; left: 12px; display: flex; align-items: center; gap: 3px;
-      padding: 5px 10px; border-radius: 8px; background: var(--scrim); color: var(--on-scrim); font-size: 13px; font-weight: 600;
-    }
-    .level i { width: 3px; border-radius: 2px; background: var(--accent-on-scrim); }
-    .level span { margin-left: 6px; }
-    .lobby-text { max-width: 360px; }
-    .lobby h1 { margin: 0 0 8px; font-size: 26px; line-height: 1.2; }
-    .lobby p { margin: 0 0 16px; color: var(--ink-soft); font-size: 15px; line-height: 1.45; }
-    .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px; }
-    .primary, .secondary {
-      display: inline-flex; align-items: center; justify-content: center; gap: 10px;
-      padding: 12px 24px; border-radius: 999px; font-weight: 600;
-    }
-    .primary { background: var(--accent); color: var(--surface); }
-    .primary[disabled] { opacity: .75; cursor: default; }
-    .secondary { background: var(--surface-muted); border: 1px solid var(--line-strong); }
-    .link { min-height: 44px; padding: 0 12px; font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
-    .badge.warn { background: var(--warn-tint); color: var(--warn-ink); }
-    .done {
-      width: 56px; height: 56px; border-radius: 50%; margin-bottom: 16px;
-      background: var(--accent-tint); color: var(--accent); display: grid; place-items: center;
-    }
-    .done .i { width: 28px; height: 28px; }
-    .facts { display: flex; gap: 8px; flex-wrap: wrap; margin: 0 0 16px; }
-    .facts span { padding: 4px 10px; border-radius: 999px; background: var(--surface-muted); font-size: 13px; color: var(--ink-soft); }
-
-    /* Телефон */
-    @media (max-width: 700px) {
-      .lobby { flex-direction: column; justify-content: flex-start; gap: 20px; padding: 16px; }
-      .lobby.ended { justify-content: center; }
-      .preview { width: 100%; aspect-ratio: 4 / 5; }
-      .lobby-text { max-width: none; width: 100%; }
-      .lobby h1 { font-size: 22px; }
-      .actions { flex-direction: column; }
-      .lobby .primary, .lobby .secondary, .lobby .link { width: 100%; }
-      /* видимый размер кнопок прежний, область нажатия не меньше 44 px */
-      .iconbtn::after { content: ""; position: absolute; inset: -6px; }
-      .chip::after { content: ""; position: absolute; inset: -9px -3px; }
-      .banner { top: 8px; font-size: 13px; padding: 8px 12px; }
-      .toast { bottom: 80px; font-size: 13px; }
-      .body { flex-direction: column; gap: 8px; padding: 8px; }
-      .panel { width: auto; height: 50%; flex: none; }
-      .legend { display: none; }
-      .tile .name { font-size: 13px; padding: 2px 7px; }
-      .share { grid-template-columns: 1fr; grid-template-rows: auto auto; align-content: start; }
-      .shared { aspect-ratio: 1 / 1; padding: 44px 6% 5%; gap: 8px; }
-      .shared h3 { font-size: 18px; }
-      .shared p { font-size: 14px; }
-      .strip { grid-template-rows: none; grid-template-columns: repeat(3, 1fr); grid-auto-rows: 110px; max-height: 228px; overflow-y: auto; align-content: start; }
-      .controls { gap: 8px; padding: 10px 10px 14px; justify-content: space-between; }
-      .cbtn { width: 44px; height: 44px; }
-      .cbtn.leave { width: auto; flex: 1; max-width: 72px; border-radius: 22px; }
-    }
-  </style>
+  <link rel="stylesheet" href="../webapp/css/call.css">
+  <link rel="stylesheet" href="mock-call.css">
 </head>
 <body>
   <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -247,173 +17,187 @@
     <symbol id="cam" viewBox="0 0 24 24"><rect x="3" y="6" width="12" height="12" rx="2"/><path d="M15 10l6-3v10l-6-3"/></symbol>
     <symbol id="cam-off" viewBox="0 0 24 24"><rect x="3" y="6" width="12" height="12" rx="2"/><path d="M15 10l6-3v10l-6-3M4 4l16 16"/></symbol>
     <symbol id="screen" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4M12 14V8M9 11l3-3 3 3"/></symbol>
-    <symbol id="chat" viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/></symbol>
-    <symbol id="people" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 20c0-3.5 3-6 6-6s6 2.5 6 6"/><circle cx="17" cy="9" r="2.5"/><path d="M16 14c3 0 5 2 5 5"/></symbol>
-    <symbol id="leave" viewBox="0 0 24 24"><path d="M3 14c5-5 13-5 18 0l-2.5 3-3.5-1.5v-3c-2-.7-4-.7-6 0v3L5.500 17z"/></symbol>
+    <symbol id="leave" viewBox="0 0 24 24"><path d="M3 14c5-5 13-5 18 0l-2.5 3-3.5-1.5v-3c-2-.7-4-.7-6 0v3L5.5 17z"/></symbol>
     <symbol id="more" viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.8" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.8" fill="currentColor" stroke="none"/><circle cx="12" cy="19" r="1.8" fill="currentColor" stroke="none"/></symbol>
-    <symbol id="pulse" viewBox="0 0 24 24"><path d="M3 12h4l3-8 4 16 3-8h4"/></symbol>
     <symbol id="chev-r" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></symbol>
     <symbol id="chev-l" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></symbol>
+    <symbol id="chev-u" viewBox="0 0 24 24"><path d="M5 15l7-7 7 7"/></symbol>
     <symbol id="chev-d" viewBox="0 0 24 24"><path d="M5 9l7 7 7-7"/></symbol>
-    <symbol id="check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>  </svg>
+    <symbol id="check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
+  </svg>
 
-  <div class="app" id="app"></div>
+  <div class="app">
+    <div class="lobby" id="lobby" hidden>
+      <button class="back" aria-label="К классам"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
+      <div class="preview tile" id="preview">
+        <span class="avatar" id="previewAvatar"></span>
+        <div class="pv-ctrl">
+          <button class="cbtn" id="pvMic"><svg class="i"><use href="#mic"/></svg></button>
+          <button class="cbtn off" id="pvCam"><svg class="i"><use href="#cam-off"/></svg></button>
+        </div>
+      </div>
+      <div class="lobby-text">
+        <h1 id="lobbyTitle"></h1>
+        <p id="lobbyText" hidden></p>
+        <div class="actions" id="lobbyActions"></div>
+      </div>
+    </div>
 
-  <script>
-    const P = new URLSearchParams(location.search);
-    const mobile = innerWidth <= 700;
-    const N = Math.max(1, Math.min(30, +P.get("n") || 6));
-    const start = P.get("mode") === "start";
-    const share = P.get("share") === "1";
-    const menuId = P.get("menu");
-    const state = P.get("state") || "live";
-    const micOn = P.get("mic") !== "0" && state !== "muted";
-    const camOn = P.get("cam") !== "0";
-    const panelWanted = P.get("panel") === null ? !mobile : P.get("panel") === "1";
+    <div class="body" id="call" hidden>
+      <section class="stage" id="stage" aria-label="Участники звонка">
+        <div class="banner" id="banner" hidden><span class="spin"></span>Связь пропала. Переподключаемся…</div>
+        <div class="tiles" id="tiles"></div>
+        <div class="share" id="share" hidden><div class="shared" id="shared"><span class="you" id="sharedBy"></span></div><div class="strip" id="strip"></div></div>
+        <button class="side prev" id="prev" aria-label="Предыдущая страница" hidden><svg class="i"><use href="#chev-l"/></svg></button>
+        <button class="side next" id="next" aria-label="Следующая страница" hidden><svg class="i"><use href="#chev-r"/></svg></button>
+        <div class="dots" id="pager" aria-hidden="true" hidden></div>
+      </section>
+      <aside class="panel" id="panel" aria-label="Панель класса">
+        <div class="panel-head">
+          <h2>Класс</h2><span class="count" id="count"></span>
+          <button class="iconbtn" id="collapse" aria-label="Свернуть панель"><svg class="i"><use href="#chev-r"/></svg></button>
+        </div>
+        <div class="chips" id="chips" hidden></div>
+        <div class="plist" id="plist"></div>
+      </aside>
+      <button class="expand" id="expand" aria-label="Показать панель класса" hidden><svg class="i"><use href="#chev-l"/></svg></button>
+    </div>
+    <div class="toast" id="toast" hidden></div>
+    <footer class="controls" id="controls" hidden>
+      <button class="cbtn" id="btnMic"><svg class="i"><use href="#mic"/></svg></button>
+      <button class="cbtn off" id="btnCam"><svg class="i"><use href="#cam-off"/></svg></button>
+      <button class="cbtn" id="btnScreen"><svg class="i"><use href="#screen"/></svg></button>
+      <button class="cbtn leave" id="btnLeave"><svg class="i"><use href="#leave"/></svg></button>
+    </footer>
 
-    const LABELS = ["Пока тихо", "Есть ответ", "Участвует", "Активно на уроке"];
-    const base = [
-      { id: "ivan_i", name: "Иван И.", level: 3, cam: 1, mic: 1, speaking: 1 },
-      { id: "maria_s", name: "Мария С.", level: 2, cam: 1, mic: 1 },
-      { id: "artem_k", name: "Артём К.", level: 1, flag: "long_silence", cam: 0, mic: 0 },
-      { id: "sofya_l", name: "Софья Л.", level: 1, off: 1, cam: 1, mic: 0 },
-      { id: "alisa_n", name: "Алиса Н.", level: 2, flag: "quiet_but_precise", cam: 0, mic: 1 },
-      { id: "dmitry_p", name: "Дмитрий П.", level: 1, flag: "long_silence", cam: 1, mic: 1 },
+    <div class="lobby ended" id="ended" hidden>
+      <div class="lobby-text">
+        <span class="done"><svg class="i"><use href="#check"/></svg></span>
+        <h1>Урок завершён</h1>
+        <div class="facts"><span>38 минут</span><span id="studentsCount"></span></div>
+        <button class="primary">К&nbsp;классам</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { $, NAMES, button, div, iconSpan, initials, lobby, params, person, setIconButton, span, svg } from "./mock-call.js";
+    const { createStage, mobile } = await import("../webapp/js/stage.js");
+
+    // ?n= людей в звонке (с учителем), ?panel=0 свёрнутая панель, ?share=1 показ экрана,
+    // ?mode=start шкал ещё нет, ?menu=<ученик> меню выключателя, ?state=lobby|connecting|nomic|muted|reconnecting|over|ended|fail
+    const n = Math.max(1, +(params.get("n") ?? 6));
+    const state = params.get("state") ?? "live";
+    const started = params.get("mode") !== "start";
+    const menuFor = params.get("menu");
+    let panelOpen = params.get("panel") === null ? !mobile.matches : params.get("panel") === "1";
+
+    const FLAG_TEXT = { long_silence: "давно не отвечал", quiet_but_precise: "редко, но развёрнуто" };
+    const LAST = [
+      "Пётр построил флот на Балтике и основал Петербург.", "Налог брали с каждого мужчины, а не с двора.",
+      "Армию набирали рекрутами, по одному с двадцати дворов.", "Бороды брили, чтобы было как в Европе.",
     ];
-    const more = ["Александра Кузнецова-Соколовская", "Богдан Т.", "Вера К.", "Глеб М.", "Дарья Ш.", "Егор Р.", "Ева Б.", "Жанна О.",
-      "Захар Л.", "Илья Г.", "Кира Д.", "Лев Ф.", "Милана Ч.", "Никита Я.", "Оля З.", "Платон С.", "Рита Е.", "Тимур Х.",
-      "Ульяна А.", "Фёдор Ц.", "Эмма Ю.", "Юра Н.", "Яна П."].map((name, i) => {
-      const level = 1 + ((i * 7) % 4);
-      const flag = level === 1 && i % 3 === 0 ? "long_silence" : level === 2 && i % 4 === 1 ? "quiet_but_precise" : undefined;
-      return { id: "s" + i, name, level, flag, cam: i % 3 !== 1 ? 1 : 0, mic: i % 4 !== 2 ? 1 : 0 };
-    });
-    const students = base.concat(more).slice(0, N - 1);
-    const teacher = { id: "teacher", name: "Вы", ini: "ЕВ", cam: camOn, mic: micOn };
-    const people = [teacher, ...students];
+    // ученики: ступень, метки, последняя реплика, выключена ли аналитика
+    const students = NAMES.slice(0, Math.max(0, n - 1)).map((name, i) => ({
+      id: `s${i}`, name,
+      level: [3, 2, 4, 1, 2, 1, 3, 2][i % 8],
+      flags: i % 8 === 3 ? ["long_silence"] : i % 8 === 4 ? ["quiet_but_precise"] : i % 8 === 5 ? ["long_silence"] : [],
+      last: i % 8 < 4 ? LAST[i % 4] : "",
+      off: i === 6,
+    }));
 
-    const icon = (id, cls = "") => `<svg class="i ${cls}"><use href="#${id}"/></svg>`;
-    const initials = (p) => p.ini || p.name.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase();
+    const people = [
+      person("teacher", "Вы", { mic: state !== "muted" }),
+      ...students.map((s, i) => person(s.id, s.name, { cam: i % 4 === 1, mic: i % 5 !== 2, speaking: i === 0, hue: (i * 47 + 200) % 360 })),
+    ];
+    if (params.get("share") === "1") people[0] = person("teacher", "Вы", { screen: true });
 
     function tile(p, i) {
-      const body = p.cam ? `<span class="person"></span>` : `<span class="avatar">${initials(p)}</span>`;
-      return `<div class="tile ${p.cam ? "cam" : ""} ${p.speaking ? "speaking" : ""}" style="--h:${(i * 47 + 200) % 360}">
-        ${body}${p.mic ? "" : `<span class="micoff">${icon("mic-off")}</span>`}<span class="name">${p.name}</span></div>`;
+      const self = p.identity === "teacher";
+      const el = div(`tile${p.isSpeaking ? " speaking" : ""}${self ? " self" : ""}`);
+      el.style.setProperty("--h", (i * 47 + 200) % 360);
+      const video = stage.video(p.getTrackPublication("camera"));
+      if (video) { el.classList.add("cam"); el.append(video); }
+      else el.append(span("avatar", initials(self ? "Елена Викторовна" : p.name)));
+      if (p.getTrackPublication("microphone").isMuted) el.append(iconSpan("micoff", "mic-off"));
+      el.title = p.name;
+      return el;
     }
 
-    function stageHTML() {
-      const ana = `<span class="ana" title="Аналитика включена" aria-label="Аналитика включена">${icon("pulse")}</span>`;
-      if (share) {
-        const rest = people.slice(0, mobile ? people.length : 4);
-        let strip;
-        if (mobile || people.length <= 4) strip = rest.map(tile).join("");
-        else strip = people.slice(0, 3).map(tile).join("") +
-          `<div class="tile more-tile"><div>+${people.length - 3}<small>ещё в&nbsp;звонке</small></div></div>`;
-        return `${ana}<div class="share"><div class="shared"><h3>Реформы Петра I</h3><p>Армия и&nbsp;флот</p><p>Сенат и&nbsp;коллегии</p><p>Подушная подать</p>
-          <span class="you">Вы показываете экран</span></div><div class="strip">${strip}</div></div>`;
+    const stage = createStage({ tile, name: (p) => p.name, redraw: () => render() });
+
+    function row(s, compact) {
+      const el = div(`stu${compact ? " compact" : ""}${s.off ? " off" : ""}`);
+      const line = div("stu-line");
+      line.append(span("stu-name", s.name));
+      const flags = started && !s.off ? s.flags.map((f) => span(`flag ${f}`, FLAG_TEXT[f])) : [];
+      const bars = div("bars");
+      for (let k = 1; k <= 4; k++) bars.append(span(`bar${started && k <= s.level ? " on" : ""}`, ""));
+      const dots = document.createElement("button");
+      dots.className = `iconbtn${menuFor === s.id ? " open" : ""}`;
+      dots.append(svg("more"));
+      if (!started) { line.append(dots); el.append(line); }
+      else if (compact) { line.append(...flags, bars, dots); el.append(line); }
+      else {
+        if (s.off) line.append(span("stu-label", "аналитика выключена"));
+        line.append(...flags, dots);
+        el.append(line, bars);
+        if (s.last && !s.off) el.append(Object.assign(document.createElement("p"), { className: "stu-last", textContent: `«${s.last}»` }));
       }
-      const size = mobile ? 6 : 16;
-      const pages = Math.ceil(people.length / size);
-      const pg = Math.min(+P.get("page") || 1, pages);
-      const vis = people.slice((pg - 1) * size, pg * size);
-      const c = vis.length;
-      const cols = mobile ? (c === 1 ? 1 : 2) : c === 1 ? 1 : c <= 4 ? 2 : c <= 9 ? 3 : 4;
-      const few = !mobile && c <= 2;
-      const colW = few ? (c === 1 ? "960px" : "420px") : "1fr";
-      const rows = Math.ceil(c / cols);
-      const pager = pages > 1
-        ? `<div class="pager"><span class="pb ${pg === 1 ? "dis" : ""}">${icon("chev-l", "sm")}</span>${pg} / ${pages}<span class="pb ${pg === pages ? "dis" : ""}">${icon("chev-r", "sm")}</span>
-           <span>· показаны ${vis.length} из ${people.length}</span></div>` : "";
-      return `${ana}<div class="tiles ${few ? "few" : ""} ${few && c === 1 ? "one" : ""}" style="grid-template-columns:repeat(${cols},minmax(0,${colW}));grid-template-rows:repeat(${rows},minmax(0,1fr))">${vis.map((p, i) => tile(p, (pg - 1) * size + i)).join("")}</div>${pager}`;
-    }
-
-    const rank = (s) => (s.flag === "long_silence" ? 0 : s.flag === "quiet_but_precise" ? 1 : 2);
-
-    function menuHTML(s) {
-      return `<div class="menu" role="menu"><div class="menu-title">${s.name}</div>
-        <div class="menu-item"><span>Аналитика для ученика<small>Когда выключена, ученик не попадает в&nbsp;шкалу</small></span>
-        <span class="switch ${s.off ? "off" : ""}"><span class="track"></span></span></div></div>`;
-    }
-
-    function rowHTML(s, compact) {
-      const dots = `<button class="iconbtn ${menuId === s.id ? "open" : ""}" aria-label="Меню ученика ${s.name}">${icon("more")}</button>`;
-      const menu = menuId === s.id ? menuHTML(s) : "";
-      const flag = !start && s.flag ? `<span class="flag ${s.flag}">${s.flag === "long_silence" ? "давно не отвечал" : "тихий, но точный"}</span>` : "";
-      const bars = `<span class="bars">${[1, 2, 3, 4].map((n) => `<span class="bar ${n <= s.level ? "on" : ""}"></span>`).join("")}</span>`;
-      const off = s.off ? "off" : "";
-      if (start) return `<div class="stu ${compact ? "compact" : ""}"><div class="stu-line"><span class="stu-name">${s.name}</span>${dots}</div>${menu}</div>`;
-      if (compact) return `<div class="stu compact ${off}"><div class="stu-line"><span class="stu-name">${s.name}</span>${flag}${bars}${dots}</div>${menu}</div>`;
-      return `<div class="stu ${off}"><div class="stu-line"><span class="stu-name">${s.name}</span><span class="stu-label">${s.off ? "аналитика выключена" : LABELS[s.level - 1]}</span>${dots}</div>${bars}${flag}${menu}</div>`;
-    }
-
-    function panelHTML() {
-      const compact = students.length > 8;
-      const list = start ? students : students.slice().sort((a, b) => rank(a) - rank(b));
-      const ls = students.filter((s) => s.flag === "long_silence").length;
-      const qp = students.filter((s) => s.flag === "quiet_but_precise").length;
-      const chips = compact && !start
-        ? `<div class="chips"><span class="chip on">Все ${students.length}</span><span class="chip">Давно не отвечали ${ls}</span><span class="chip">Тихий, но точный ${qp}</span></div>` : "";
-      const note = state === "reconnecting"
-        ? `<p class="hint">Шкалы участия обновятся, когда вернётся связь</p>`
-        : start
-        ? `<p class="hint">Шкалы участия появятся, когда ученики заговорят</p>`
-        : compact ? "" : `<p class="legend">Шкала участия: пока тихо · есть ответ · участвует · активно</p>`;
-      return `<aside class="panel" aria-label="Панель класса">
-        <div class="panel-head"><h2>Класс</h2><span class="count">Учеников: ${students.length}</span>
-          <button class="iconbtn" aria-label="Свернуть панель" title="Свернуть">${icon(mobile ? "chev-d" : "chev-r")}</button></div>
-        ${note}${chips}<div class="plist">${list.map((s) => rowHTML(s, compact)).join("")}</div></aside>`;
-    }
-
-    function controlsHTML(panelOpen) {
-      const b = (id, label, cls = "", extra = "") => `<button class="cbtn ${cls}" aria-label="${label}" title="${label}">${icon(id)}${extra}</button>`;
-      return `<footer class="controls">
-        ${b(micOn ? "mic" : "mic-off", micOn ? "Выключить микрофон" : "Включить микрофон", micOn ? "" : "off")}
-        ${b(camOn ? "cam" : "cam-off", camOn ? "Выключить камеру" : "Включить камеру", camOn ? "" : "off")}
-        ${b("screen", share ? "Остановить показ экрана" : "Показать экран", share ? "active" : "")}
-        ${b("chat", "Чат", "", `<span class="badge">2</span>`)}
-        ${b("people", "Участники и&nbsp;шкала класса", panelOpen ? "active" : "", students.length ? `<span class="badge">${people.length}</span>` : "")}
-        ${b("leave", "Выйти из звонка", "leave")}
-      </footer>`;
-    }
-
-    // До входа, подключение и нет доступа к микрофону: один экран проверки перед звонком
-    function lobbyHTML() {
-      const nomic = state === "nomic";
-      const mic = nomic
-        ? `<button class="cbtn off" aria-label="Нет доступа к&nbsp;микрофону">${icon("mic-off")}<span class="badge warn">!</span></button>`
-        : `<button class="cbtn" aria-label="Выключить микрофон">${icon("mic")}</button>`;
-      const level = nomic ? "" : `<span class="level"><i style="height:6px"></i><i style="height:12px"></i><i style="height:8px"></i><span>Микрофон работает</span></span>`;
-      let text;
-      if (state === "connecting") {
-        text = `<h1>Подключаемся к&nbsp;уроку</h1><p>Обычно это занимает 3–5 секунд</p>
-          <button class="primary" disabled><span class="spin"></span>Подключаемся…</button>`;
-      } else if (nomic) {
-        text = `<h1>Нет доступа к&nbsp;микрофону</h1><p>Разрешите доступ к&nbsp;микрофону в&nbsp;настройках браузера или MAX и&nbsp;попробуйте снова. Без микрофона ученики вас не услышат</p>
-          <div class="actions"><button class="primary">Открыть настройки MAX</button><button class="secondary">Попробовать снова</button><button class="link">Войти без микрофона</button></div>`;
-      } else {
-        text = `<h1>Готовы войти?</h1><p>Проверьте микрофон и&nbsp;камеру. Аналитика будет включена, когда вы войдёте в&nbsp;урок</p>
-          <button class="primary">Войти в&nbsp;урок</button>`;
+      if (menuFor === s.id) {
+        const menu = div("menu");
+        const item = div("menu-item");
+        const label = span("", "Аналитика для ученика");
+        label.append(Object.assign(document.createElement("small"), { textContent: "Когда выключена, ученик не попадает в шкалу" }));
+        const sw = document.createElement("button");
+        sw.className = `switch${s.off ? " off" : ""}`;
+        sw.append(span("track", ""));
+        item.append(label, sw);
+        menu.append(item);
+        el.append(menu);
       }
-      return `<div class="lobby"><div class="preview tile cam" style="--h:200"><span class="person"></span>${level}
-        <div class="pv-ctrl">${mic}<button class="cbtn" aria-label="Выключить камеру">${icon("cam")}</button></div></div>
-        <div class="lobby-text">${text}</div></div>`;
+      return el;
     }
 
-    function endedHTML() {
-      return `<div class="lobby ended"><div class="lobby-text"><span class="done">${icon("check")}</span>
-        <h1>Урок завершён</h1><div class="facts"><span>42&nbsp;минуты</span><span>Учеников: ${students.length}</span></div>
-        <p>Сводка по уроку придёт в&nbsp;чат с&nbsp;ботом примерно через минуту</p>
-        <button class="primary">Вернуться в&nbsp;чат</button></div></div>`;
+    function renderPanel() {
+      const compact = students.length >= 9;
+      $("panel").hidden = !panelOpen || students.length === 0;
+      $("expand").hidden = panelOpen || students.length === 0;
+      $("expand").querySelector("use").setAttribute("href", mobile.matches ? "#chev-u" : "#chev-l");
+      $("collapse").querySelector("use").setAttribute("href", mobile.matches ? "#chev-d" : "#chev-r");
+      $("count").textContent = `Учеников: ${students.length}`;
+      const count = (f) => students.filter((s) => s.flags.includes(f)).length;
+      $("chips").hidden = !compact || !started;
+      $("chips").replaceChildren(
+        Object.assign(button("chip on", `Все ${students.length}`)),
+        button("chip", `Давно не отвечали ${count("long_silence")}`),
+        button("chip", `Редко, но развёрнуто ${count("quiet_but_precise")}`),
+      );
+      const rank = (s) => Math.min(2, ...s.flags.map((f) => ({ long_silence: 0, quiet_but_precise: 1 })[f] ?? 2));
+      const list = started ? [...students].sort((a, b) => rank(a) - rank(b)) : students;
+      $("plist").replaceChildren(...list.map((s) => row(s, compact)));
     }
 
-    const panelOpen = panelWanted && students.length > 0;
-    const banner = state === "reconnecting"
-      ? `<div class="banner"><span class="spin"></span>Связь пропала. Переподключаемся…</div>` : "";
-    const toast = state === "muted"
-      ? `<div class="toast">${icon("mic-off")}Микрофон выключен. Ученики вас не слышат</div>` : "";
-    document.getElementById("app").innerHTML =
-      ["lobby", "connecting", "nomic"].includes(state) ? lobbyHTML()
-      : state === "ended" ? endedHTML()
-      : `<div class="body"><section class="stage ${state === "reconnecting" ? "dim" : ""}" aria-label="Участники звонка">${banner}${stageHTML()}</section>${panelOpen ? panelHTML() : ""}</div>${toast}${controlsHTML(panelOpen)}`;
+    function render() {
+      renderPanel();
+      stage.render(people, { self: people[0], reconnecting: state === "reconnecting" });
+      setIconButton($("btnMic"), state !== "muted", "mic");
+      $("btnScreen").classList.toggle("active", params.get("share") === "1");
+    }
+
+    $("collapse").onclick = () => { panelOpen = false; render(); };
+    $("expand").onclick = () => { panelOpen = true; render(); };
+
+    if (["lobby", "connecting", "nomic", "over", "fail"].includes(state)) {
+      lobby(state, { title: "Готовы войти?", avatar: "ЕВ" });
+    } else if (state === "ended") {
+      $("ended").hidden = false;
+      $("studentsCount").textContent = `Учеников: ${students.length}`;
+    } else {
+      $("call").hidden = $("controls").hidden = false;
+      if (state === "muted") { $("toast").textContent = "Микрофон выключен. Ученики вас не слышат"; $("toast").hidden = false; }
+      render();
+    }
   </script>
 </body>
 </html>

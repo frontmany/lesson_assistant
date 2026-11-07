@@ -8,21 +8,28 @@
 
 ## Как это выглядит
 
-Экраны урока: учитель видит класс и шкалы участия, ученик — только свою шкалу, а после урока в чат приходит сводка.
+Мини-приложение в MAX: учитель ведёт урок и видит участие всего класса, ученик видит только свою шкалу.
 
-**Панель учителя.** Плитки участников и панель класса: у каждого ученика шкала участия, метка и последняя реплика. Снято на демо-уроке с записанным классом.
+**Урок у учителя.** Плитки участников и панель класса: у каждого ученика шкала участия, метка и последняя реплика.
 
-![Экран учителя в звонке](design/screens/teacher-call-live.png)
+![Урок у учителя: плитки участников и панель класса со шкалами](design/screens/teacher-call-d-n6-dark.png)
 
-**Экран ученика.** Своя шкала «Твоё участие» видна только ему, рейтингов нет.
+<table>
+  <tr>
+    <td align="center" width="25%"><img src="design/screens/start-teacher-dark.png" alt="Мои классы" width="200"></td>
+    <td align="center" width="25%"><img src="design/screens/start-class-dark.png" alt="Ученики класса" width="200"></td>
+    <td align="center" width="25%"><img src="design/screens/teacher-call-m-n6-sheet-dark.png" alt="Урок у учителя на телефоне" width="200"></td>
+    <td align="center" width="25%"><img src="design/screens/student-call-m-l3-dark.png" alt="Урок у ученика" width="200"></td>
+  </tr>
+  <tr>
+    <td align="center"><b>Мои классы</b><br>классы учителя и демо-урок</td>
+    <td align="center"><b>Класс</b><br>ученики, приглашение, начать урок</td>
+    <td align="center"><b>Урок на телефоне</b><br>панель класса снизу</td>
+    <td align="center"><b>Урок у ученика</b><br>своя шкала на своей плитке</td>
+  </tr>
+</table>
 
-<img src="design/screens/student-call-m-l3.png" alt="Экран ученика в звонке" width="280">
-
-**Бот после урока.** Сводка учителю и карточка ученику.
-
-<img src="design/screens/bot-summary-m-summary.png" alt="Сводка по уроку в боте" width="280"> <img src="design/screens/bot-summary-m-card.png" alt="Карточка ученика в боте" width="280">
-
-Остальные состояния (вход, обрыв связи, тёмная тема, 30 учеников) — в [design/](design/README.md).
+Остальные состояния: вход, обрыв связи, показ экрана, 30 учеников, тёмная тема — в [design/](design/README.md).
 
 ## Быстрый старт
 
