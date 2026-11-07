@@ -34,3 +34,7 @@ saved_phrases/
 
 # логи туннелей scripts/tunnel.sh
 .tunnel/
+
+# промо-ролик (video/): зависимости и рендеры не коммитим, MP4 прикладываем к PR
+video/node_modules/
+video/out/
