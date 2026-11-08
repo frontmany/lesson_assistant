@@ -1,4 +1,4 @@
-# API и события
+# API и события
 
 Модели описаны в `backend/app/models.py`, примеры событий лежат в `webapp/mock`. Формат меняется сразу в трёх местах, это проверяет тест `backend/tests/test_contracts.py`.
 
