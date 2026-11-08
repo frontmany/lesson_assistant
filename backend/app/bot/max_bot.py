@@ -93,13 +93,34 @@ class MaxApi:
         response.raise_for_status()
         return response.json()
 
-    def send(self, user_id: int, text: str, buttons: list[list[dict]] | None = None, markdown: bool = False) -> None:
-        body: dict = {"text": text}
+    @staticmethod
+    def _body(text: str, buttons=None, markdown: bool = False, image: str | None = None) -> dict:
+        """Тело сообщения: текст, картинка по токену и кнопки. Пустые вложения убирают старые кнопки."""
+        attachments = [{"type": "image", "payload": {"token": image}}] if image else []
+        if buttons:
+            attachments.append({"type": "inline_keyboard", "payload": {"buttons": buttons}})
+        body: dict = {"text": text, "attachments": attachments}
         if markdown:
             body["format"] = "markdown"  # **жирный** — названия блоков сводки
-        if buttons:
-            body["attachments"] = [{"type": "inline_keyboard", "payload": {"buttons": buttons}}]
-        self.http.post("/messages", params={"user_id": user_id}, json=body).raise_for_status()
+        return body
+
+    @staticmethod
+    def _mid(res: httpx.Response) -> str | None:
+        try:
+            return res.json()["message"]["body"]["mid"]
+        except (ValueError, KeyError, TypeError):
+            return None
+
+    def send(self, user_id: int, text: str, buttons: list[list[dict]] | None = None, markdown: bool = False) -> str | None:
+        """Новое сообщение. Возвращает его id: по нему потом снимаются кнопки."""
+        res = self.http.post("/messages", params={"user_id": user_id}, json=self._body(text, buttons, markdown))
+        res.raise_for_status()
+        return self._mid(res)
+
+    def edit(self, mid: str, text: str, buttons=None, markdown: bool = False, image: str | None = None) -> None:
+        """Изменить отправленное сообщение. Без buttons кнопки снимаются, текст и картинка остаются."""
+        self.http.put("/messages", params={"message_id": mid},
+                      json=self._body(text, buttons, markdown, image)).raise_for_status()
 
     def upload_image(self, path: Path) -> str:
         """Загрузить картинку в MAX: токен для вложения {"type": "image"}.
@@ -117,32 +138,33 @@ class MaxApi:
         return next(iter(body["photos"].values()))["token"]
 
     def send_image(self, user_id: int, token: str, text: str, buttons: list[list[dict]] | None = None,
-                   retries: int = 4) -> None:
+                   retries: int = 4) -> str | None:
         """Сообщение с картинкой (и кнопками). MAX обрабатывает файл после загрузки: пока не готов —
         attachment.not.ready, повторяем с растущей паузой."""
-        body = {"text": text, "attachments": [{"type": "image", "payload": {"token": token}}]}
-        if buttons:
-            body["attachments"].append({"type": "inline_keyboard", "payload": {"buttons": buttons}})
+        body = self._body(text, buttons, image=token)
         for attempt in range(retries + 1):
             res = self.http.post("/messages", params={"user_id": user_id}, json=body)
             if res.status_code < 400:
-                return
+                return self._mid(res)
             if "attachment.not.ready" not in res.text or attempt == retries:
                 res.raise_for_status()
             time.sleep(0.5 * 2 ** attempt)
+        return None
 
     def set_commands(self, commands: list[dict]) -> None:
         """Список команд для подсказки «/» в MAX."""
         self.http.patch("/me/commands", json={"commands": commands}).raise_for_status()
 
-    def answer(self, callback_id: str, notification: str | None = None, message: str | None = None) -> None:
-        """Ответить на нажатие кнопки: всплывающим уведомлением или заменой сообщения с кнопкой.
+    def answer(self, callback_id: str, notification: str | None = None, message: str | None = None,
+               buttons=None, markdown: bool = False, image: str | None = None, user_id: int | None = None) -> None:
+        """Ответить на нажатие кнопки: заменить сообщение, где её нажали, следующим шагом.
 
-        message — новый текст того сообщения, где нажали кнопку; кнопки из него убираются.
+        message — новый текст этого сообщения, buttons — его новые кнопки (без них кнопок нет).
+        user_id — чей это экран: API он не нужен, нужен журналу и тестам.
         """
         body: dict = {"notification": notification} if notification else {}
         if message is not None:
-            body["message"] = {"text": message, "attachments": []}
+            body["message"] = self._body(message, buttons, markdown, image)
         self.http.post("/answers", params={"callback_id": callback_id}, json=body).raise_for_status()
 
 
@@ -174,6 +196,45 @@ class Bot:
         self.api = api
         self.bot_name = bot_name
         self._cover: str | None = None  # токен загруженной обложки: грузим один раз на запуск
+        # Кнопки живые только у последнего сообщения человеку: по нажатию следующий шаг заменяет
+        # нажатое сообщение, а перед новым сообщением у прежнего кнопки снимаются.
+        # _last — последнее сообщение с кнопками каждому: id, текст, разметка, картинка
+        self._last: dict[int, dict] = {}
+        self._cb: dict | None = None  # нажатие, на которое ещё отвечаем: id, кто, какое сообщение
+        self._lock = threading.RLock()  # бот отвечает из потока опроса и из потоков сервера
+
+    # ---------- отправка: кнопки только у последнего сообщения ----------
+
+    def say(self, user_id: int, text: str, buttons=None, markdown: bool = False) -> None:
+        """Сообщение человеку. В ответ на его нажатие — вместо нажатого сообщения, иначе — новое."""
+        with self._lock:
+            cb = self._cb
+            if cb and cb["user"] == user_id and not cb["done"]:
+                cb["done"] = True
+                if (self._last.get(user_id) or {}).get("mid") != cb["mid"]:
+                    self._strip(user_id)  # нажали старое сообщение: у последнего кнопки тоже снимаем
+                self.api.answer(cb["id"], message=text, buttons=buttons, markdown=markdown, user_id=user_id)
+                self._remember(user_id, cb["mid"], text, buttons, markdown)
+                return
+            self._strip(user_id)
+            mid = self.api.send(user_id, text, buttons, markdown=markdown)
+            self._remember(user_id, mid, text, buttons, markdown)
+
+    def _remember(self, user_id: int, mid, text: str, buttons, markdown: bool = False, image: str | None = None) -> None:
+        if buttons and mid:
+            self._last[user_id] = {"mid": mid, "text": text, "markdown": markdown, "image": image}
+        else:
+            self._last.pop(user_id, None)
+
+    def _strip(self, user_id: int) -> None:
+        """Снять кнопки с прошлого сообщения человеку: текст и картинка остаются."""
+        last = self._last.pop(user_id, None)
+        if not last:
+            return
+        try:
+            self.api.edit(last["mid"], last["text"], markdown=last["markdown"], image=last["image"])
+        except httpx.HTTPError as exc:
+            log.warning("не снял кнопки у сообщения %s: %s", last["mid"], exc)
 
     # ---------- входящие ----------
 
@@ -192,7 +253,8 @@ class Bot:
                 self.text(sender, (update["message"].get("body") or {}).get("text") or "")
         elif kind == "message_callback":
             cb = update["callback"]
-            self.press(cb["user"], cb["callback_id"], cb.get("payload") or "")
+            mid = ((update.get("message") or {}).get("body") or {}).get("mid")
+            self.press(cb["user"], cb["callback_id"], cb.get("payload") or "", mid)
 
     def text(self, user: dict, body: str) -> None:
         user_id = user["user_id"]
@@ -218,7 +280,9 @@ class Bot:
             return self.code(user, code)
         self.greet(user_id)
 
-    def press(self, user: dict, callback_id: str, payload: str) -> None:
+    def press(self, user: dict, callback_id: str, payload: str, mid: str | None = None) -> None:
+        """Нажатие кнопки. Следующий шаг встаёт на место нажатого сообщения (mid), поэтому
+        в чате не копятся сообщения с живыми кнопками."""
         user_id = user["user_id"]
         action, _, arg = payload.partition(":")
         handler = {
@@ -227,7 +291,6 @@ class Bot:
             "student": lambda: self.as_student(user_id),
             "demo": lambda: self.demo(user),  # кнопка из старых сообщений: теперь «Посмотреть демо» открывает приложение
             "back": lambda: self.back(user_id),
-            "begin": lambda: self.greet(user_id),  # «Начать» под вступлением /start
             "me": lambda: self.join(user_id, int(arg), full_name(user)),
             "rename": lambda: self.ask_name(user_id, int(arg)),
             "kick": lambda: self.kick(user_id, int(arg)),
@@ -243,35 +306,37 @@ class Bot:
             "start": lambda: self.pick_lesson(user_id),
             "class": lambda: self.student_class(user_id, int(arg)),
         }.get(action)
-        if action == "cancel":
-            # «Отмена» и «Остаться»: вопрос в чате меняется на ответ, кнопки исчезают
-            return self.api.answer(callback_id, message=self.cancelled(arg))
-        done = self.pressed(action, arg) if handler else None
-        if done is not None:
-            # кнопка одноразовая: вопрос меняется на то, что выбрали, и второй раз не нажать (#98, п. 15)
-            self.api.answer(callback_id, message=done)
-        else:
-            self.api.answer(callback_id, "Готово" if handler else "Эта кнопка больше не нужна")
-        if handler is None:
-            return self.greet(user_id)
-        handler()
+        with self._lock:
+            self._cb = {"id": callback_id, "user": user_id, "mid": mid, "done": False}
+            try:
+                if action == "cancel":
+                    # «Отмена» и «Остаться»: вопрос меняется на ответ, кнопок больше нет
+                    self.say(user_id, self.cancelled(arg))
+                elif action == "begin":
+                    self.begin(user_id)
+                elif handler is None:
+                    self.greet(user_id)  # кнопка из старого сообщения, которой больше нет
+                else:
+                    handler()
+            finally:
+                cb, self._cb = self._cb, None
+                if not cb["done"]:
+                    # шаг ничего не показал этому человеку: просто закрываем нажатие
+                    try:
+                        self.api.answer(callback_id, user_id=user_id)
+                    except httpx.HTTPError as exc:
+                        log.warning("не ответил на нажатие %s: %s", callback_id, exc)
 
-    def pressed(self, action: str, arg: str) -> str | None:
-        """Чем заменить сообщение с одноразовой кнопкой после нажатия. None — кнопки остаются."""
-        c = db.get_class(int(arg)) if arg.isdigit() and action not in ("kick", "unkick") else None
-        m = db.get_member(int(arg)) if arg.isdigit() and action in ("kick", "unkick") else None
-        name = label(c) if c else ""
-        who = db.short_name(m.name) if m else "Ученик"
-        return {
-            "newlink_yes": f"Создана новая ссылка для {name}.",
-            "delete_yes": f"Удалить класс {name}: удаляю.",
-            "leave_yes": f"Выйти из класса {name}: выхожу.",
-            "me": f"Вы входите в класс {name}.",
-            "rename": f"Вы входите в класс {name}: меняем имя.",
-            "restore": f"Возвращаю класс {name}.",
-            "kick": f"{who}: убираю из класса.",
-            "unkick": f"{who}: возвращаю в класс.",
-        }.get(action)
+    def begin(self, user_id: int) -> None:
+        """«Начать» под вступлением: вступление с обложкой остаётся, без кнопки, а меню — новым сообщением."""
+        cb = self._cb
+        cb["done"] = True
+        self.api.answer(cb["id"], message=INTRO, image=self._cover, user_id=user_id)
+        if (self._last.get(user_id) or {}).get("mid") == cb["mid"]:
+            self._last.pop(user_id, None)
+        else:
+            self._strip(user_id)
+        self.greet(user_id)
 
     # ---------- кто вы ----------
 
@@ -281,10 +346,13 @@ class Bot:
         try:
             if self._cover is None:
                 self._cover = self.api.upload_image(COVER)
-            self.api.send_image(user_id, self._cover, INTRO, begin)
+            with self._lock:
+                self._strip(user_id)
+                mid = self.api.send_image(user_id, self._cover, INTRO, begin)
+                self._remember(user_id, mid, INTRO, begin, image=self._cover)
         except Exception as exc:  # обложка не загрузилась — пояснение всё равно нужно
             log.warning("обложка /start не отправлена: %s", exc)
-            self.api.send(user_id, INTRO, begin)
+            self.say(user_id, INTRO, begin)
 
     def greet(self, user_id: int) -> None:
         """Меню по текущей роли — той же, что в мини-приложении: учителю его классы, ученику его.
@@ -310,7 +378,7 @@ class Bot:
         не должен оставить приложение в роли ученика.
         """
         db.set_role(user_id, "none")
-        self.api.send(user_id, "Здравствуйте! Я помогаю вести уроки в MAX. Кто вы?", [
+        self.say(user_id, "Здравствуйте! Я помогаю вести уроки в MAX. Кто вы?", [
             [callback("Я учитель", "teacher"), callback("Я ученик", "student")],
             # сразу открывает демо в мини-приложении, без второго сообщения «Открыть демо»
             [self.open_app("Посмотреть демо", "demo")],
@@ -338,7 +406,7 @@ class Bot:
             hint = "Чтобы начать урок, нажмите «Начать урок»: откроется звонок, а ученики получат приглашение."
         else:
             hint = "Урок можно начать, когда в классе будет хотя бы один ученик."
-        self.api.send(user_id, "Ваши классы:\n" + "\n".join(lines) + "\n\n" + hint, [b for b in [
+        self.say(user_id, "Ваши классы:\n" + "\n".join(lines) + "\n\n" + hint, [b for b in [
             row,
             [callback("Пригласить", "invite"), callback("Новый класс", "newclass")],
             [callback("Удалить класс", "delete")],
@@ -346,7 +414,7 @@ class Bot:
 
     def choose(self, user_id: int, buttons: list[tuple[str, str]]) -> None:
         """Шаг 11: человек в нескольких классах."""
-        self.api.send(user_id, "Вы в нескольких классах. Выберите класс.",
+        self.say(user_id, "Вы в нескольких классах. Выберите класс.",
                       [[callback(text, payload) for text, payload in buttons[i:i + 3]] for i in range(0, len(buttons), 3)])
 
     def for_class(self, user_id: int, action: str, arg: str, then) -> None:
@@ -361,23 +429,23 @@ class Bot:
 
     def pick_lesson(self, user_id: int) -> None:
         startable = [c for c, m in db.classes_of(user_id) if m.role == "teacher" and db.students_of(c.id)]
-        self.api.send(user_id, "Вы в нескольких классах. Выберите класс.",
+        self.say(user_id, "Вы в нескольких классах. Выберите класс.",
                       [[self.open_app(label(c), f"c{c.id}") for c in startable[i:i + 3]] for i in range(0, len(startable), 3)])
 
     # ---------- учитель: класс ----------
 
     def ask_class_name(self, user_id: int, first: bool) -> None:
         db.set_dialog(user_id, "class_name")
-        self.api.send(user_id, f"Создадим {'первый ' if first else ''}класс. Напишите название и предмет через запятую. Например: 10А, история.",
+        self.say(user_id, f"Создадим {'первый ' if first else ''}класс. Напишите название и предмет через запятую. Например: 10А, история.",
                       [[callback("Назад", "back")]])
 
     def create_class(self, user: dict, body: str) -> None:
         name, _, subject = (part.strip() for part in body.partition(","))
         if not name or not subject or len(name) > 40 or len(subject) > 60:
-            return self.api.send(user["user_id"], "Напишите название и предмет через запятую. Например: 10А, история.")
+            return self.say(user["user_id"], "Напишите название и предмет через запятую. Например: 10А, история.")
         db.set_dialog(user["user_id"], None)
         c = db.create_class(user["user_id"], full_name(user), name, subject.lower())
-        self.api.send(user["user_id"], f"Создан класс {c.name}, {c.subject}.")
+        self.say(user["user_id"], f"Создан класс {c.name}, {c.subject}.")
         self.invite(user["user_id"], c.id)
 
     def link(self, code: str) -> str:
@@ -386,7 +454,7 @@ class Bot:
     def invite(self, user_id: int, class_id: int) -> None:
         """Шаг 3: ссылка-приглашение и код класса."""
         c = db.get_class(class_id)
-        self.api.send(
+        self.say(
             user_id,
             f"Ссылка для учеников: {self.link(c.invite_code)}\nКод класса: {c.invite_code}\n"
             "Отправьте ссылку классу или продиктуйте код на уроке. "
@@ -397,19 +465,19 @@ class Bot:
 
     def ask_new_link(self, user_id: int, class_id: int) -> None:
         c = db.get_class(class_id)
-        self.api.send(user_id, f"Создать новую ссылку и код для {label(c)}? Старые перестанут работать.",
+        self.say(user_id, f"Создать новую ссылку и код для {label(c)}? Старые перестанут работать.",
                       [[callback("Создать ссылку", f"newlink_yes:{class_id}"), callback("Отмена", f"cancel:newlink-{class_id}")]])
 
     def new_link(self, user_id: int, class_id: int) -> None:
         if not self.teaches(user_id, class_id):
             return
         c = db.new_code(class_id)
-        self.api.send(user_id, f"Новая ссылка для {c.name}: {self.link(c.invite_code)}\nНовый код: {c.invite_code}\n"
+        self.say(user_id, f"Новая ссылка для {c.name}: {self.link(c.invite_code)}\nНовый код: {c.invite_code}\n"
                                "Отправьте её тем, кого ещё нет в классе. Кто уже вошёл, остаётся.")
 
     def ask_delete(self, user_id: int, class_id: int) -> None:
         c = db.get_class(class_id)
-        self.api.send(user_id, f"Удалить класс {label(c)}? Ученики потеряют доступ.",
+        self.say(user_id, f"Удалить класс {label(c)}? Ученики потеряют доступ.",
                       [[callback("Удалить класс", f"delete_yes:{class_id}"), callback("Отмена", f"cancel:delete-{class_id}")]])
 
     def delete(self, user_id: int, class_id: int) -> None:
@@ -419,7 +487,7 @@ class Bot:
         db.delete_class(class_id)
         c = db.get_class(class_id)
         self.tell_students(students, class_deleted_text(c))
-        self.api.send(user_id, f"Класс {label(c)} удалён. Вернуть можно в течение {db.RESTORE_DAYS} дней.",
+        self.say(user_id, f"Класс {label(c)} удалён. Вернуть можно в течение {db.RESTORE_DAYS} дней.",
                       [[callback("Вернуть", f"restore:{class_id}")]])
 
     def restore(self, user_id: int, class_id: int) -> None:
@@ -427,10 +495,10 @@ class Bot:
         if db.teacher_of(class_id).max_user_id != user_id:
             return
         if db.restore_class(class_id):
-            self.api.send(user_id, f"Класс {label(c)} снова с вами: ученики и ссылка остались прежними.")
+            self.say(user_id, f"Класс {label(c)} снова с вами: ученики и ссылка остались прежними.")
             self.tell_students(db.students_of(class_id), class_restored_text(c))
         else:
-            self.api.send(user_id, f"Вернуть {c.name} уже нельзя: прошло {db.RESTORE_DAYS} дней.")
+            self.say(user_id, f"Вернуть {c.name} уже нельзя: прошло {db.RESTORE_DAYS} дней.")
 
     def cancelled(self, what: str) -> str:
         """Чем заменить вопрос, на который ответили «Отмена» или «Остаться»."""
@@ -452,7 +520,7 @@ class Bot:
 
     def ask_code(self, user_id: int) -> None:
         db.set_dialog(user_id, "code")
-        self.api.send(user_id, "Введите код класса. Его назовёт учитель.", [[callback("Назад", "back")]])
+        self.say(user_id, "Введите код класса. Его назовёт учитель.", [[callback("Назад", "back")]])
 
     def back(self, user_id: int) -> None:
         """Нажал не ту кнопку: бот перестаёт ждать название или код и возвращает назад —
@@ -469,42 +537,42 @@ class Bot:
         status, c = db.find_by_code(text)
         if status == "none":
             db.set_dialog(user_id, "code")
-            return self.api.send(user_id, "Такого кода нет. Проверьте и введите ещё раз.", [[callback("Назад", "back")]])
+            return self.say(user_id, "Такого кода нет. Проверьте и введите ещё раз.", [[callback("Назад", "back")]])
         db.set_dialog(user_id, None)
         # удалённый класс — раньше членства: иначе его ссылка отвечала бы «Вы в классе» (#98, п. 19)
         if status == "deleted":
-            return self.api.send(user_id, "Этот класс удалён. Спросите у учителя.")
+            return self.say(user_id, "Этот класс удалён. Спросите у учителя.")
         member = db.membership(c.id, user_id) if c else None
         if member is not None:
             # уже в классе: ни «ссылка устарела», ни повторный вход ему не нужны
             if member.role == "teacher":
-                return self.api.send(user_id, f"Это код вашего класса {c.name}.")
+                return self.say(user_id, f"Это код вашего класса {c.name}.")
             return self.student_class(user_id, c.id)
         if status == "old":
-            return self.api.send(user_id, "Эта ссылка устарела. Попросите у учителя новую ссылку или код.",
+            return self.say(user_id, "Эта ссылка устарела. Попросите у учителя новую ссылку или код.",
                                  [[callback("Ввести код", "student")]])
-        self.api.send(user_id, f"Вы входите в класс {label(c)}. Вас зовут {full_name(user)}?",
+        self.say(user_id, f"Вы входите в класс {label(c)}. Вас зовут {full_name(user)}?",
                       [[callback("Это я", f"me:{c.id}"), callback("Изменить имя", f"rename:{c.id}")]])
 
     def ask_name(self, user_id: int, class_id: int) -> None:
         db.set_dialog(user_id, "name", class_id)
-        self.api.send(user_id, "Напишите имя и фамилию.")
+        self.say(user_id, "Напишите имя и фамилию.")
 
     def join(self, user_id: int, class_id: int, name: str) -> None:
         c = db.get_class(class_id)
         if c is None or c.deleted_at is not None:
-            return self.api.send(user_id, "Этот класс удалён. Спросите у учителя.")
+            return self.say(user_id, "Этот класс удалён. Спросите у учителя.")
         before = db.membership(class_id, user_id)
         member, new = db.join(class_id, user_id, name[:80])
         if before is not None and before.name != member.name:
-            self.api.send(user_id, f"Готово, теперь в классе {label(c)} вы — {member.name}.")
+            self.say(user_id, f"Готово, теперь в классе {label(c)} вы — {member.name}.")
         else:
-            self.api.send(user_id, f"Готово, вы в классе {label(c)}. Когда начнётся урок, я напишу.")
+            self.say(user_id, f"Готово, вы в классе {label(c)}. Когда начнётся урок, я напишу.")
         if new:
             # шаг 6: учителю
             teacher = db.teacher_of(class_id)
             # с первым учеником урок становится возможен: кнопка тут же, а не только в меню
-            self.api.send(teacher.max_user_id, f"{db.short_name(member.name)} теперь в классе {c.name}. Можно начинать урок.",
+            self.say(teacher.max_user_id, f"{db.short_name(member.name)} теперь в классе {c.name}. Можно начинать урок.",
                           [[self.open_app("Начать урок", f"c{class_id}")], [callback("Убрать из класса", f"kick:{member.id}")]])
         lesson = db.live_lesson(class_id)
         if lesson is not None:
@@ -519,7 +587,7 @@ class Bot:
         db.remove_member(member_id)
         c = db.get_class(m.class_id)
         self.tell_students([m], student_removed_text(c))
-        self.api.send(user_id, f"Убрано из класса {label(c)}: {db.short_name(m.name)}",
+        self.say(user_id, f"Убрано из класса {label(c)}: {db.short_name(m.name)}",
                       [[callback("Вернуть", f"unkick:{member_id}")]])
 
     def unkick(self, user_id: int, member_id: int) -> None:
@@ -529,20 +597,20 @@ class Bot:
         db.restore_member(member_id)
         c = db.get_class(m.class_id)
         self.tell_students([m], student_returned_text(c))
-        self.api.send(user_id, f"{db.short_name(m.name)} снова в классе {label(c)}.")
+        self.say(user_id, f"{db.short_name(m.name)} снова в классе {label(c)}.")
 
     def tell_students(self, members, text: str) -> None:
         """Сообщение ученикам класса. Кто заблокировал бота или на ком упал MAX, не обрывает
         рассылку остальным и подтверждение учителю."""
         for m in members:
             try:
-                self.api.send(m.max_user_id, text)
+                self.say(m.max_user_id, text)
             except httpx.HTTPError as exc:
                 log.warning("не написал ученику %s: %s", m.max_user_id, exc)
 
     def ask_leave(self, user_id: int, class_id: int) -> None:
         c = db.get_class(class_id)
-        self.api.send(user_id, f"Выйти из класса {label(c)}?",
+        self.say(user_id, f"Выйти из класса {label(c)}?",
                       [[callback("Выйти", f"leave_yes:{class_id}"), callback("Остаться", f"cancel:leave-{class_id}")]])
 
     def leave(self, user_id: int, class_id: int) -> None:
@@ -551,8 +619,8 @@ class Bot:
             return
         db.remove_member(m.id)
         c = db.get_class(class_id)
-        self.api.send(user_id, f"Вы вышли из {c.name}. Чтобы вернуться, попросите у учителя ссылку.")
-        self.api.send(db.teacher_of(class_id).max_user_id, f"{db.short_name(m.name)} теперь не в классе {c.name}.")
+        self.say(user_id, f"Вы вышли из {c.name}. Чтобы вернуться, попросите у учителя ссылку.")
+        self.say(db.teacher_of(class_id).max_user_id, f"{db.short_name(m.name)} теперь не в классе {c.name}.")
 
     # ---------- уроки ----------
 
@@ -561,23 +629,23 @@ class Bot:
         c = db.get_class(class_id)
         lesson = db.live_lesson(class_id)
         if lesson is None:
-            return self.api.send(user_id, f"Вы в классе {c.name}, {c.subject}. Урок пока не идёт. Я напишу, когда начнётся.",
+            return self.say(user_id, f"Вы в классе {c.name}, {c.subject}. Урок пока не идёт. Я напишу, когда начнётся.",
                                  [[callback("Выйти из класса", f"leave:{class_id}")]])
-        self.api.send(user_id, f"Вы в классе {c.name}, {c.subject}. Урок идёт.", [
+        self.say(user_id, f"Вы в классе {c.name}, {c.subject}. Урок идёт.", [
             [self.open_app("Войти в урок", f"l{lesson.id}")],
             [callback("Выйти из класса", f"leave:{class_id}")],
         ])
 
     def lesson_started(self, user_id: int, c, lesson_id: str) -> None:
         """Шаг 10."""
-        self.api.send(
+        self.say(
             user_id, f"Урок начался: {c.name}, {c.subject}.",
             [[self.open_app("Войти в урок", f"l{lesson_id}")]],
         )
 
     def demo(self, user: dict) -> None:
         lesson = db.demo_lesson(user["user_id"], full_name(user))
-        self.api.send(
+        self.say(
             user["user_id"],
             "Демо-урок: вы смотрите урок глазами учителя, класс и учитель — запись урока истории. "
             "Ассистент слушает каждого ученика, и в панели класса растут шкалы участия. "
@@ -588,11 +656,11 @@ class Bot:
     def summary(self, user_id: int, text: str, class_id: int | None) -> None:
         """Сводка учителю после урока (#21): под ней «Начать урок» следующего урока класса."""
         buttons = [[self.open_app("Начать урок", f"c{class_id}")]] if class_id is not None else None
-        self.api.send(user_id, text, buttons, markdown=True)
+        self.say(user_id, text, buttons, markdown=True)
 
     def card(self, user_id: int, text: str) -> None:
         """Карточка ученику: кнопок нет, её читают и закрывают."""
-        self.api.send(user_id, text, markdown=True)
+        self.say(user_id, text, markdown=True)
 
     def open_app(self, text: str, payload: str) -> dict:
         """Кнопка, которая открывает мини-приложение бота; payload приходит в start_param.
