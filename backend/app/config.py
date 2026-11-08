@@ -19,7 +19,6 @@ class Settings:
     demo_lesson_dir: Path = ROOT / os.getenv("DEMO_LESSON_DIR", "data/demo_lesson")
     # Длина урока для шкалы: от неё зависят смягчение нормы и «давно не отвечал»
     lesson_minutes: float = float(os.getenv("LESSON_MINUTES", "40"))
-    public_url: str = os.getenv("PUBLIC_URL", "")
 
     livekit_url: str = os.getenv("LIVEKIT_URL", "ws://localhost:7880")
     livekit_public_url: str = os.getenv("LIVEKIT_PUBLIC_URL", "ws://localhost:7880")
@@ -28,7 +27,6 @@ class Settings:
 
     max_bot_token: str = os.getenv("MAX_BOT_TOKEN", "")
     max_api_url: str = os.getenv("MAX_API_URL", "https://platform-api2.max.ru")
-    max_bot_mode: str = os.getenv("MAX_BOT_MODE", "polling")
     # имя бота нужно кнопке, которая открывает его мини-приложение
     max_bot_name: str = os.getenv("MAX_BOT_NAME", "")
     # подпись сессий мини-приложения (#24); без неё — производная от токена бота
@@ -52,7 +50,6 @@ class Settings:
     llm_model: str = os.getenv("LLM_MODEL", "")
 
     database_url: str = os.getenv("DATABASE_URL", "sqlite:///./lesson_assistant.sqlite3")
-    redis_url: str = os.getenv("REDIS_URL", "")
 
 
 settings = Settings()

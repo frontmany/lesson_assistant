@@ -17,8 +17,7 @@ API: https://platform-api2.max.ru, токен в заголовке Authorizatio
   ученики получают «Урок начался» (сервер зовёт lesson_started);
 - демо: свой урок, где человек — учитель, а класс заходит записью (#18).
 
-Для разработки — long polling (GET /updates), для боевого режима — webhook
-по HTTPS (POST /subscriptions). Одновременно работает только один способ.
+Обновления бот получает через long polling (GET /updates), и локально, и на сервере.
 Бот работает внутри сервера, в своём потоке (start_in_background).
 
 Отдельно, без сервера: python -m app.bot.max_bot
