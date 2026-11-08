@@ -1,4 +1,4 @@
-# Полный стек: приложение, звонок (LiveKit), PostgreSQL и Redis.
+# Полный стек: приложение, звонок (LiveKit) и PostgreSQL.
 #   docker compose up --build
 # Мини-приложение: http://localhost:8000
 services:
@@ -11,7 +11,6 @@ services:
     environment:
       LIVEKIT_URL: ws://livekit:7880
       DATABASE_URL: postgresql://assistant:assistant@postgres:5432/assistant
-      REDIS_URL: redis://redis:6379/0
     ports:
       - "8000:8000"
     volumes:
@@ -24,8 +23,6 @@ services:
       # готовности приложение стартует раньше и падает на «Connection refused» (#30)
       postgres:
         condition: service_healthy
-      redis:
-        condition: service_started
 
   # SFU: принимает звук каждого участника и раздаёт остальным.
   # --dev: ключи devkey/secret, только для локальной разработки.
@@ -54,9 +51,6 @@ services:
       interval: 2s
       timeout: 3s
       retries: 30
-
-  redis:
-    image: redis:7-alpine
 
 volumes:
   pgdata:
