@@ -2,6 +2,7 @@
 
 import pytest
 
+from app.bot import max_bot
 from app.bot.max_bot import Bot, students_count
 from app.db import classes as db
 
@@ -13,12 +14,20 @@ class FakeApi:
     def __init__(self) -> None:
         self.sent: list[tuple[int, str, list | None]] = []
         self.answers: list[tuple[str, str]] = []
+        self.edits: list[tuple[str, str, list | None]] = []
 
-    def send(self, user_id, text, buttons=None):
+    def send(self, user_id, text, buttons=None, markdown=False):
         self.sent.append((user_id, text, buttons))
+        return f"mid{len(self.sent)}"
 
-    def answer(self, callback_id, notification=None, message=None):
+    def edit(self, mid, text, buttons=None, markdown=False, image=None):
+        self.edits.append((mid, text, buttons))
+
+    def answer(self, callback_id, notification=None, message=None, buttons=None, markdown=False, image=None, user_id=None):
         self.answers.append((callback_id, notification or message))
+        if message is not None and user_id is not None:
+            # нажатое сообщение заменено следующим шагом: в переписке человека это его последнее сообщение
+            self.sent.append((user_id, message, buttons))
 
     uploads = 0
     upload_fails = False
@@ -33,6 +42,7 @@ class FakeApi:
     def send_image(self, user_id, token, text, buttons=None):
         self.sent.append((user_id, text, buttons))
         self.images = [*getattr(self, "images", []), (user_id, token)]
+        return f"mid{len(self.sent)}"
 
     def to(self, user_id):
         return [(text, buttons) for u, text, buttons in self.sent if u == user_id]
@@ -51,9 +61,12 @@ def text(user_id, body, is_bot=False, **name):
             "message": {"sender": {**user(user_id, **name), "is_bot": is_bot}, "body": {"text": body}}}
 
 
-def press(user_id, payload, **name):
-    return {"update_type": "message_callback",
-            "callback": {"callback_id": "cb", "payload": payload, "user": user(user_id, **name)}}
+def press(user_id, payload, mid=None, **name):
+    update = {"update_type": "message_callback",
+              "callback": {"callback_id": "cb", "payload": payload, "user": user(user_id, **name)}}
+    if mid:
+        update["message"] = {"body": {"mid": mid}}  # сообщение, где нажали кнопку
+    return update
 
 
 def buttons(message):
@@ -332,7 +345,8 @@ def test_bots_are_ignored(bot):
 def test_unknown_buttons_are_answered(bot):
     b, api = bot
     b.handle(press(MARIA, "role:teacher"))
-    assert api.answers == [("cb", "Эта кнопка больше не нужна")]
+    # кнопки больше нет: на её месте — приветствие с выбором роли
+    assert api.answers == [("cb", "Здравствуйте! Я помогаю вести уроки в MAX. Кто вы?")]
 
 
 def test_students_are_counted_in_russian():
@@ -373,7 +387,9 @@ def test_confirm_button_is_removed_after_press(bot):
     b, api = bot
     c = make_class(b)
     b.handle(press(TEACHER, f"newlink_yes:{c.id}"))
-    assert api.answers[-1] == ("cb", "Создана новая ссылка для 10А, история.")
+    # вопрос заменён новой ссылкой на месте, кнопки «Создать ссылку» больше нет
+    assert api.answers[-1][1].startswith("Новая ссылка для 10А")
+    assert api.to(TEACHER)[-1][1] is None
 
 
 def test_rename_after_this_is_me_changes_name(bot):
@@ -464,8 +480,41 @@ def test_menu_follows_current_role(bot):
     db.set_role(TEACHER, "teacher")
     before = len(api.to(TEACHER))
     b.handle(press(TEACHER, "begin"))
-    new = api.to(TEACHER)[before:]
+    new = [m for m in api.to(TEACHER)[before:] if m[0] != max_bot.INTRO]  # вступление остаётся, без кнопки
     assert len(new) == 1 and new[0][0].startswith("Ваши классы:")
     db.set_role(TEACHER, "student")
     b.handle(press(TEACHER, "begin"))
     assert api.to(TEACHER)[-1][0].startswith("Вы в классе 7Б, физика")
+
+
+
+# ---------- кнопки живые только у последнего сообщения ----------
+
+
+def test_navigation_replaces_pressed_message(bot):
+    """Шаги по меню встают на место нажатого сообщения, а не копятся в чате."""
+    b, api = bot
+    b.handle(started(MARIA))
+    b.handle(press(MARIA, "begin", mid="mid1"))
+    count = len(api.sent)
+    b.handle(press(MARIA, "teacher", mid="mid3"))
+    assert api.answers[-1][1].startswith("Создадим первый класс")  # вместо «Кто вы?»
+    b.handle(press(MARIA, "back", mid="mid3"))
+    assert api.answers[-1][1] == "Здравствуйте! Я помогаю вести уроки в MAX. Кто вы?"
+    assert len([m for m in api.sent[count:] if m[0] == MARIA]) == 2  # те же два экрана, новых сообщений нет
+
+
+def test_new_message_takes_buttons_from_previous(bot):
+    """Бот пишет новое сообщение — у прошлого сообщения этому человеку кнопки снимаются."""
+    b, api = bot
+    b.handle(press(TEACHER, "teacher", mid="m0"))  # «Напишите название» с кнопкой «Назад»
+    b.handle(text(TEACHER, "10А, история"))  # ответ текстом — новые сообщения
+    assert api.edits and api.edits[0][0] == "m0" and api.edits[0][2] is None
+
+
+def test_intro_keeps_cover_without_button(bot):
+    b, api = bot
+    b.handle(started(MARIA))
+    b.handle(press(MARIA, "begin", mid="mid1"))
+    assert api.answers[-1] == ("cb", max_bot.INTRO)  # вступление на месте, без «Начать»
+    assert api.to(MARIA)[-1][0].endswith("Кто вы?")

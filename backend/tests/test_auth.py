@@ -254,6 +254,9 @@ def test_exit_in_app_sends_role_choice_again(monkeypatch):
         def send(self, user_id, text, buttons=None, markdown=False):
             sent.append((user_id, text, buttons))
 
+        def edit(self, *a, **kw):
+            pass
+
     monkeypatch.setattr(max_bot, "_bot", max_bot.Bot(Api(), "ideya_bot"))
     assert client.post("/api/me/exit", headers=sign_in(MARIA)).status_code == 200
     (user_id, text, buttons), = sent
@@ -279,6 +282,9 @@ def test_role_is_shared_by_bot_and_app(monkeypatch):
 
     class Api:
         def send(self, *a, **kw):
+            pass
+
+        def edit(self, *a, **kw):
             pass
 
         def answer(self, *a, **kw):
