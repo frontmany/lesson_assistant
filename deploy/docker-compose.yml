@@ -1,0 +1,44 @@
+# Сервер: приложение, LiveKit и Caddy с HTTPS.
+#   docker compose up -d
+# Рядом лежат .env приложения, livekit.yaml и Caddyfile. Подробности в docs/deploy.md
+services:
+  app:
+    image: lesson_assistant-app:latest
+    env_file: .env
+    environment:
+      # LiveKit работает в сети хоста, приложение ходит к нему через шлюз Docker
+      LIVEKIT_URL: ws://host.docker.internal:7880
+      DATABASE_URL: sqlite:////srv/state/lesson_assistant.sqlite3
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    ports:
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - state:/srv/state
+    restart: unless-stopped
+
+  # Сеть хоста: звонку нужны UDP порты и настоящий адрес машины
+  livekit:
+    image: livekit/livekit-server:v1.13.7
+    command: --config /etc/livekit.yaml
+    network_mode: host
+    environment:
+      LIVEKIT_KEYS: "${LIVEKIT_API_KEY}: ${LIVEKIT_API_SECRET}"
+    volumes:
+      - ./livekit.yaml:/etc/livekit.yaml:ro
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2.10-alpine
+    network_mode: host
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN}
+      LIVEKIT_DOMAIN: ${LIVEKIT_DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy:/data
+    restart: unless-stopped
+
+volumes:
+  state:
+  caddy:
