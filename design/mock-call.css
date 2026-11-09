@@ -1,5 +1,4 @@
-/* Только то, чего в макете нет без LiveKit: камера и показ экрана — картинкой вместо видео.
-   Всё остальное — настоящие стили приложения (webapp/css). */
+/* Камера и показ экрана картинкой вместо видео */
 
 .fakecam { position: absolute; inset: 0; background: hsl(var(--h) 30% 62%); overflow: hidden; }
 .fakecam::before {

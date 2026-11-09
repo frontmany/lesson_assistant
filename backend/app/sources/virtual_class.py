@@ -1,22 +1,4 @@
-"""Виртуальный класс: записанный урок заходит в звонок ботами.
-
-Две роли. Инструмент разработки и замеров: каждая дорожка заходит в комнату
-LiveKit отдельным участником и «говорит» свою запись, для ассистента это
-неотличимо от живых людей, поэтому так проверяется весь путь: звонок →
-скрытый участник → конвейер. И демо: учитель или гость показывают урок
-в одиночку, а записанный класс заходит вместо учеников (#45).
-
-Идея взята из медиабота Callifornia: синтетические участники звонка.
-
-Одна дорожка = один участник. Имя файла = id из roster.json
-(teacher.wav, ivan_i.wav, ...). Формат: WAV, 16 кГц, моно, 16 бит.
-Все дорожки одинаковой длины и начинаются в одну секунду.
-
-identity бота — «virtual-» + id: живой учитель с id «teacher» сидит в той же
-комнате, а LiveKit выкидывает второго участника с тем же identity.
-
-Запуск: python -m app.cli virtual-class data/demo_lesson --lesson <id>
-"""
+"""Записанный урок заходит в звонок ботами, одна дорожка на участника"""
 
 import asyncio
 import logging
@@ -34,7 +16,7 @@ log = logging.getLogger(__name__)
 
 PREFIX = "virtual-"
 SAMPLE_RATE = 16_000
-FRAME = SAMPLE_RATE * 30 // 1000  # кадр 30 мс
+FRAME = SAMPLE_RATE * 30 // 1000
 
 
 def virtual_id(participant_id: str) -> str:
@@ -42,16 +24,7 @@ def virtual_id(participant_id: str) -> str:
 
 
 def lesson_roster(roster: Roster, demo: Roster, keep_class: bool = False) -> Roster:
-    """Состав урока с виртуальным классом: живой учитель и ученики из записи.
-
-    keep_class — урок настоящего класса: его ученики остаются рядом с виртуальными.
-    У демо-урока и урока из roster.json состав и есть запись, и без замены
-    в панели учителя было бы 12 человек. Без виртуальных учеников конвейер
-    отбросил бы ботов как посторонних. Учитель из записи идёт отдельно: для
-    конвейера он учитель, а не ученик. В состав класса и в норму ученики из
-    записи не попадают (db.results).
-    """
-    # full_name — фамилии для обращения по фамилии (#76), если они есть в roster.json записи
+    """Состав урока с живым учителем и учениками из записи"""
     virtual = [Student(id=virtual_id(s.id), name=s.name, full_name=s.full_name, virtual=True) for s in demo.students]
     teacher = Student(id=virtual_id(demo.teacher.id), name=demo.teacher.name, virtual=True)
     students = [*roster.students, *virtual] if keep_class else virtual
@@ -59,11 +32,7 @@ def lesson_roster(roster: Roster, demo: Roster, keep_class: bool = False) -> Ros
 
 
 def load_tracks(lesson_dir: Path) -> tuple[Roster, list[Path]]:
-    """Состав записанного урока и его дорожки.
-
-    Дорожки лежат в Git LFS: без `git lfs pull` вместо них указатели по сотне
-    байт, и проигрывать нечего — тогда ошибка с подсказкой.
-    """
+    """Без git lfs pull дорожек нет, тогда ошибка с подсказкой"""
     roster = Roster.model_validate_json((lesson_dir / "roster.json").read_text(encoding="utf-8"))
     tracks = sorted((lesson_dir / "tracks").glob("*.wav"))
     pointers = [t.name for t in tracks if t.read_bytes()[:7] == b"version"]
@@ -83,12 +52,6 @@ def read_track(path: Path) -> np.ndarray:
 
 
 async def play(lesson_id: str, roster: Roster, tracks: list[Path], stop: asyncio.Event | None = None) -> None:
-    """Завести в комнату урока по боту на дорожку и проиграть запись в реальном времени.
-
-    Боты сначала все входят в комнату, потом одновременно начинают говорить,
-    чтобы реплики шли с теми же паузами, что в записи. Заканчивается, когда
-    кончилась запись или выставлен stop; боты выходят из комнаты.
-    """
     stop = stop or asyncio.Event()
     names = {p.id: p.name for p in [roster.teacher, *roster.students]}
     everyone_in = asyncio.Barrier(len(tracks))
@@ -111,7 +74,7 @@ async def play(lesson_id: str, roster: Roster, tracks: list[Path], stop: asyncio
                 chunk = pcm[i : i + FRAME]
                 if len(chunk) < FRAME:
                     chunk = np.pad(chunk, (0, FRAME - len(chunk)))
-                # capture_frame ждёт, когда очередь источника заполнена: так звук идёт в реальном времени
+                # capture_frame держит реальное время
                 await source.capture_frame(rtc.AudioFrame(chunk.tobytes(), SAMPLE_RATE, 1, FRAME))
             if not stop.is_set():
                 await source.wait_for_playout()

@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Урок: учитель</title>
-  <!-- Экран звонка учителя по макету design/teacher-call.html (#4, #7). Логика — js/teacher.js -->
+  <!-- Экран звонка учителя, логика в teacher.js -->
   <link rel="stylesheet" href="css/tokens.css">
   <link rel="stylesheet" href="css/call.css">
 </head>
@@ -27,7 +27,6 @@
     <symbol id="check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>  </svg>
 
   <div class="app">
-    <!-- До входа, подключение и нет микрофона -->
     <div class="lobby" id="lobby">
       <button class="back" id="lobbyBack" aria-label="К классам"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
       <div class="preview tile" id="preview">
@@ -44,13 +43,11 @@
       </div>
     </div>
 
-    <!-- В уроке -->
     <div class="body" id="call" hidden>
       <section class="stage" id="stage" aria-label="Участники звонка">
         <div class="banner" id="banner" hidden><span class="spin"></span>Связь пропала. Переподключаемся…</div>
         <div class="tiles" id="tiles"></div>
         <div class="share" id="share" hidden><div class="shared" id="shared"><span class="you" id="sharedBy"></span></div><div class="strip" id="strip"></div></div>
-        <!-- страницы плиток: на компьютере стрелки по бокам, на телефоне свайп; точки — где мы -->
         <button class="side prev" id="prev" aria-label="Предыдущая страница" hidden><svg class="i"><use href="#chev-l"/></svg></button>
         <button class="side next" id="next" aria-label="Следующая страница" hidden><svg class="i"><use href="#chev-r"/></svg></button>
         <div class="dots" id="pager" aria-hidden="true" hidden></div>
@@ -73,7 +70,6 @@
       <button class="cbtn leave" id="btnLeave" aria-label="Завершить урок" title="Завершить урок"><svg class="i"><use href="#leave"/></svg></button>
     </footer>
 
-    <!-- Урок завершён -->
     <div class="lobby ended" id="ended" hidden>
       <div class="lobby-text">
         <span class="done"><svg class="i"><use href="#check"/></svg></span>

@@ -1,4 +1,4 @@
-"""Бот MAX без сети: обновления на входе, сообщения на выходе (#44, шаги — design/bot-registration.html)."""
+"""Бот MAX без сети"""
 
 import pytest
 
@@ -26,7 +26,6 @@ class FakeApi:
     def answer(self, callback_id, notification=None, message=None, buttons=None, markdown=False, image=None, user_id=None):
         self.answers.append((callback_id, notification or message))
         if message is not None and user_id is not None:
-            # нажатое сообщение заменено следующим шагом: в переписке человека это его последнее сообщение
             self.sent.append((user_id, message, buttons))
 
     uploads = 0
@@ -65,7 +64,7 @@ def press(user_id, payload, mid=None, **name):
     update = {"update_type": "message_callback",
               "callback": {"callback_id": "cb", "payload": payload, "user": user(user_id, **name)}}
     if mid:
-        update["message"] = {"body": {"mid": mid}}  # сообщение, где нажали кнопку
+        update["message"] = {"body": {"mid": mid}}
     return update
 
 
@@ -98,11 +97,10 @@ def join(b, user_id, code, **name):
 def test_stranger_chooses_teacher_student_or_demo(bot):
     b, api = bot
     b.handle(started(MARIA))
-    b.handle(press(MARIA, "begin"))  # «Начать» под вступлением
+    b.handle(press(MARIA, "begin"))
     message = api.to(MARIA)[-1]
     assert message[0] == "Здравствуйте! Я помогаю вести уроки в MAX. Кто вы?"
     assert [x["text"] for x in buttons(message)] == ["Я учитель", "Я ученик", "Посмотреть демо"]
-    # демо открывается в мини-приложении сразу, без второго сообщения
     assert buttons(message)[2]["type"] == "open_app" and buttons(message)[2]["payload"] == "demo"
 
 
@@ -125,7 +123,6 @@ def test_back_returns_to_role_choice(bot):
     assert [x["text"] for x in buttons(api.to(MARIA)[-1])] == ["Назад"]
     b.handle(press(MARIA, "back"))
     assert api.to(MARIA)[-1][0] == "Здравствуйте! Я помогаю вести уроки в MAX. Кто вы?"
-    # бот больше не ждёт название: обычный текст не создаёт класс
     b.handle(text(MARIA, "10А, история"))
     assert db.classes_of(MARIA) == []
     b.handle(press(MARIA, "student"))
@@ -177,8 +174,8 @@ def test_student_types_code_with_russian_lookalikes(bot):
 
 
 def test_code_readings():
-    assert "K7X2M9" in db.code_candidates("Л7Ч2Ь9")  # русская раскладка
-    assert "K7X2M9" in db.code_candidates("к7х2м9")  # похожие русские буквы
+    assert "K7X2M9" in db.code_candidates("Л7Ч2Ь9")
+    assert "K7X2M9" in db.code_candidates("к7х2м9")
     assert "K7X2M9" in db.code_candidates(" k7x-2m9 ")
 
 
@@ -273,7 +270,7 @@ def test_known_teacher_sees_classes_and_starts_lesson(bot):
     b.handle(text(TEACHER, "привет"))
     empty = api.to(TEACHER)[-1]
     assert empty[0].startswith("Ваши классы:\n10А, история — 0 учеников\n\nУрок можно начать, когда в классе")
-    assert "Начать урок" not in [x["text"] for x in buttons(empty)]  # в пустом классе урок не начать
+    assert "Начать урок" not in [x["text"] for x in buttons(empty)]
     join(b, IVAN, c.invite_code)
     b.handle(text(TEACHER, "привет"))
     menu = api.to(TEACHER)[-1]
@@ -305,7 +302,6 @@ def test_students_get_lesson_started_and_late_joiner_too(bot):
     message = api.to(IVAN)[-1]
     assert message[0] == "Урок начался: 10А, история."
     assert buttons(message)[0]["payload"] == f"l{lesson.id}"
-    # кто вошёл в класс во время урока, сразу получает приглашение
     join(b, MARIA, c.invite_code, first="Мария", last="Смирнова")
     assert api.to(MARIA)[-1][0] == "Урок начался: 10А, история."
 
@@ -345,7 +341,6 @@ def test_bots_are_ignored(bot):
 def test_unknown_buttons_are_answered(bot):
     b, api = bot
     b.handle(press(MARIA, "role:teacher"))
-    # кнопки больше нет: на её месте — приветствие с выбором роли
     assert api.answers == [("cb", "Здравствуйте! Я помогаю вести уроки в MAX. Кто вы?")]
 
 
@@ -355,7 +350,7 @@ def test_students_are_counted_in_russian():
 
 
 def test_bot_waits_for_max_at_start():
-    # MAX недоступен при старте сервера: поток бота ждёт, а не умирает
+    # MAX недоступен при старте, поток бота ждёт
     import threading
 
     import httpx
@@ -374,26 +369,20 @@ def test_bot_waits_for_max_at_start():
 
     stop = threading.Event()
     http = httpx.Client(base_url="https://max.test", transport=httpx.MockTransport(answer))
-    stop.wait = lambda timeout=None: False  # без настоящего ожидания
+    stop.wait = lambda timeout=None: False
     assert max_bot._whoami(http, stop)["username"] == "ideya_bot"
     assert len(calls) == 3
 
 
-# ---------- #98: пункты 15–19 ----------
-
-
 def test_confirm_button_is_removed_after_press(bot):
-    # «Создать ссылку» второй раз не нажать: вопрос меняется на ответ, кнопки убираются (п. 15)
     b, api = bot
     c = make_class(b)
     b.handle(press(TEACHER, f"newlink_yes:{c.id}"))
-    # вопрос заменён новой ссылкой на месте, кнопки «Создать ссылку» больше нет
     assert api.answers[-1][1].startswith("Новая ссылка для 10А")
     assert api.to(TEACHER)[-1][1] is None
 
 
 def test_rename_after_this_is_me_changes_name(bot):
-    # «Изменить имя» после «Это я» — имя меняется (п. 17)
     b, api = bot
     c = make_class(b)
     join(b, IVAN, c.invite_code)
@@ -404,7 +393,6 @@ def test_rename_after_this_is_me_changes_name(bot):
 
 
 def test_link_is_accepted_on_code_step_and_wrong_code_has_back(bot):
-    # ученик прислал ссылку вместо кода (п. 18)
     b, api = bot
     c = make_class(b)
     b.handle(press(IVAN, "student"))
@@ -418,7 +406,6 @@ def test_link_is_accepted_on_code_step_and_wrong_code_has_back(bot):
 
 
 def test_removed_student_and_class_of_deleted_class_are_told(bot):
-    # убранный ученик и ученики удалённого класса узнают об этом (п. 19)
     b, api = bot
     c = make_class(b)
     join(b, IVAN, c.invite_code)
@@ -429,13 +416,8 @@ def test_removed_student_and_class_of_deleted_class_are_told(bot):
     assert api.to(IVAN)[-1][0] == "Учитель вернул вас в класс 10А, история. Когда начнётся урок, я напишу."
     b.handle(press(TEACHER, f"delete_yes:{c.id}"))
     assert api.to(IVAN)[-1][0] == "Учитель удалил класс 10А, история. Уроков в нём больше не будет."
-    # ссылка удалённого класса не отвечает «Вы в классе» даже бывшему участнику
     b.handle(started(IVAN, c.invite_code))
     assert api.to(IVAN)[-1][0] == "Этот класс удалён. Спросите у учителя."
-
-
-
-# ---------- /start: что это за бот ----------
 
 
 def test_start_sends_intro_with_cover_and_begin_button(bot):
@@ -444,13 +426,11 @@ def test_start_sends_intro_with_cover_and_begin_button(bot):
     b, api = bot
     b.handle(started(MARIA))
     intro = api.to(MARIA)
-    # одно сообщение: обложка, пояснение и «Начать»; «Кто вы?» — только по кнопке
     assert len(intro) == 1 and intro[0][0] == INTRO and "Сферум AI" in INTRO
     assert api.images == [(MARIA, "token-1")]
     assert [x["text"] for x in buttons(intro[0])] == ["Начать"]
     b.handle(press(MARIA, payload_of(intro[0], "Начать")))
     assert api.to(MARIA)[-1][0] == "Здравствуйте! Я помогаю вести уроки в MAX. Кто вы?"
-    # /start текстом — то же самое, обложка не грузится второй раз
     b.handle(text(MARIA, "/start"))
     assert api.to(MARIA)[-1][0] == INTRO and api.uploads == 1
 
@@ -472,43 +452,36 @@ def test_start_without_cover_still_explains(bot):
 
 
 def test_menu_follows_current_role(bot):
-    # учитель, который где-то ещё и ученик, получает только меню учителя — и наоборот
     b, api = bot
-    c = make_class(b)  # TEACHER — учитель 10А
+    c = make_class(b)
     other = db.create_class(MARIA, "Мария Смирнова", "7Б", "физика")
-    db.join(other.id, TEACHER, "Елена Викторовна")  # и ученик в чужом классе
+    db.join(other.id, TEACHER, "Елена Викторовна")
     db.set_role(TEACHER, "teacher")
     before = len(api.to(TEACHER))
     b.handle(press(TEACHER, "begin"))
-    new = [m for m in api.to(TEACHER)[before:] if m[0] != max_bot.INTRO]  # вступление остаётся, без кнопки
+    new = [m for m in api.to(TEACHER)[before:] if m[0] != max_bot.INTRO]
     assert len(new) == 1 and new[0][0].startswith("Ваши классы:")
     db.set_role(TEACHER, "student")
     b.handle(press(TEACHER, "begin"))
     assert api.to(TEACHER)[-1][0].startswith("Вы в классе 7Б, физика")
 
 
-
-# ---------- кнопки живые только у последнего сообщения ----------
-
-
 def test_navigation_replaces_pressed_message(bot):
-    """Шаги по меню встают на место нажатого сообщения, а не копятся в чате."""
     b, api = bot
     b.handle(started(MARIA))
     b.handle(press(MARIA, "begin", mid="mid1"))
     count = len(api.sent)
     b.handle(press(MARIA, "teacher", mid="mid3"))
-    assert api.answers[-1][1].startswith("Создадим первый класс")  # вместо «Кто вы?»
+    assert api.answers[-1][1].startswith("Создадим первый класс")
     b.handle(press(MARIA, "back", mid="mid3"))
     assert api.answers[-1][1] == "Здравствуйте! Я помогаю вести уроки в MAX. Кто вы?"
-    assert len([m for m in api.sent[count:] if m[0] == MARIA]) == 2  # те же два экрана, новых сообщений нет
+    assert len([m for m in api.sent[count:] if m[0] == MARIA]) == 2
 
 
 def test_new_message_takes_buttons_from_previous(bot):
-    """Бот пишет новое сообщение — у прошлого сообщения этому человеку кнопки снимаются."""
     b, api = bot
-    b.handle(press(TEACHER, "teacher", mid="m0"))  # «Напишите название» с кнопкой «Назад»
-    b.handle(text(TEACHER, "10А, история"))  # ответ текстом — новые сообщения
+    b.handle(press(TEACHER, "teacher", mid="m0"))
+    b.handle(text(TEACHER, "10А, история"))
     assert api.edits and api.edits[0][0] == "m0" and api.edits[0][2] is None
 
 
@@ -516,5 +489,5 @@ def test_intro_keeps_cover_without_button(bot):
     b, api = bot
     b.handle(started(MARIA))
     b.handle(press(MARIA, "begin", mid="mid1"))
-    assert api.answers[-1] == ("cb", max_bot.INTRO)  # вступление на месте, без «Начать»
+    assert api.answers[-1] == ("cb", max_bot.INTRO)
     assert api.to(MARIA)[-1][0].endswith("Кто вы?")

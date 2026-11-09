@@ -1,31 +1,17 @@
-﻿# Показ без сервера: урок из MAX через туннели Cloudflare на локальный стек (#75).
-#
-#   powershell -ExecutionPolicy Bypass -File scripts\tunnel.ps1                 # строку для config.js вписать вручную
-#   powershell -ExecutionPolicy Bypass -File scripts\tunnel.ps1 -UpdateConfig   # скрипт сам пушит адрес в config.js (нужен gh)
-#
-# То же, что scripts/tunnel.sh: два быстрых туннеля Cloudflare — на приложение
-# (localhost:8000) и на LiveKit (localhost:7880), адрес LiveKit в .env, DEV_AUTH=0,
-# перезапуск app и строка для config.js в репозитории sferum-ai. Следит за
-# туннелями и поднимает их заново. Ctrl+C закрывает туннели и возвращает .env.
-#
-# cloudflared берётся из системы (winget install Cloudflare.cloudflared),
-# а если его нет — из Docker-образа. Звук идёт мимо туннеля, напрямую на
-# LIVEKIT_NODE_IP: только в той же Wi-Fi-сети.
+﻿# Показ без сервера через туннели Cloudflare на локальный стек
 
 param([switch]$UpdateConfig)
 
-# Не "Stop": Windows PowerShell 5.1 считает ошибкой любую строку stderr у docker и gh,
-# даже при успехе, а docker compose пишет туда ход работы. Ошибки ловим по $LASTEXITCODE.
-# Файл в UTF-8 с BOM: без него 5.1 читает его в кодировке Windows и не может разобрать
+# Не Stop, потому что PowerShell 5.1 считает ошибкой любой вывод в stderr, а BOM в файле ему нужен для кодировки
 $ErrorActionPreference = "Continue"
 Set-Location (Join-Path $PSScriptRoot "..")
 
 $AppPort = 8000
 $LiveKitPort = 7880
 $Image = "cloudflare/cloudflared:2025.11.1"
-$State = ".tunnel"            # логи туннелей, в git не идёт
+$State = ".tunnel"
 $CheckEverySec = 15
-$FailsToRestart = 3           # столько проверок подряд без ответа — туннель поднимаем заново
+$FailsToRestart = 3
 $Ports = @{ app = $AppPort; livekit = $LiveKitPort }
 $ConfigRepo = "frontmany/sferum-ai"
 
@@ -49,8 +35,7 @@ function Get-EnvValue($key) {
 }
 
 function Set-EnvValue($key, $value) {
-    # заменить строку KEY=… или дописать её; UTF-8 без BOM, иначе compose прочтёт первый ключ с мусором.
-    # Читаем тоже как UTF-8: 5.1 по умолчанию читает в кодировке Windows и портит русские комментарии
+    # файл без BOM, иначе compose прочтёт первый ключ с мусором
     $lines = @(Get-Content .env -Encoding UTF8)
     $found = $false
     $lines = foreach ($line in $lines) {
@@ -70,7 +55,7 @@ $Fails = @{}
 function Start-Tunnel($name) {
     $port = $Ports[$name]
     $log = Join-Path $State "$name.log"
-    if (Test-Path $log) { Move-Item $log "$log.prev" -Force }  # лог упавшего туннеля — чтобы понять, почему упал
+    if (Test-Path $log) { Move-Item $log "$log.prev" -Force }
     if ($InDocker) {
         docker rm -f "lesson-tunnel-$name" 2>$null | Out-Null
         $argList = "run --rm --name lesson-tunnel-$name --add-host host.docker.internal:host-gateway $Image " +
@@ -99,14 +84,14 @@ function Start-Tunnel($name) {
 
 function Stop-Tunnel($name) {
     if (-not $Proc[$name]) { return }
-    # контейнер останавливаем по имени: убитый docker run его не гасит
+    # убитый docker run контейнер не гасит
     if ($InDocker) { docker rm -f "lesson-tunnel-$name" 2>$null | Out-Null }
     if (-not $Proc[$name].HasExited) { Stop-Process -Id $Proc[$name].Id -Force -ErrorAction SilentlyContinue }
     $Proc[$name] = $null
 }
 
 function Restart-App {
-    # env_file читается при создании контейнера, поэтому пересоздаём
+    # env_file читается при создании контейнера
     docker compose up -d --force-recreate app 2>$null | Out-Null
     for ($i = 0; $i -lt 60; $i++) {
         try { Invoke-WebRequest "http://localhost:$AppPort/api/health" -UseBasicParsing -TimeoutSec 3 -ErrorAction Stop | Out-Null; return }
@@ -125,12 +110,10 @@ function Get-ConfigFile {
 }
 
 function Get-ConfigUrl {
-    # прежний адрес из config.js: его вернём после Ctrl+C
     if ((Get-ConfigFile).text -match '(?m)^window\.APP_URL = "(.*)";') { $Matches[1] } else { "check.html" }
 }
 
 function Set-ConfigUrl($url, $reason) {
-    # заменить адрес в config.js репозитория sferum-ai через API GitHub; Pages пересобирается за минуту
     $file = Get-ConfigFile
     $old = $file.text
     $new = $old -replace '(?m)^window\.APP_URL = ".*";', "window.APP_URL = `"$url`";"
@@ -158,7 +141,6 @@ function Show-Addresses {
 }
 
 function Test-Tunnel($name) {
-    # процесс жив, в логе нет «Tunnel not found», и через туннель отвечает сервис
     if ($Proc[$name].HasExited) { return $false }
     if (Select-String -Path (Join-Path $State "$name.log") -Pattern 'tunnel not found' -Quiet) { return $false }
     $path = if ($name -eq "app") { "/api/health" } else { "/" }
@@ -178,7 +160,6 @@ try {
         if (-not (Start-Tunnel $name)) { throw "Туннель $name не поднялся" }
     }
     Set-LiveKitUrl
-    # через туннель урок открывают из MAX: вход по данным запуска, без ?id=
     Set-EnvValue "DEV_AUTH" "0"
     Restart-App
     Show-Addresses
@@ -195,7 +176,7 @@ try {
             else { continue }
             Write-Host "$(Get-Date -Format HH:mm:ss) туннель $name пропал ($reason), поднимаю заново; прошлый лог — $State\$name.log.prev"
             Stop-Tunnel $name
-            while (-not (Start-Tunnel $name)) { Start-Sleep $CheckEverySec }  # нет сети — пробуем, пока не появится
+            while (-not (Start-Tunnel $name)) { Start-Sleep $CheckEverySec }
             if ($name -eq "livekit") { Set-LiveKitUrl; Restart-App }
             Show-Addresses
             if ($name -eq "app" -and -not $UpdateConfig) { Write-Host "Адрес приложения сменился: обновите config.js" }
@@ -211,7 +192,6 @@ finally {
     Set-EnvValue "DEV_AUTH" $(if ($OldDevAuth) { $OldDevAuth } else { "0" })
     Restart-App
     if ($UpdateConfig) {
-        # туннеля больше нет: возвращаем адрес, который был до запуска
         try { Set-ConfigUrl $OldConfigUrl "туннель закрыт" } catch { Write-Warning "Верните в config.js `"$OldConfigUrl`" вручную" }
     } else {
         Write-Host "Верните в config.js прежний адрес, иначе бот откроет мёртвую ссылку"

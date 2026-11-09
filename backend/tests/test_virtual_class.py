@@ -1,4 +1,4 @@
-"""Виртуальный класс без звонка: состав урока, дорожки, конвейер и API."""
+"""Виртуальный класс без звонка"""
 
 import asyncio
 import wave
@@ -25,18 +25,14 @@ def write_wav(path, seconds=1.0, rate=16000, channels=1):
 
 def test_lesson_roster_has_only_recorded_students():
     roster = lesson_roster(ROSTER, ROSTER)
-    # учеников класса нет: в панели шесть человек, а не двенадцать
     assert all(s.virtual for s in roster.students)
     assert [s.id for s in roster.students] == [PREFIX + s.id for s in ROSTER.students]
     assert [s.name for s in roster.students] == [s.name for s in ROSTER.students]
-    # живой учитель остаётся учителем, учитель из записи — отдельно
     assert roster.teacher.id == "teacher"
     assert roster.virtual_teacher.id == virtual_id("teacher") and roster.virtual_teacher.virtual
 
 
-
 def test_recorded_students_keep_full_names_for_surname_address():
-    # второй демо-урок (#84) зовёт учеников по фамилии: полное имя из roster.json не теряется (#76)
     named = [s.model_copy(update={"full_name": f"{s.name[:-3]} Тестов"}) for s in ROSTER.students]
     demo = ROSTER.model_copy(update={"students": named})
     roster = lesson_roster(ROSTER, demo)
@@ -82,7 +78,6 @@ def test_virtual_teacher_is_teacher_for_pipeline():
 
     context = asyncio.run(scenario())
     said = [e for e in events if e.type == "utterance"]
-    # виртуальный Артём — ученик урока, учитель из записи — учитель: его обращение засчитано
     assert [(e.student_id, e.kind, e.addressed) for e in said] == [(virtual_id("artem_k"), "response", True)]
     assert [item["student_id"] for item in context] == ["teacher", virtual_id("artem_k")]
 
@@ -95,11 +90,9 @@ def test_class_students_are_not_in_virtual_lesson_roster():
 
 def test_api_without_recording_explains_lfs():
     client = TestClient(app)
-    # в репозитории дорожки — указатели Git LFS, пока не выполнен git lfs pull
     response = client.post("/api/lessons/demo-x/virtual-class")
     if response.status_code == 503:
         assert "git lfs pull" in response.json()["detail"]
-    # урок не идёт: боты не играют, остановка безопасна
     assert client.delete("/api/lessons/10a-history-05/virtual-class").json() == {"lesson_id": "10a-history-05", "stopped": False}
 
 

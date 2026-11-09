@@ -1,14 +1,4 @@
-"""Прогон записанного урока через конвейер без звонка и сверка типов реплик с эталоном.
-
-    docker compose run --rm --no-deps -v "$PWD:/srv" -w /srv/backend app python -m analytics.replay_kinds
-    ... python -m analytics.replay_kinds --teacher small gigaam-v3-e2e-ctc
-
-Дорожки из data/demo_lesson подаются в transcribe_stream кадрами по 30 мс,
-в SPEEDUP раз быстрее реального времени; часы конвейера подменены временем
-записи, поэтому паузы между репликами те же, что на уроке. Для каждой модели
-учителя печатает речь учителя и совпадение типов реплик учеников с
-ground_truth.csv (ученики — на модели по умолчанию).
-"""
+"""Прогон записанного урока через конвейер и сверка типов реплик с эталоном"""
 
 import argparse
 import asyncio
@@ -25,12 +15,10 @@ from app.sources.virtual_class import FRAME, load_tracks, read_track
 
 SAMPLE_RATE = 16_000
 TICK_S = FRAME / SAMPLE_RATE
-SPEEDUP = 5  # быстрее нельзя: поиск речи не успеет, и конвейер начнёт сбрасывать кадры
+SPEEDUP = 5  # быстрее поиск речи не успевает
 
 
 class Clock:
-    """Часы конвейера: время записи, а не настоящее."""
-
     now = 0.0
 
     def monotonic(self) -> float:

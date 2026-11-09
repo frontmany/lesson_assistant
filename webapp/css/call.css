@@ -1,5 +1,4 @@
-/* Экран звонка учителя и ученика (#14). На этих же стилях собраны макеты design/*-call.html.
-   Своих цветов нет, всё из tokens.css. */
+/* Экран звонка учителя и ученика, цвета из tokens.css */
 
 * { box-sizing: border-box; }
 html, body { height: 100%; }
@@ -12,10 +11,9 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 .app { height: 100vh; height: 100dvh; display: flex; flex-direction: column; }
 .body { flex: 1; min-height: 0; display: flex; gap: 16px; padding: 16px; }
 
-/* Сцена с плитками */
 .stage { position: relative; flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: 8px; }
-/* размер плиток считает teacher.js (renderStage): прямоугольники одной формы, сетка по центру */
-.tiles { flex: 1; min-height: 0; overflow: hidden; display: grid; gap: 8px; justify-content: center; align-content: center; touch-action: pan-y; } /* горизонтальный свайп — листаем страницы */
+/* размер плиток считает stage.js */
+.tiles { flex: 1; min-height: 0; overflow: hidden; display: grid; gap: 8px; justify-content: center; align-content: center; touch-action: pan-y; }
 
 .tile {
   position: relative; min-width: 0; min-height: 0; overflow: hidden; container-type: size;
@@ -53,15 +51,12 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 .more-tile { background: var(--surface); color: var(--ink-soft); font-weight: 700; font-size: 20px; }
 .more-tile small { display: block; font-size: 13px; font-weight: 500; margin-top: 2px; }
 
-/* Значок аналитики: маленький, в углу */
 .ana {
   position: absolute; top: 8px; left: 8px; z-index: 2; width: 26px; height: 26px; border-radius: 50%;
   background: var(--scrim); color: var(--on-scrim); display: grid; place-items: center;
 }
 .ana .i { width: 16px; height: 16px; }
 
-/* Страницы плиток */
-/* Страницы плиток: стрелки по бокам сцены, по центру по высоте; точки под плитками */
 .side { position: absolute; top: 50%; z-index: 3; width: 40px; height: 40px; margin-top: -20px; border-radius: 50%;
   display: grid; place-items: center; background: var(--surface); border: 1px solid var(--line-strong); box-shadow: var(--shadow-float); }
 .side.prev { left: -6px; }
@@ -71,7 +66,6 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 .dots span { width: 6px; height: 6px; border-radius: 50%; background: var(--line-strong); }
 .dots span.on { background: var(--ink); }
 
-/* Демонстрация экрана */
 .share { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 200px; gap: 8px; }
 .shared {
   position: relative; border-radius: 12px; background: var(--slide); color: var(--on-slide); padding: 6% 7%;
@@ -85,7 +79,6 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 }
 .strip { display: grid; grid-template-rows: repeat(4, minmax(0, 1fr)); gap: 8px; min-height: 0; }
 
-/* Панель класса */
 .panel {
   width: 360px; flex: none; min-height: 0; display: flex; flex-direction: column;
   background: var(--surface); border-radius: var(--radius); border: 1px solid var(--line);
@@ -119,11 +112,10 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 .stu.compact .bar { height: 6px; }
 .stu.compact .stu-name { font-size: 14px; }
 
-/* Меню за троеточием */
 .menu {
   position: absolute; right: 0; top: calc(100% - 4px); z-index: 5; width: 280px; padding: 10px;
   background: var(--surface); border-radius: 12px; border: 1px solid var(--line);
-  box-shadow: var(--shadow-float); /* taste-skill-ignore: меню поверх панели */
+  box-shadow: var(--shadow-float);
 }
 .menu-title { font-size: 13px; color: var(--ink-soft); padding: 2px 4px 8px; }
 .menu-item { display: flex; align-items: center; gap: 12px; padding: 6px 4px; font-size: 14px; font-weight: 600; }
@@ -135,7 +127,6 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 .switch.off .track { background: var(--surface-muted); }
 .switch.off .track::after { right: auto; left: 3px; background: var(--ink-soft); }
 
-/* Панель управления */
 .controls {
   display: flex; align-items: center; justify-content: center; gap: 12px;
   padding: 12px 16px; border-top: 1px solid var(--line); background: var(--surface);
@@ -153,7 +144,6 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
   background: var(--ink); color: var(--surface); font-size: 12px; font-weight: 700; display: grid; place-items: center;
 }
 
-/* Состояния звонка */
 .app { position: relative; }
 .spin {
   width: 16px; height: 16px; border-radius: 50%; flex: none;
@@ -164,7 +154,7 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
   position: absolute; top: 12px; left: 50%; transform: translateX(-50%); z-index: 4;
   display: flex; align-items: center; gap: 10px; padding: 10px 16px; border-radius: 12px;
   background: var(--warn-tint); color: var(--warn-ink); font-size: 14px; font-weight: 600; white-space: nowrap;
-  box-shadow: var(--shadow-float); /* taste-skill-ignore: плашка поверх плиток */
+  box-shadow: var(--shadow-float);
 }
 .stage.dim .tiles, .stage.dim .share { filter: grayscale(.8); opacity: .5; }
 .toast {
@@ -183,7 +173,6 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 }
 .level i { width: 3px; border-radius: 2px; background: var(--accent-on-scrim); }
 .level span { margin-left: 6px; }
-/* стрелка «К классам» на экране входа */
 .lobby { position: relative; }
 .lobby .back { position: absolute; top: 16px; left: 16px; width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; color: var(--ink); background: transparent; }
 .lobby .back:hover { background: var(--surface-muted); }
@@ -196,7 +185,7 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
   display: inline-flex; align-items: center; justify-content: center; gap: 10px;
   padding: 12px 24px; border-radius: 999px; font-weight: 600;
 }
-.primary { background: var(--accent); color: #fff; } /* белый текст в обеих темах, как на стартовой странице */
+.primary { background: var(--accent); color: #fff; }
 .primary[disabled] { opacity: .75; cursor: default; }
 .secondary { background: var(--surface-muted); border: 1px solid var(--line-strong); }
 .link { min-height: 44px; padding: 0 12px; font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
@@ -209,7 +198,6 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 .facts { display: flex; gap: 8px; flex-wrap: wrap; margin: 0 0 16px; }
 .facts span { padding: 4px 10px; border-radius: 999px; background: var(--surface-muted); font-size: 13px; color: var(--ink-soft); }
 
-/* Телефон */
 @media (max-width: 700px) {
   .lobby { flex-direction: column; justify-content: flex-start; gap: 20px; padding: 68px 16px 16px; }
   .lobby.ended { justify-content: center; }
@@ -218,7 +206,7 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
   .lobby h1 { font-size: 22px; }
   .actions { flex-direction: column; }
   .lobby .primary, .lobby .secondary, .lobby .link { width: 100%; }
-  /* видимый размер кнопок прежний, область нажатия не меньше 44 px */
+  /* область нажатия не меньше 44 px */
   .iconbtn::after { content: ""; position: absolute; inset: -6px; }
   .chip::after { content: ""; position: absolute; inset: -9px -3px; }
   .banner { top: 8px; font-size: 13px; padding: 8px 12px; }
@@ -234,11 +222,9 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
   .controls { gap: 8px; padding: 10px 10px 14px; justify-content: space-between; }
   .cbtn { width: 44px; height: 44px; }
   .cbtn.leave { width: auto; flex: 1; max-width: 72px; border-radius: 22px; }
-  /* на телефоне страницы листаются свайпом: стрелок нет */
   .side { display: none; }
 }
 
-/* Живой звонок: то, чего нет в статичном макете */
 [hidden] { display: none !important; }
 .tile video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .tile.self video { transform: scaleX(-1); }
@@ -250,7 +236,6 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 .switch { cursor: pointer; }
 .lobby-error { color: var(--danger); }
 
-/* Свёрнутая панель класса: стрелка на её месте выдвигает её обратно */
 .expand {
   flex: none; align-self: center; width: 32px; height: 72px; border-radius: 12px;
   background: var(--surface); border: 1px solid var(--line); color: var(--ink-soft);
@@ -258,7 +243,6 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 }
 .expand:hover { background: var(--surface-muted); }
 
-/* Прокрутка панели в цветах темы, а не белая системная */
 .plist { scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
 .plist::-webkit-scrollbar { width: 6px; }
 .plist::-webkit-scrollbar-track { background: transparent; }
@@ -268,16 +252,13 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
   .expand { align-self: stretch; width: auto; height: 32px; }
 }
 
-/* Меню ученика слева от троеточия, поверх его же строки, а не под ней */
 .menu { top: 4px; right: 32px; }
 
-/* Стрелка выдвигания — на уровне стрелки, которой панель сворачивают */
 .expand { align-self: flex-start; height: 48px; margin-top: 6px; }
 @media (max-width: 700px) {
   .expand { align-self: stretch; height: 32px; margin-top: 0; }
 }
 
-/* Строки панели посвободнее, метки в строке с именем */
 .stu { padding: 14px 0; }
 .stu-line { gap: 10px; }
 .stu-line .flag { margin: 0; }
@@ -285,32 +266,25 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 .stu-last { margin-top: 10px; line-height: 1.45; }
 .plist { padding-bottom: 12px; }
 
-/* Метка сразу за именем с отступом, троеточие прижато вправо */
 .stu-line .stu-name { flex: 0 1 auto; }
 .stu-line .flag { margin-left: 4px; }
 .stu-line .iconbtn { margin-left: auto; }
 
-/* Экран «Урок завершён» посвободнее */
 .lobby.ended .done { margin-bottom: 24px; }
 .lobby.ended h1 { margin-bottom: 16px; }
 .lobby.ended .facts { gap: 10px; margin-bottom: 24px; }
 .lobby.ended .facts span { padding: 6px 14px; }
 .lobby.ended p { line-height: 1.6; margin-bottom: 24px; }
 
-/* «Урок завершён» по центру экрана */
 .lobby.ended { justify-content: center; align-items: center; }
-/* сам блок по центру, а внутри всё по левому краю, как было */
 
-/* Полосы прокрутки страницы в цветах темы, а не белые системные */
 html { scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--line-strong); border-radius: 3px; }
 .lobby-text { min-width: 0; overflow-wrap: anywhere; }
 
-/* До входа: заголовок отделён от кнопок, даже когда пояснения под ним нет; шаг между кнопками ровный */
 .lobby .lobby-text h1 { margin-bottom: 12px; }
 .lobby .lobby-text .actions { margin-top: 24px; gap: 12px; }
-/* под строкой пояснения кнопкам хватает её отступа */
 .lobby .lobby-text p:not([hidden]) + .actions { margin-top: 8px; }
 .lobby .lobby-text .link { margin-top: 4px; }

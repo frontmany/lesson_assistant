@@ -1,9 +1,4 @@
-"""Запуск из командной строки.
-
-    python -m app.cli replay data/demo_lesson          # записанный урок без звонка
-    python -m app.cli virtual-class data/demo_lesson --lesson <id>   # записанный урок заходит в звонок ботами
-    python -m app.cli mock-summary                     # сводка из мока
-"""
+"""Запуск из командной строки"""
 
 import argparse
 import asyncio

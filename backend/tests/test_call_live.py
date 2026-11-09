@@ -1,8 +1,4 @@
-"""Скрытый участник на живом LiveKit. Без запущенного сервера тесты пропускаются.
-
-    docker compose up -d livekit
-    pytest tests/test_call_live.py
-"""
+"""Скрытый участник на живом LiveKit, без сервера тесты пропускаются"""
 
 import asyncio
 import math
@@ -38,7 +34,6 @@ rtc = pytest.importorskip("livekit.rtc")
 
 @asynccontextmanager
 async def speaker(identity: str):
-    """Участник, который сразу начинает говорить: ровный тон в микрофон."""
     room = rtc.Room()
     await room.connect(settings.livekit_url, participant_token(LESSON, identity, identity))
     source = rtc.AudioSource(SAMPLE_RATE, 1)
@@ -104,8 +99,6 @@ def test_frames_resume_after_rejoin():
             return await listener
 
     counts = asyncio.run(scenario())
-    # после выхода и повторного входа счёт идёт дальше: за 3 секунды второго захода
-    # кадров накопится больше ста, а за первый заход (2 с) их около семидесяти
     assert counts["artem_k"] > 100
     assert counts["teacher"] > 150
 
@@ -148,7 +141,6 @@ def test_assistant_leaves_empty_room():
         async with speaker("artem_k"):
             listener = asyncio.create_task(collect_until_end(empty_room_s=2))
             await asyncio.sleep(1)
-        # ученик вышел: через 2 секунды пустой комнаты ассистент выходит сам
         await asyncio.wait_for(listener, 10)
         return asyncio.get_running_loop().time() - started
 
@@ -179,7 +171,6 @@ def test_virtual_class_plays_and_live_teacher_stays(tmp_path):
 
     async def scenario():
         counts: dict[str, int] = {}
-        # живой учитель в той же комнате: identity «teacher», как у дорожки учителя
         async with speaker("teacher") as teacher_room:
 
             async def run():
@@ -197,7 +188,6 @@ def test_virtual_class_plays_and_live_teacher_stays(tmp_path):
 
     counts, still_there = asyncio.run(scenario())
     assert still_there
-    # ассистент слышит ботов под их identity и живого учителя отдельно
     assert counts.get(virtual_id("teacher"), 0) > 60
     assert counts.get(virtual_id("artem_k"), 0) > 60
     assert counts.get("teacher", 0) > 60
@@ -211,7 +201,7 @@ def test_two_lessons_do_not_hear_each_other():
             async for who, _ in listen(lesson_id):
                 heard[key].add(who)
 
-        async with speaker("artem_k"):  # говорит в уроке LESSON
+        async with speaker("artem_k"):
             listeners = [
                 asyncio.create_task(listen_to(LESSON, "first")),
                 asyncio.create_task(listen_to(LESSON + "-other", "second")),

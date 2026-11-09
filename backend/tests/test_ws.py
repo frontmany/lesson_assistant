@@ -1,4 +1,4 @@
-"""WebSocket урока: снимок при подключении, мок и закрытие соединения."""
+"""WebSocket урока, снимок при подключении, мок и закрытие"""
 
 import asyncio
 import time
@@ -41,7 +41,7 @@ def test_snapshot_on_connect_has_latest_scale_and_utterance(live_lesson):
         events = [ws.receive_json() for _ in range(3)]
 
     got = {(e["type"], e["student_id"]): e for e in events}
-    assert len(got) == 3  # по одному событию каждого вида на ученика
+    assert len(got) == 3
     assert got[("scale", "ivan_i")]["level"] == 2
     assert got[("utterance", "ivan_i")]["text"] == "Вторая реплика"
     assert got[("scale", "artem_k")]["level"] == 1
@@ -61,12 +61,11 @@ def test_ended_lesson_has_no_snapshot():
     ws_lesson.set_live(LESSON, False)
     assert LESSON not in ws_lesson._snapshots
     with client.websocket_connect(f"/ws/lessons/{LESSON}") as ws:
-        first = ws.receive_json()  # только мок
+        first = ws.receive_json()
     assert first.get("text") != "Реплика с прошлого урока"
 
 
 def test_mock_stops_when_lesson_starts():
-    # мок шлёт первое событие через секунду; урок начался раньше, и оно уже не придёт
     with client.websocket_connect(f"/ws/lessons/{LESSON}") as ws:
         ws.portal.call(ws_lesson.set_live, LESSON, True)
         try:
@@ -78,14 +77,11 @@ def test_mock_stops_when_lesson_starts():
 
 
 def test_stop_survives_cancel_while_waiting():
-    # причина редких падений test_ws_streams_mock_events: сервер отменяет обработчик,
-    # пока тот дожидается своих задач в finally
+    # сервер отменяет обработчик, пока тот ждёт свои задачи
     async def slow_to_cancel():
         try:
             await asyncio.sleep(10)
         except asyncio.CancelledError:
-            # задача уже отменяется, и вторая отмена её не торопит; наружу уходит
-            # первая отмена, без метки anyio: из-за неё и ломался gather
             try:
                 await asyncio.sleep(0.05)
             except asyncio.CancelledError:

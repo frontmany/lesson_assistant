@@ -1,14 +1,10 @@
-"""Контракты: форматы событий между сервером, мини-приложением и ботом.
-
-Меняешь формат — меняй в одном PR эту модель, моки в webapp/mock/
-и docs/contracts.md. tests/test_contracts.py следит, чтобы они совпадали.
-"""
+"""Форматы событий между сервером, приложением и ботом"""
 
 from typing import Literal
 
 from pydantic import BaseModel, Field
 
-# Четыре ступени шкалы ученика: подписи из концепции, едины для 5–11 классов
+# Четыре ступени шкалы ученика
 LEVEL_LABELS = {
     1: "Пока тихо",
     2: "Есть ответ",
@@ -23,15 +19,11 @@ Flag = Literal["long_silence", "quiet_but_precise"]
 class Student(BaseModel):
     id: str
     name: str
-    # аккаунт MAX: по нему бот и мини-приложение узнают человека. В настоящем
-    # Сферуме приходит из школьной системы вместе с составом класса. Наружу
-    # через API не отдаётся
+    # аккаунт MAX, наружу не отдаётся
     max_user_id: int | None = Field(default=None, exclude=True)
-    # полное имя из базы, «Иван Петров»: по фамилии конвейер узнаёт обращение
-    # учителя (#76). На экранах ученик — «Иван П.» (name), наружу не отдаётся
+    # полное имя для обращения по фамилии, наружу не отдаётся
     full_name: str | None = Field(default=None, exclude=True)
-    # виртуальный ученик: говорит записью, а не живым голосом (#18). В состав
-    # класса и в норму не попадает, только в состав урока
+    # ученик из записи, в норму не попадает
     virtual: bool = False
 
 
@@ -42,13 +34,10 @@ class Roster(BaseModel):
     topic: str
     teacher: Student
     students: list[Student]
-    # учитель из записи виртуального класса: для конвейера тоже учитель
     virtual_teacher: Student | None = None
 
 
 class JoinInfo(BaseModel):
-    """Вход в звонок урока: API → мини-приложение."""
-
     url: str = Field(description="адрес LiveKit для браузера")
     token: str
     participant_id: str
@@ -57,8 +46,6 @@ class JoinInfo(BaseModel):
 
 
 class Utterance(BaseModel):
-    """Реплика: сервер → панель учителя."""
-
     type: Literal["utterance"] = "utterance"
     student_id: str
     t: float = Field(description="секунда от начала урока")
@@ -68,8 +55,6 @@ class Utterance(BaseModel):
 
 
 class ScaleUpdate(BaseModel):
-    """Изменение шкалы: сервер → учитель и сам ученик. Шкала только растёт."""
-
     type: Literal["scale"] = "scale"
     student_id: str
     level: int = Field(ge=1, le=4)
@@ -78,8 +63,6 @@ class ScaleUpdate(BaseModel):
 
 
 class AnalyticsState(BaseModel):
-    """Выключатель аналитики: для всего класса (student_id = None) или одного ученика."""
-
     type: Literal["analytics"] = "analytics"
     enabled: bool
     student_id: str | None = None
@@ -92,8 +75,6 @@ class AskNext(BaseModel):
 
 
 class Summary(BaseModel):
-    """Сводка учителю после урока: API → бот и мини-приложение."""
-
     type: Literal["summary"] = "summary"
     lesson_id: str
     carried: list[str] = Field(description="кто вытягивал урок")
@@ -103,8 +84,6 @@ class Summary(BaseModel):
 
 
 class StudentCard(BaseModel):
-    """Личная карточка ученика после урока: только своё, без оценок и рейтинга."""
-
     type: Literal["card"] = "card"
     lesson_id: str
     student_id: str

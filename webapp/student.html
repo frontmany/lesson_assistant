@@ -4,8 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Урок: ученик</title>
-  <!-- Экран ученика в звонке (#22). Логика — js/student.js. Экран до входа и сцена звонка —
-       общие с учителем (css/call.css, js/stage.js); своё — только шкала (css/student.css) -->
+  <!-- Экран ученика в звонке, логика в student.js -->
   <link rel="stylesheet" href="css/tokens.css">
   <link rel="stylesheet" href="css/call.css">
   <link rel="stylesheet" href="css/student.css">
@@ -26,7 +25,6 @@
   </svg>
 
   <div class="app">
-    <!-- До входа, подключение и нет микрофона -->
     <div class="lobby" id="lobby">
       <button class="back" id="lobbyBack" aria-label="К классам"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
       <div class="preview tile" id="preview">
@@ -43,7 +41,6 @@
       </div>
     </div>
 
-    <!-- В уроке: та же сцена, что у учителя (js/stage.js), без панели класса -->
     <div class="body" id="call" hidden aria-label="Звонок, экран ученика">
       <section class="stage" id="stage" aria-label="Участники звонка">
         <div class="banner" id="banner" hidden><span class="spin"></span>Связь пропала. Переподключаемся…</div>
@@ -54,15 +51,13 @@
         <div class="dots" id="pager" aria-hidden="true" hidden></div>
       </section>
     </div>
-    <!-- Своя шкала: js переносит её вниз своей плитки. Звезда «AI» и четыре сегмента,
-         название ступени — в подсказке и для экранного чтения -->
     <div class="meter-pill parked" id="scale" role="img">
       <svg class="ai" aria-hidden="true"><use href="#ai-star"/></svg>
       <ol class="meter" id="steps" aria-hidden="true"></ol>
     </div>
     <span class="sr" aria-live="polite" role="status" id="status"></span>
     <div class="toast" id="toast" hidden></div>
-    <!-- Показывать экран ученику нельзя: это право только учителя (app/call.py) -->
+    <!-- Показ экрана только у учителя -->
     <footer class="controls" id="controls" hidden>
       <button class="cbtn" id="btnMic" aria-label="Выключить микрофон" title="Выключить микрофон"><svg class="i"><use href="#mic"/></svg></button>
       <button class="cbtn" id="btnCam" aria-label="Включить камеру" title="Включить камеру"><svg class="i"><use href="#cam-off"/></svg></button>

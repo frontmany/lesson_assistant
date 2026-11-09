@@ -1,4 +1,4 @@
-"""Замечания облачного ревью: конец урока, «Выйти», уведомления, разметка сводки, ответы GigaChat, правила шкалы."""
+"""Конец урока, выход, уведомления, разметка сводки, ответы GigaChat и правила шкалы"""
 
 import asyncio
 import threading
@@ -13,16 +13,12 @@ from app.models import Roster, Student, Summary
 from app.pipeline import llm, runner, summary
 from app.pipeline.classify import classify
 from app.pipeline.scoring import Scoreboard
-from tests.test_auth import MARIA, client, production, sign_in  # noqa: F401 — production: вход как в MAX
+from tests.test_auth import MARIA, client, production, sign_in  # noqa: F401
 from tests.test_bot import FakeApi
 from tests.test_classify import ROSTER, said
 
 
-# ---------- 1. конец урока не ждёт сводку ----------
-
-
 def test_lesson_ends_before_summary_is_sent(monkeypatch):
-    """Сводка (минуты в GigaChat) — отдельная задача: задача урока, которую ждут /end и mark_ended, её не ждёт."""
     c = db.create_class(1, "Елена Викторовна", "10А", "история")
     db.join(c.id, 10, "Иван Иванов")
     lesson = db.lesson_for_class(c.id)
@@ -35,15 +31,12 @@ def test_lesson_ends_before_summary_is_sent(monkeypatch):
 
     async def go():
         task = await runner.finish_lesson(lesson.id, roster, [], board)
-        assert task is not None and not task.done() and not sent  # урок закончен, сводка ещё идёт
+        assert task is not None and not task.done() and not sent
         release.set()
         await task
         assert sent
 
     asyncio.run(go())
-
-
-# ---------- 2. упавший конвейер урок не заканчивает ----------
 
 
 def test_crashed_pipeline_does_not_end_lesson(monkeypatch):
@@ -61,12 +54,9 @@ def test_crashed_pipeline_does_not_end_lesson(monkeypatch):
         await asyncio.sleep(0)
 
     asyncio.run(go(fail=True))
-    assert ended == []  # учитель войдёт снова, и урок начнётся заново
+    assert ended == []
     asyncio.run(go(fail=False))
     assert ended == ["L"]
-
-
-# ---------- 3–4. «Выйти» закрывает звонок и не держит цикл событий ----------
 
 
 def test_exit_closes_call_for_students(monkeypatch):
@@ -86,12 +76,7 @@ def test_exit_closes_call_for_students(monkeypatch):
     assert closed == [lesson_id]
 
 
-# ---------- 5–6. уведомления ученикам ----------
-
-
 class Flaky(FakeApi):
-    """MAX отказывает одному ученику: он заблокировал бота."""
-
     def send(self, user_id, text, buttons=None, markdown=False):
         if user_id == 10:
             raise httpx.HTTPStatusError("403", request=httpx.Request("POST", "http://x"), response=httpx.Response(403))
@@ -105,8 +90,8 @@ def test_one_blocked_student_does_not_break_teachers_action():
     db.join(c.id, 10, "Иван Иванов")
     db.join(c.id, 11, "Мария Смирнова")
     b.delete(1, c.id)
-    assert any(u == 11 and "удалил класс" in t for u, t, _ in api.sent)  # остальные узнали
-    assert any(u == 1 and "удалён" in t for u, t, _ in api.sent)  # учитель получил «Вернуть»
+    assert any(u == 11 and "удалил класс" in t for u, t, _ in api.sent)
+    assert any(u == 1 and "удалён" in t for u, t, _ in api.sent)
 
 
 def test_app_tells_students_like_bot(monkeypatch):
@@ -123,9 +108,6 @@ def test_app_tells_students_like_bot(monkeypatch):
     assert api.sent[-1][:2] == (10, max_bot.class_deleted_text(c))
 
 
-# ---------- 7. разметка в сводке ----------
-
-
 def test_student_name_cannot_inject_markdown():
     roster = Roster(
         lesson_id="L", class_name="10А", subject="история", topic="Реформы",
@@ -137,20 +119,14 @@ def test_student_name_cannot_inject_markdown():
     assert r"\[Подробнее\]\(https://evil.example\)" in text and r"Аня\_2010" in text
 
 
-# ---------- 8. строка вместо списка от GigaChat ----------
-
-
 def test_string_instead_of_list_falls_back_to_template(monkeypatch):
     monkeypatch.setattr(llm, "enabled", lambda: True)
     monkeypatch.setattr(summary, "_ask", lambda text: {"carried": [], "dropped": [], "weak_topics": "Табель о рангах", "ask_next": []})
     roster = ROSTER
     levels = {s.id: (1, 0.0, []) for s in roster.students}
     s = summary.build_summary(roster, [], levels, {})
-    assert "Т" not in s.weak_topics  # не по буквам
+    assert "Т" not in s.weak_topics
     assert s == summary.template_summary(roster, [], levels, {})
-
-
-# ---------- 9–10. правила шкалы ----------
 
 
 def test_two_letter_name_is_recognised():
@@ -164,6 +140,6 @@ def test_two_letter_name_is_recognised():
 def test_question_split_by_pause_is_one_initiative():
     ctx = [
         said("artem_k", 0, 2, "А почему Пётр", "initiative"),
-        said("artem_k", 3, 5, "перенёс столицу?", "initiative"),  # хвост того же вопроса после паузы
+        said("artem_k", 3, 5, "перенёс столицу?", "initiative"),
     ]
     assert classify("А зачем ему был нужен флот?", "artem_k", 60, ROSTER, ctx) == "initiative"

@@ -1,9 +1,4 @@
-"""Поиск речи в потоке.
-
-Silero VAD уже входит в faster-whisper как ONNX-модель
-(faster_whisper.vad.get_speech_timestamps), PyTorch не нужен.
-Кадры из звонка идут по 30 мс, Silero смотрит окнами по 32 мс (512 отсчётов).
-"""
+"""Поиск речи в потоке на Silero VAD"""
 
 from __future__ import annotations
 
@@ -14,20 +9,19 @@ import numpy as np
 from faster_whisper.vad import VadOptions, get_speech_timestamps, get_vad_model
 
 SAMPLE_RATE = 16_000
-WINDOW = 512  # окно Silero, 32 мс
-CONTEXT = 64  # хвост предыдущего окна, который Silero видит вместе с текущим
+WINDOW = 512  # окно Silero 32 мс
+CONTEXT = 64
 WINDOW_MS = WINDOW * 1000 // SAMPLE_RATE
 
-THRESHOLD = 0.5  # выше — речь
-NEG_THRESHOLD = 0.35  # ниже — тишина, между порогами продолжается то, что было
-MIN_SILENCE_MS = 500  # такая пауза заканчивает фразу; короче — заминка внутри предложения
-MIN_SPEECH_MS = 250  # фразы короче — щелчки и шум, их не распознаём
-MAX_PHRASE_S = 15  # длиннее режем, чтобы реплика не ждала конца монолога
-PAD_MS = 300  # запас тишины по краям фразы: Silero замечает речь на пару окон позже её начала
+THRESHOLD = 0.5
+NEG_THRESHOLD = 0.35
+MIN_SILENCE_MS = 500  # пауза, которая заканчивает фразу
+MIN_SPEECH_MS = 250  # короче это щелчки и шум
+MAX_PHRASE_S = 15
+PAD_MS = 300
 
 
 def to_float(pcm: bytes | np.ndarray) -> np.ndarray:
-    """PCM int16 (байты или массив) → float32 в [-1, 1], как ждут Silero и Whisper."""
     if isinstance(pcm, bytes):
         pcm = np.frombuffer(pcm, dtype=np.int16)
     if pcm.dtype == np.int16:
@@ -36,7 +30,6 @@ def to_float(pcm: bytes | np.ndarray) -> np.ndarray:
 
 
 def speech_segments(pcm: bytes | np.ndarray, sample_rate: int = SAMPLE_RATE) -> list[tuple[float, float]]:
-    """Вернуть отрезки речи (начало, конец) в секундах для целой записи."""
     options = VadOptions(
         threshold=THRESHOLD,
         neg_threshold=NEG_THRESHOLD,
@@ -51,10 +44,10 @@ def speech_segments(pcm: bytes | np.ndarray, sample_rate: int = SAMPLE_RATE) -> 
 
 @dataclass
 class Phrase:
-    pcm: np.ndarray  # float32, 16 кГц
-    start: float  # секунды от первого кадра участника, с запасом тишины по краям
+    pcm: np.ndarray
+    start: float
     end: float
-    speech_start: float  # сама речь, без запаса: отсюда время реплики на уроке
+    speech_start: float
     speech_end: float
 
     @property
@@ -63,32 +56,25 @@ class Phrase:
 
 
 class PhraseDetector:
-    """Потоковый поиск фраз одного участника.
-
-    get_speech_timestamps каждый раз начинает с чистого состояния модели,
-    поэтому для потока окна прогоняются здесь по одному, а состояние Silero
-    и хвост предыдущего окна переносятся между вызовами. Это опирается на
-    устройство SileroVADModel в faster-whisper 1.1.1 (encoder и decoder).
-    """
+    """Потоковый поиск фраз одного участника, состояние Silero переносится между вызовами"""
 
     def __init__(self) -> None:
         self._model = get_vad_model()
         self._state = np.zeros((2, 1, 128), dtype=np.float32)
         self._context = np.zeros(CONTEXT, dtype=np.float32)
-        self._rest = np.zeros(0, dtype=np.float32)  # отсчёты, которых не хватило на окно
-        self._windows = 0  # сколько окон пройдено с начала
+        self._rest = np.zeros(0, dtype=np.float32)
+        self._windows = 0
 
         pad = PAD_MS // WINDOW_MS
-        self._before: deque[np.ndarray] = deque(maxlen=pad)  # тишина перед фразой
+        self._before: deque[np.ndarray] = deque(maxlen=pad)
         self._phrase: list[np.ndarray] = []
         self._phrase_start = 0
-        self._speech_from = 0  # первое и последнее (не включая) окно речи во фразе
+        self._speech_from = 0
         self._speech_to = 0
-        self._speech = 0  # окон речи во фразе
-        self._silence = 0  # окон тишины подряд в конце фразы
+        self._speech = 0
+        self._silence = 0
 
     def prob(self, window: np.ndarray) -> float:
-        """Вероятность речи в одном окне; состояние модели переходит к следующему."""
         x = np.concatenate([self._context, window])[None, :]
         encoded = self._model.encoder_session.run(None, {"input": x})[0].reshape(1, 128)
         out, self._state = self._model.decoder_session.run(None, {"input": encoded, "state": self._state})
@@ -96,7 +82,6 @@ class PhraseDetector:
         return float(out.ravel()[0])
 
     def feed(self, pcm: bytes | np.ndarray) -> list[Phrase]:
-        """Принять очередной кадр, вернуть законченные фразы (обычно ни одной)."""
         audio = np.concatenate([self._rest, to_float(pcm)])
         whole = len(audio) // WINDOW * WINDOW
         self._rest = audio[whole:]
@@ -109,11 +94,9 @@ class PhraseDetector:
 
     @property
     def position(self) -> float:
-        """Сколько секунд звука принято с начала: так время фразы переводится во время урока."""
         return (self._windows * WINDOW + len(self._rest)) / SAMPLE_RATE
 
     def flush(self) -> Phrase | None:
-        """Урок кончился посреди фразы: отдать то, что успели сказать."""
         if not self._phrase:
             return None
         return self._finish(trailing=self._silence)
@@ -145,7 +128,6 @@ class PhraseDetector:
         return None
 
     def _finish(self, trailing: int) -> Phrase | None:
-        # в хвосте оставляем PAD_MS тишины, остальное — уже пауза после фразы
         keep = len(self._phrase) - max(0, trailing - PAD_MS // WINDOW_MS)
         windows = self._phrase[:keep]
         speech = self._speech

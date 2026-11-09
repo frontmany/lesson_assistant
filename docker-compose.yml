@@ -1,9 +1,6 @@
-# Полный стек: приложение, звонок (LiveKit) и PostgreSQL.
-#   docker compose up --build
-# Мини-приложение: http://localhost:8000
+# Полный стек, приложение, LiveKit и PostgreSQL
 services:
   app:
-    # контекст — весь репозиторий: в образ идут backend/ и webapp/
     build:
       context: .
       dockerfile: backend/Dockerfile
@@ -14,29 +11,24 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - models:/srv/models  # модели распознавания скачиваются один раз, а не при каждом запуске
-      - ./saved_phrases:/srv/saved_phrases  # фразы по SAVE_PHRASES_DIR — для набора замеров (backend/analytics)
+      - models:/srv/models  # модели скачиваются один раз
+      - ./saved_phrases:/srv/saved_phrases
     depends_on:
       livekit:
         condition: service_started
-      # при первом запуске PostgreSQL несколько секунд создаёт базу: без проверки
-      # готовности приложение стартует раньше и падает на «Connection refused» (#30)
+      # приложение ждёт готовности базы
       postgres:
         condition: service_healthy
 
-  # SFU: принимает звук каждого участника и раздаёт остальным.
-  # --dev: ключи devkey/secret, только для локальной разработки.
-  # Боевой запуск (свой конфиг, внешний IP, TURN) — в docs/deploy.md
+  # LiveKit в режиме разработки, ключи devkey и secret
   livekit:
     image: livekit/livekit-server:v1.13.7
-    # --node-ip: адрес, который LiveKit отдаёт браузерам для медиа. По умолчанию это
-    # адрес контейнера 172.18.x.x, с хоста он недоступен, и звонок висит на «Подключаемся…».
-    # Нужен адрес машины в локальной сети: до него доходят и браузер, и ассистент из контейнера
+    # адрес машины в локальной сети, до него доходят браузер и ассистент
     command: --dev --bind 0.0.0.0 --node-ip ${LIVEKIT_NODE_IP:?впиши в .env LIVEKIT_NODE_IP — IPv4 машины в локальной сети}
     ports:
-      - "7880:7880"       # сигнализация (WebSocket)
-      - "7881:7881"       # медиа по TCP, если UDP закрыт
-      - "7882:7882/udp"   # медиа по UDP
+      - "7880:7880"  # сигнализация
+      - "7881:7881"  # медиа по TCP
+      - "7882:7882/udp"  # медиа по UDP
 
   postgres:
     image: postgres:15-alpine

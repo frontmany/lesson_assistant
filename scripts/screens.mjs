@@ -1,18 +1,4 @@
-// Экспорт экранов в design/screens/*.png: Edge или Chrome без окна через протокол отладки (CDP).
-//
-// Два источника, оба — настоящий интерфейс:
-//  - макеты звонка design/teacher-call.html и student-call.html: настоящие стили и сетка
-//    приложения (webapp/css, webapp/js/stage.js), участники подставные;
-//  - стартовая страница webapp/index.html на запущенном приложении: настоящие классы
-//    демо-учителя (вход по одноразовой ссылке, её выдаёт контейнер приложения).
-//
-//   python -m http.server 8090                 # в корне репозитория — для макетов
-//   docker compose run -d --rm --name la-dev -e DEV_AUTH=1 -e MAX_BOT_TOKEN= -e SESSION_SECRET=screens -p 8001:8000 app
-//   docker exec -i la-dev python - < scripts/screens-seed.py   # демо-учитель с классами
-//   node scripts/screens.mjs [фильтр]          # фильтр — часть имени файла
-//
-// BROWSER — путь к Edge или Chrome, MOCKS — где открыт репозиторий, APP — приложение,
-// APP_CONTAINER — контейнер приложения для одноразовых ссылок.
+// Экспорт экранов в design screens через протокол отладки браузера
 import { execFileSync, spawn } from "node:child_process";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -25,20 +11,18 @@ const CONTAINER = process.env.APP_CONTAINER ?? "la-dev";
 const OUT = new URL("../design/screens/", import.meta.url);
 const filter = process.argv[2] ?? "";
 
-// демо-люди на копии приложения (их заводит scripts/screens-seed.py); SESSION_SECRET нужен,
-// чтобы одноразовую ссылку из docker exec принял сервер: без токена бота ключ свой у каждого процесса
+// SESSION_SECRET нужен, чтобы сервер принял одноразовую ссылку
 const TEACHER = [990001, "Марина Сергеевна"];
 const STUDENT = [990101, "Пётр Новиков"];
 const NEWCOMER = [990201, "Алина Гришина"];
 
 const D = { w: 1280, h: 800, scale: 1, mobile: false }; // компьютер
-const M = { w: 375, h: 812, scale: 2, mobile: true };   // телефон @2x
+const M = { w: 375, h: 812, scale: 2, mobile: true }; // телефон 2x
 
 const shots = [];
 const add = (file, url, size, opts = {}) => shots.push({ file, url, ...size, ...opts });
 const mock = (page) => `${MOCKS}/${page}`;
 
-// ---------- звонок учителя ----------
 for (const dark of [false, true]) {
   const s = dark ? "-dark" : "";
   add(`teacher-call-d-n6${s}`, mock("teacher-call.html?n=6"), D, { dark });
@@ -55,7 +39,6 @@ add("teacher-call-m-n6-sheet", mock("teacher-call.html?n=6&panel=1"), M);
 add("teacher-call-m-n6-sheet-dark", mock("teacher-call.html?n=6&panel=1"), M, { dark: true });
 add("teacher-call-m-n30-sheet", mock("teacher-call.html?n=30&panel=1"), M);
 
-// ---------- состояния звонка ----------
 for (const st of ["lobby", "connecting", "muted", "reconnecting", "nomic", "ended", "over", "fail"]) {
   add(`call-state-d-${st}`, mock(`teacher-call.html?n=6&state=${st}`), D);
   add(`call-state-m-${st}`, mock(`teacher-call.html?n=6&state=${st}`), M);
@@ -65,7 +48,6 @@ for (const st of ["lobby", "nomic", "reconnecting", "ended"]) {
   add(`call-state-m-${st}-dark`, mock(`teacher-call.html?n=6&state=${st}`), M, { dark: true });
 }
 
-// ---------- звонок ученика ----------
 for (const l of [1, 2, 3, 4]) add(`student-call-m-l${l}`, mock(`student-call.html?level=${l}`), M);
 add("student-call-m-l3-dark", mock("student-call.html?level=3"), M, { dark: true });
 add("student-call-m-muted", mock("student-call.html?level=2&mic=0"), M);
@@ -75,7 +57,6 @@ add("student-call-m-alone", mock("student-call.html?teacher=0&n=0&level=1"), M);
 add("student-call-m-share", mock("student-call.html?share=1"), M);
 add("student-call-d-l3", mock("student-call.html?level=3&n=6"), D);
 
-// ---------- стартовая страница (настоящее приложение) ----------
 const home = (file, who, opts = {}) => add(file, null, M, { who, ...opts });
 home("start-welcome", NEWCOMER);
 home("start-teacher", TEACHER);
@@ -86,7 +67,6 @@ home("start-invite", TEACHER, { steps: ["document.querySelector('#classes button
 home("start-create", TEACHER, { steps: ["document.getElementById('create').click()"] });
 home("start-student", STUDENT);
 
-// ---------- CDP ----------
 const port = 9333;
 const profile = mkdtempSync(join(tmpdir(), "screens-"));
 const browser = spawn(BROWSER, ["--headless=new", "--disable-gpu", "--hide-scrollbars", "--mute-audio",
@@ -124,7 +104,7 @@ function ticket([uid, name]) {
 
 for (const s of shots.filter((x) => x.file.includes(filter))) {
   const url = s.url ?? `${APP}/index.html?ticket=${ticket(s.who)}`;
-  // каждый снимок — в новой вкладке: вход и запомненное в sessionStorage не переходят дальше
+  // каждый снимок в новой вкладке
   const { targetId } = await send("Target.createTarget", { url: "about:blank" });
   const { sessionId } = await send("Target.attachToTarget", { targetId, flatten: true });
   await send("Page.enable", {}, sessionId);

@@ -1,4 +1,4 @@
-"""Баллы, ступени, норма урока и флаги: правила из #19."""
+"""Баллы, ступени, норма урока и флаги"""
 
 import csv
 
@@ -21,10 +21,10 @@ from tests.test_classify import DEMO, ROSTER
 
 def test_points_weight_answers_and_cap_talk():
     assert points(["answer", "initiative", "response"], 0) == 8
-    assert points(["other"] * 10, 0) == 1  # болтовня не больше 1 балла
+    assert points(["other"] * 10, 0) == 1
     assert points([], 29) == 0
     assert points([], 59) == 0.5
-    assert points([], 600) == 1  # объём речи не больше 1 балла
+    assert points([], 600) == 1
 
 
 def test_level_needs_a_counted_reply():
@@ -44,7 +44,6 @@ def test_first_two_lessons_use_default_norm():
 
 
 def test_norm_is_median_of_last_five_lessons():
-    # бурная дискуссия не сдвигает норму, старые уроки не учитываются
     assert lesson_norm([100, 100, 4, 5, 30, 6, 4]) == 5
 
 
@@ -63,7 +62,7 @@ def test_norm_does_not_move_in_first_half():
 
 
 def test_norm_ignores_small_dips_in_pace():
-    assert softened_norm(6, 6, activity=2.4, elapsed_share=0.5) == 6  # темп 4,8 — меньше четверти отставания
+    assert softened_norm(6, 6, activity=2.4, elapsed_share=0.5) == 6
 
 
 def test_norm_softens_to_pace_but_not_below_half():
@@ -79,7 +78,7 @@ def test_levels_only_grow():
     board = Scoreboard(["ivan_i", "maria_s"], norm=4.5, lesson_s=300)
     assert board.add("ivan_i", "answer", "Он искал союзников против Османской империи.", 10, 15) == 3
     assert board.add("ivan_i", "answer", "Ввёл рекрутские наборы в 1705 году.", 20, 25) == 4
-    board.norm = 100  # даже если норма вдруг выросла, ступень не падает
+    board.norm = 100
     assert board.level("ivan_i") == 4
 
 
@@ -113,7 +112,6 @@ def test_quiet_but_precise_needs_few_replies_and_a_long_answer():
 
 
 def test_demo_lesson_scale():
-    """Демо-урок с нормой из прошлых уроков (history_seed.json, #20): картина из таблицы правил в #19."""
     norm = lesson_norm(seed_history())
     assert norm == 4.5
     students = [s.id for s in ROSTER.students]
@@ -127,13 +125,12 @@ def test_demo_lesson_scale():
             board.add(who, item["kind"], row["text"], t, end)
         context.append(item)
 
-    assert board.norm == 4.5  # темп урока нормальный, норма не смягчалась
+    assert board.norm == 4.5
     scores = {sid: board.score(sid) for sid in students}
     assert scores == {"ivan_i": 11.5, "maria_s": 6, "artem_k": 4, "sofya_l": 2.5, "alisa_n": 3, "dmitry_p": 0}
     levels = {sid: board.level(sid) for sid in students}
     assert levels == {"ivan_i": 4, "maria_s": 4, "artem_k": 3, "sofya_l": 2, "alisa_n": 3, "dmitry_p": 1}
     flags = {sid: board.flags(sid, 300) for sid in students}
-    # пять минут — фрагмент урока: «давно не отвечал» на нём не появляется
     assert flags == {
         "ivan_i": [],
         "maria_s": [],
@@ -150,12 +147,11 @@ def test_continuation_adds_speech_not_points():
     board.add("sofya_l", "response", "Нет.", 95, 96)
     for i in range(10):
         board.extend("sofya_l", "Это вообще очень интересный вопрос.", 97 + 3 * i, 99 + 3 * i)
-    assert board.score("sofya_l") == 2  # один отклик; 20 секунд речи — меньше 30, баллов за объём нет
+    assert board.score("sofya_l") == 2
     assert board.level("sofya_l") == 2
 
 
 def test_answer_after_hesitation_counts():
-    # «Ну, это…» — прочее, а продолжение после паузы — ответ: засчитывается ответ
     board = Scoreboard(["ivan_i"], norm=4.5, lesson_s=300)
     board.add("ivan_i", "other", "Ну, это…", 6, 6.5)
     board.extend("ivan_i", "Он хотел учиться строить корабли", 7.2, 9, "answer")
@@ -171,7 +167,6 @@ def test_long_answer_in_phrases_counts_once():
 
 
 def test_switching_analytics_off_and_on_keeps_the_scale():
-    # шкала не опускается: выключили и включили аналитику — ступень та же (#98, п. 14)
     board = Scoreboard(["artem_k", "ivan_i"], norm=4.5, lesson_s=2400)
     board.add("artem_k", "answer", "Пётр построил флот на Балтике.", 10, 14)
     board.add("artem_k", "answer", "И основал Петербург в 1703 году.", 60, 64)

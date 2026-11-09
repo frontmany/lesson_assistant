@@ -1,4 +1,4 @@
-"""Конвейер от кадров до реплик, без звонка и без модели распознавания."""
+"""Конвейер от кадров до реплик без звонка и модели"""
 
 import asyncio
 import dataclasses
@@ -21,7 +21,6 @@ ROSTER = Roster.model_validate(mocks.load("roster.json"))
 
 
 async def frames(tracks: dict[str, np.ndarray]):
-    """Кадры всех участников вперемешку, как из звонка."""
     pcm = {who: as_int16(audio) for who, audio in tracks.items()}
     length = max(len(a) for a in pcm.values())
     for i in range(0, length, FRAME):
@@ -31,7 +30,6 @@ async def frames(tracks: dict[str, np.ndarray]):
 
 
 def run_all(tracks: dict[str, np.ndarray], transcribe=None) -> list:
-    """Все события конвейера: реплики и шкала."""
     events = []
     heard = []
 
@@ -44,7 +42,6 @@ def run_all(tracks: dict[str, np.ndarray], transcribe=None) -> list:
 
 
 def run(tracks: dict[str, np.ndarray], transcribe=None) -> list:
-    """Только реплики."""
     return [e for e in run_all(tracks, transcribe) if e.type == "utterance"]
 
 
@@ -56,7 +53,7 @@ def test_student_phrase_becomes_utterance_with_id():
     assert event.type == "utterance"
     assert event.student_id == "artem_k"
     assert event.text == "фраза 1"
-    assert event.kind == "other"  # классификатор ещё не написан
+    assert event.kind == "other"
 
 
 def test_teacher_and_strangers_do_not_reach_panel():
@@ -81,8 +78,6 @@ def test_phrases_are_found_outside_event_loop(monkeypatch):
 
 
 def test_students_are_recognized_before_teacher():
-    # учитель закончил две фразы раньше ученика, но первым после уже начатой
-    # фразы распознаётся ученик: учитель нужен только как контекст
     order = []
 
     def slow_transcribe(pcm: np.ndarray, role: str) -> str:
@@ -101,14 +96,12 @@ def test_students_are_recognized_before_teacher():
 
     asyncio.run(scenario())
     assert len(order) == 3
-    # длины фраз с запасом по краям: учитель 1 с и 1,5 с, ученик 2 с
     teacher_second = min(range(3), key=lambda i: abs(order[i] - (1.5 + 2 * PAD_MS / 1000)))
     student_phrase = min(range(3), key=lambda i: abs(order[i] - (2 + 2 * PAD_MS / 1000)))
     assert student_phrase < teacher_second
 
 
 def test_unfinished_phrase_is_recognized_when_frames_end():
-    # урок завершили, пока ученик ещё говорил: паузы после фразы нет
     events = run({"artem_k": np.concatenate([silence(0.5), vowel(1.5), silence(1), vowel(1)])})
     assert [e.student_id for e in events] == ["artem_k", "artem_k"]
 
@@ -122,7 +115,6 @@ def test_end_finishes_queue_and_closes_lesson(monkeypatch):
     finished = []
 
     async def fake_listen(lesson_id, stop, **kwargs):
-        # звонок: ученик сказал две фразы и молчит, пока учитель не завершит урок
         for i in range(0, len(talk), FRAME):
             yield "artem_k", talk[i : i + FRAME].tobytes()
         await stop.wait()
@@ -141,19 +133,18 @@ def test_end_finishes_queue_and_closes_lesson(monkeypatch):
 
     async def scenario():
         assert runner.start("end-test", ROSTER)
-        assert not runner.start("end-test", ROSTER)  # второй раз не запускается
+        assert not runner.start("end-test", ROSTER)
         await asyncio.sleep(0.5)
         assert "end-test" in ws._live
         assert await runner.end("end-test")
         assert not runner.is_running("end-test")
         assert "end-test" not in ws._live
-        assert not await runner.end("end-test")  # повторный вызов ничего не ломает
+        assert not await runner.end("end-test")
 
     asyncio.run(scenario())
     assert len(finished) == 1
     lesson_id, utterances = finished[0]
     assert lesson_id == "end-test"
-    # вторая фраза кончилась без паузы, но тоже дораспознана
     assert [u["student_id"] for u in utterances] == ["artem_k", "artem_k"]
 
 
@@ -163,8 +154,8 @@ def job(who: str, t: float, end: float) -> _Job:
 
 def test_next_job_students_first_but_after_their_context():
     students = {"artem_k", "ivan_i"}
-    question = job("teacher", 0, 4)  # кончилась до ответа: контекст для него
-    overlap = job("teacher", 5, 9)  # говорил одновременно с учеником
+    question = job("teacher", 0, 4)
+    overlap = job("teacher", 5, 9)
     answer = job("artem_k", 5, 8)
     later = job("ivan_i", 6, 10)
     assert next_job([overlap, later, answer, question], students) is question
@@ -174,8 +165,6 @@ def test_next_job_students_first_but_after_their_context():
 
 
 def test_teacher_question_is_recognized_before_answer_and_counts():
-    # учитель зовёт Артёма по имени, Артём отвечает: обе фразы ждут распознавания
-    # одновременно, и вопрос учителя должен попасть в контекст раньше ответа
     teacher = np.concatenate([silence(0.3), vowel(1.5), silence(5)])
     student = np.concatenate([silence(2.5), vowel(2), silence(2.3)])
 
@@ -191,7 +180,6 @@ def test_teacher_question_is_recognized_before_answer_and_counts():
     assert answer.t == pytest.approx(2.5, abs=0.2)
 
     scale = [e for e in events if e.type == "scale"]
-    # все начинают с первой ступени, ответ поднимает Артёма
     assert {e.student_id for e in scale[: len(ROSTER.students)]} == {s.id for s in ROSTER.students}
     assert all(e.level == 1 for e in scale[: len(ROSTER.students)])
     assert scale[-1].student_id == "artem_k" and scale[-1].level >= 2
@@ -215,7 +203,6 @@ def test_utterances_keep_end_and_kind():
 def test_long_silence_flag_appears_without_new_replies(monkeypatch):
     from app.pipeline import runner, scoring
 
-    # урок 0,6 с, флаг через четверть урока: так проверка по таймеру видна за доли секунды
     monkeypatch.setattr(runner, "settings", dataclasses.replace(runner.settings, lesson_minutes=0.01))
     monkeypatch.setattr(runner, "FLAGS_EVERY_S", 0.05)
     monkeypatch.setattr(scoring, "LONG_SILENCE_MIN_S", 0)
@@ -231,9 +218,7 @@ def test_long_silence_flag_appears_without_new_replies(monkeypatch):
     assert flagged == {s.id for s in ROSTER.students}
 
 
-
 def test_answer_in_several_phrases_counts_once():
-    # Артём отвечает на обращение тремя фразами с паузами: это одна реплика
     teacher = np.concatenate([silence(0.3), vowel(1.5), silence(9)])
     student = np.concatenate([silence(2.5), vowel(1.2), silence(0.8), vowel(1.2), silence(0.8), vowel(1.2), silence(3)])
 
@@ -243,13 +228,11 @@ def test_answer_in_several_phrases_counts_once():
     events = run_all({ROSTER.teacher.id: teacher, "artem_k": student}, by_length)
     said = [e for e in events if e.type == "utterance"]
     assert [e.kind for e in said] == ["response"] * 3
-    # один отклик — вторая ступень; три засчитанных отклика дали бы четвёртую
     artem = [e.level for e in events if e.type == "scale" and e.student_id == "artem_k"]
     assert artem[-1] == 2
 
 
 def test_failing_phrase_does_not_stop_lesson():
-    # распознавание падает на второй фразе: первая и третья всё равно доходят до панели
     talk = np.concatenate([silence(0.5), vowel(1.5), silence(1), vowel(1.5), silence(1), vowel(1.5), silence(1)])
     calls = []
 
@@ -310,7 +293,6 @@ def test_end_does_not_hang_after_failure(monkeypatch):
     async def scenario():
         assert runner.start("fail-test", ROSTER)
         await asyncio.sleep(0.5)
-        # без защиты вторая фраза осталась бы в очереди, а /end ждал бы её вечно
         assert await asyncio.wait_for(runner.end("fail-test"), 5)
 
     asyncio.run(scenario())
@@ -355,7 +337,7 @@ def test_phrases_are_saved_only_by_flag(monkeypatch, tmp_path):
     talk = np.concatenate([silence(0.5), vowel(1.5), silence(1)])
 
     run({"artem_k": talk})
-    assert list(tmp_path.iterdir()) == []  # выключено по умолчанию
+    assert list(tmp_path.iterdir()) == []
 
     monkeypatch.setattr(runner, "settings", dataclasses.replace(runner.settings, save_phrases_dir=str(tmp_path)))
     run({"artem_k": talk})
@@ -378,7 +360,6 @@ def test_failing_save_does_not_lose_phrase(monkeypatch, tmp_path):
 
 
 def test_student_with_analytics_off_is_not_counted():
-    # #22: учитель выключил аналитику Артёму — его речь остаётся контекстом, но не считается
     talk = np.concatenate([silence(0.5), vowel(1.5), silence(1)])
     events = []
 
@@ -390,6 +371,6 @@ def test_student_with_analytics_off_is_not_counted():
 
     utterances = asyncio.run(go())
     ids = {e.student_id for e in events}
-    assert "artem_k" not in ids and "ivan_i" in ids  # ни реплик, ни шкалы Артёма
+    assert "artem_k" not in ids and "ivan_i" in ids
     artem = [u for u in utterances if u["student_id"] == "artem_k"]
     assert artem and all(u.get("off") for u in artem)

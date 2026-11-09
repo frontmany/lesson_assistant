@@ -1,4 +1,4 @@
-# HTTPS для приложения и LiveKit. Сертификаты Caddy получает сам
+# HTTPS для приложения и LiveKit
 {$APP_DOMAIN} {
 	reverse_proxy 127.0.0.1:8000
 }

@@ -1,13 +1,4 @@
-"""Сводка и карточки по демо-уроку без звонка: для правки промптов (#20, #21).
-
-    docker compose run --rm --no-deps -v "$PWD:/srv" -w /srv/backend app python -m analytics.summary_demo
-    ... python -m analytics.summary_demo --runs 3 --model GigaChat-3-Ultra
-
-Реплики берутся из эталона data/demo_lesson/ground_truth.csv, тип реплик
-учеников — классификатор конвейера, ступени — шкала с нормой из
-history_seed.json, «кто давно не отвечал» — тоже оттуда. Печатает JSON сводки
-и карточек и время ответа. Без LLM_API_KEY — шаблонный вариант.
-"""
+"""Сводка и карточки по демо уроку без звонка"""
 
 import argparse
 import csv
@@ -49,7 +40,6 @@ def _seed() -> list[float]:
 
 
 def seed_streaks(ids: list[str]) -> dict[str, int]:
-    """Как results.silent_streaks у урока без класса, но без базы."""
     import json
 
     lessons = json.loads((settings.demo_lesson_dir / "history_seed.json").read_text(encoding="utf-8"))["lessons"]

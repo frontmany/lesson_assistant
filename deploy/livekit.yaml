@@ -1,9 +1,8 @@
-# LiveKit на сервере. Ключ и секрет приходят из LIVEKIT_KEYS
+# Ключ и секрет приходят из LIVEKIT_KEYS
 port: 7880
 rtc:
   tcp_port: 7881
   udp_port: 7882
-  # внешний адрес машины LiveKit узнаёт сам
   use_external_ip: true
 turn:
   enabled: true

@@ -1,6 +1,4 @@
-// Экран класса на стартовой странице (design/screens/start-class.png): ученики по алфавиту,
-// «Убрать из класса» сразу и «Вернуть» несколько секунд, «Пригласить» со ссылкой
-// и кодом, «Начать урок». Только учителю этого класса — сервер проверяет сам.
+// Экран класса на стартовой странице
 
 import { ask } from "./confirm.js";
 import { api } from "./lesson.js";
@@ -32,12 +30,10 @@ export async function openClass(classId, { onBack, onStart, onError, onDeleted, 
   show("classView");
   $("className").textContent = c.name;
   $("classBack").onclick = () => { closeMenu(); show("home"); onBack(); };
-  // урок класса уже идёт — кнопка возвращает в него
   $("classStart").textContent = c.lesson ? "Вернуться в урок" : "Начать урок";
   $("classStart").onclick = () => onStart(c.id, c.lesson);
   $("inviteBtn").onclick = () => openInvite(c);
   $("classEdit").onclick = () => { closeMenu(); onEdit(c); };
-  // после вопроса: на списке классов ещё несколько секунд «Вернуть»
   $("classDelete").onclick = async () => {
     closeMenu();
     const yes = await ask({ title: `Удалить класс «${c.name}»?`, text: "Ученики больше не увидят его и его уроки", ok: "Удалить" });
@@ -55,7 +51,6 @@ export async function openClass(classId, { onBack, onStart, onError, onDeleted, 
     $("classCount").textContent = n ? `${n} ${plural(n, "ученик", "ученика", "учеников")} · ${c.subject}` : c.subject;
     $("studentsScroll").hidden = !n;
     $("classEmpty").hidden = Boolean(n);
-    // пустой класс урок не начинает: остаётся только «Пригласить»
     $("classStart").hidden = !n;
     $("students").replaceChildren(...c.students.map(row));
   }
@@ -84,7 +79,6 @@ export async function openClass(classId, { onBack, onStart, onError, onDeleted, 
     return li;
   }
 
-  // после вопроса; ошибку ещё исправит «Вернуть»
   async function removeStudent(s) {
     closeMenu();
     if (!(await ask({ title: `Убрать из класса: ${s.name}?`, text: "Ученик больше не попадёт на уроки этого класса", ok: "Убрать" }))) return;
@@ -98,7 +92,7 @@ export async function openClass(classId, { onBack, onStart, onError, onDeleted, 
     render();
     toast(`Убрано из класса: ${s.name}`, async () => {
       await api(`/api/classes/${c.id}/students/${s.id}/restore`, { method: "POST" });
-      c.students.splice(at, 0, s); // на прежнее место в списке
+      c.students.splice(at, 0, s);
       render();
     });
   }
@@ -125,9 +119,8 @@ function toast(text, undo) {
 
 function openInvite(c) {
   show("inviteView");
-  $("inviteTitle").textContent = `Пригласить в ${c.name}, ${c.subject}`; // с предметом: класс «10» без него читается как обрезанный
+  $("inviteTitle").textContent = `Пригласить в ${c.name}, ${c.subject}`;
   $("inviteBack").onclick = () => show("classView");
-  // без имени бота ссылки нет: остаётся код, его вводят в чате с ботом
   $("linkCard").hidden = !c.link;
   $("copyLink").hidden = !c.link;
   $("inviteLink").textContent = c.link ? c.link.replace(/^https:\/\//, "") : "";
@@ -148,7 +141,7 @@ async function copy(text) {
     await navigator.clipboard.writeText(text);
     return true;
   } catch {
-    // во фрейме MAX буфер обмена через clipboard бывает закрыт: старый способ
+    // во фрейме MAX буфер обмена бывает закрыт
     const area = Object.assign(document.createElement("textarea"), { value: text });
     area.style.cssText = "position:fixed;opacity:0";
     document.body.append(area);

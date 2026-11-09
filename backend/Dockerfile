@@ -1,21 +1,16 @@
-# Образ приложения. Собирается из корня репозитория: в образ идут backend/ и webapp/.
-#   docker compose up --build
-#   docker build -f backend/Dockerfile -t lesson-assistant .
-# Что не попадает в образ — backend/Dockerfile.dockerignore
+# Образ приложения, собирается из корня репозитория
 FROM python:3.12-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1
 
-# Та же раскладка, что в репозитории: /srv/backend и /srv/webapp
 WORKDIR /srv/backend
 
 COPY backend/requirements.txt .
 RUN pip install -r requirements.txt
 
-# Модели распознавания скачиваются при сборке, и запуск контейнера не зависит
-# от сети. PRELOAD_MODEL=0 — скачать при первом уроке (сборка быстрее)
+# Модели распознавания скачиваются при сборке
 ARG WHISPER_MODEL_TEACHER=gigaam-v3-e2e-ctc
 ARG WHISPER_MODEL_STUDENT=gigaam-v3-e2e-ctc
 ARG PRELOAD_MODEL=1
