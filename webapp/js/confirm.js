@@ -1,6 +1,4 @@
-// Подтверждение необратимых действий: удалить класс, убрать ученика, выйти, завершить урок.
-// Свой диалог, а не confirm(): во встроенном браузере MAX системный может не показаться.
-// Возвращает Promise<boolean>: true — нажали действие, false — «Отмена», фон или Escape.
+// Свой диалог подтверждения, системный confirm в MAX может не показаться
 
 export function ask({ title, text = "", ok, danger = true }) {
   return new Promise((resolve) => {
@@ -21,7 +19,7 @@ export function ask({ title, text = "", ok, danger = true }) {
     box.append(row);
     back.append(box);
     document.body.append(back);
-    no.focus(); // по умолчанию — безопасный вариант
+    no.focus();
 
     const done = (value) => {
       document.removeEventListener("keydown", onKey);

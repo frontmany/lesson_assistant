@@ -1,4 +1,4 @@
-"""Звонок по составу класса из базы (#45): виртуальный класс и ученик, вошедший во время урока."""
+"""Звонок по составу класса из базы"""
 
 import asyncio
 
@@ -19,7 +19,6 @@ client = TestClient(app)
 
 @pytest.fixture
 def recording(monkeypatch):
-    """Запись урока есть, а боты и конвейер не запускаются: проверяем, что сервер решил."""
     started = {}
     monkeypatch.setattr(virtual_class, "load_tracks", lambda lesson_dir: (DEMO, []))
     monkeypatch.setattr(runner, "is_running", lambda lesson_id: lesson_id in started)
@@ -38,7 +37,6 @@ def class_lesson(*students):
 
 
 def test_empty_class_lesson_starts_without_recording(recording):
-    # пустой класс урок с записью не начинает: показать урок в одиночку — «Посмотреть демо»
     lesson_id = class_lesson()
     client.post(f"/api/lessons/{lesson_id}/start")
     assert recording[lesson_id].students == []
@@ -102,7 +100,6 @@ def test_student_who_joined_class_during_lesson_is_counted():
         lookups.append(participant_id)
         return newcomer if participant_id == "m42" else None
 
-    # первые две секунды кадры приходят, пока его ищут в составе; говорит он позже
     talk = np.concatenate([silence(2), vowel(1.5), silence(1)])
     events = []
 
@@ -116,14 +113,12 @@ def test_student_who_joined_class_during_lesson_is_counted():
     ))
     said = [e for e in events if e.type == "utterance"]
     assert [e.student_id for e in said] == ["m42"]
-    assert "m42" in [s.id for s in roster.students]  # состав урока для панели тоже обновился
+    assert "m42" in [s.id for s in roster.students]
     assert any(e.type == "scale" and e.student_id == "m42" and e.level >= 2 for e in events)
-    # постороннего ищем не на каждом кадре, а раз в STRANGER_RECHECK_S
     assert lookups.count("stranger") == 1
 
 
 def test_finished_lesson_does_not_start_again(recording):
-    # новый прогон завершённого урока затёр бы его итоги
     lesson_id = class_lesson("Иван Иванов")
     db.mark_ended(lesson_id)
     assert client.post(f"/api/lessons/{lesson_id}/start").status_code == 409

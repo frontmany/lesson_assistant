@@ -1,6 +1,4 @@
-// Экран звонка учителя (#14), макет — design/teacher-call.html.
-// Состояния: до входа → подключаемся → в уроке (связь может пропасть) → урок завершён.
-// Плитки строятся по участникам LiveKit, панель класса — по событиям урока из WebSocket.
+// Экран звонка учителя
 
 import { DisconnectReason, joinCall } from "./call.js";
 import { ask } from "./confirm.js";
@@ -12,10 +10,9 @@ const { RoomEvent, Track } = window.LivekitClient;
 
 const FLAG_TEXT = { long_silence: "давно не отвечал", quiet_but_precise: "редко, но развёрнуто" };
 const FLAG_RANK = { long_silence: 0, quiet_but_precise: 1 };
-const COMPACT_FROM = 9; // с девяти учеников строки панели сжаты, над списком фильтры
+const COMPACT_FROM = 9;
 const TOAST_MS = 4000;
 
-// Что предложить, если микрофона нет: одна строка пояснения и кнопка (js/mic.js)
 const NOMIC = {
   "max-settings": ["Разрешите микрофон для урока в настройках MAX", "Открыть настройки MAX", openMaxSettings],
   "system-settings": ["Разрешите MAX доступ к микрофону в настройках телефона", "Открыть настройки телефона", openSystemSettings],
@@ -26,16 +23,14 @@ const NOMIC = {
 
 const $ = (id) => document.getElementById(id);
 
-// ошибка входа (устаревшая ссылка в браузере, нет сети) — не тупик: текст и кнопки (#98, п. 4)
 await signIn().catch((err) => fail(err));
-// Учитель — тот, кого сервер узнал по данным запуска MAX (#24); ученика отправляем на его экран
 const me = await whoAmI().catch((err) => fail(err));
 if (me.role !== "teacher") location.replace(`student.html${location.search}`);
 const teacherId = me.participant_id;
 let roster = await loadRoster().catch((err) => fail(err));
 
 const prefs = { mic: true, cam: false };
-const students = {}; // id → { level, flags, off, last }
+const students = {};
 let room = null;
 let leaving = false;
 let startedAt = 0;
@@ -45,15 +40,12 @@ let menuFor = null;
 let reconnecting = false;
 
 document.title = `Урок: ${roster.class_name}, ${roster.subject.toLowerCase()}`;
-// выключатели аналитики, если учитель ставил их до перезагрузки страницы (#22)
 api(`/api/lessons/${LESSON_ID}/analytics`).then(({ all_off: allOff, off }) => {
   for (const s of roster.students) if (allOff || off.includes(s.id)) students[s.id].off = true;
   if (room) renderPanel();
 }, () => {});
 $("previewAvatar").textContent = initials(roster.teacher.name);
 resetStudents();
-
-// ---------- до входа ----------
 
 function lobby(kind = "ready", detail = "") {
   show("lobby");
@@ -66,21 +58,18 @@ function lobby(kind = "ready", detail = "") {
     setLobbyText("Проверяем микрофон", "");
     actions.append(button("primary", "Проверяем…", null, true, true));
   } else if (kind in NOMIC) {
-    // без серой подсказки под заголовком: что делать, говорит сама кнопка
     const [, action, run] = NOMIC[kind];
     setLobbyText("Нет доступа к микрофону", "");
     if (action) actions.append(button("primary", action, run));
-    // в браузер уводим одной кнопкой: повтор здесь ничего не даст
     if (run !== openInBrowser) actions.append(button(action ? "secondary" : "primary", "Попробовать снова", () => enter()));
     actions.append(button("link", "Войти без микрофона", () => enter({ mic: false })));
   } else if (kind === "over") {
-    // открыта кнопка урока, который уже завершён: в звонок не зовём, иначе урок начался бы заново
-    setLobbyText("Урок уже закончился", ""); // без серых пояснений под заголовком
+    setLobbyText("Урок уже закончился", "");
     actions.append(button("primary", "К классам", toClasses));
     $("preview").hidden = true;
     return;
   } else {
-    setLobbyText("Готовы войти?", detail); // под заголовком только ошибка входа, если была
+    setLobbyText("Готовы войти?", detail);
     $("lobbyText").classList.toggle("lobby-error", Boolean(detail));
     actions.append(button("primary", "Войти в урок", () => enter(me.demo ? { mic: false } : {})));
   }
@@ -120,12 +109,9 @@ async function enter({ mic = prefs.mic } = {}) {
   }
   leaving = false;
   startedAt = Date.now();
-  // Учитель в звонке: ассистент начинает слушать, ученики получают «Урок начался».
-  // Демо-урок сервер начинает сразу с записанным классом
   const started = await api(`/api/lessons/${LESSON_ID}/start`, { method: "POST" }).then(
     () => true,
-    // 409 — урок уже завершён (вышли из звонка, и комната 5 минут стояла пустой):
-    // в звонок без ассистента не пускаем, новый урок — из «Моих классов»
+    // 409 значит урок уже завершён
     (err) => (err.status === 409 ? false : (console.warn("урок не начался на сервере", err), true)),
   );
   if (!started) {
@@ -134,8 +120,6 @@ async function enter({ mic = prefs.mic } = {}) {
     room = null;
     return lobby("over");
   }
-  // Состав мог поменяться: виртуальный класс заменяет учеников записанными.
-  // Шкалы и метки из мока, пришедшие до начала урока, сбрасываем (#78)
   roster = await loadRoster();
   for (const id of Object.keys(students)) if (students[id].mock) delete students[id];
   resetStudents();
@@ -144,8 +128,6 @@ async function enter({ mic = prefs.mic } = {}) {
   if (!mic && !me.demo) toast("Микрофон выключен. Ученики вас не слышат");
   render();
 }
-
-// ---------- в уроке ----------
 
 function watchRoom() {
   const redraw = () => requestAnimationFrame(renderStage);
@@ -170,7 +152,7 @@ function onState(state, reason) {
 }
 
 function people() {
-  // Скрытый ассистент в комнате не виден: LiveKit не присылает его участникам
+  // LiveKit не присылает скрытого ассистента участникам
   return room ? [room.localParticipant, ...room.remoteParticipants.values()] : [];
 }
 
@@ -193,13 +175,11 @@ function tile(p, i) {
   }
   const mic = p.getTrackPublication(Track.Source.Microphone);
   if (!mic || mic.isMuted) el.append(iconSpan("micoff", "mic-off"));
-  // Подписи на плитке нет: имя только во всплывающей подсказке и для экранного чтения
   el.title = personName(p);
   el.setAttribute("aria-label", personName(p));
   return el;
 }
 
-// Плитки, страницы и показ экрана — общие с учеником (stage.js)
 const stage = createStage({ tile, name: personName, redraw: () => renderStage() });
 
 function renderStage() {
@@ -207,8 +187,6 @@ function renderStage() {
   stage.render(people(), { self: room.localParticipant, reconnecting });
   renderControls();
 }
-
-// ---------- панель класса ----------
 
 function resetStudents() {
   for (const s of roster.students) students[s.id] ??= { level: null, flags: [], off: false, last: "" };
@@ -219,7 +197,6 @@ function renderPanel() {
   const started = list.some((s) => students[s.id].level !== null);
   const compact = list.length >= COMPACT_FROM;
   $("panel").hidden = !panelOpen || list.length === 0;
-  // Свёрнутую панель выдвигают стрелкой на её месте: справа, на телефоне снизу
   $("expand").hidden = panelOpen || list.length === 0;
   $("expand").querySelector("use").setAttribute("href", mobile.matches ? "#chev-u" : "#chev-l");
   $("count").textContent = `Учеников: ${list.length}`;
@@ -264,9 +241,8 @@ function row(s, compact, started) {
     line.append(...flags, bars, dots);
     el.append(line);
   } else {
-    // Ступень видна по шкале, словами её не подписываем; выключенную аналитику — подписываем
     if (st.off) line.append(span("stu-label", "аналитика выключена"));
-    line.append(...flags); // метки справа от имени, а не под шкалой
+    line.append(...flags);
     line.append(dots);
     el.append(line, bars);
     if (st.last && !st.off) el.append(Object.assign(document.createElement("p"), { className: "stu-last", textContent: `«${st.last}»` }));
@@ -280,7 +256,6 @@ function menu(s) {
   const el = div("menu");
   el.setAttribute("role", "menu");
   el.onclick = (e) => e.stopPropagation();
-  // имя не повторяем: меню открыто у карточки ученика. Для скринридера — в aria-label
   el.setAttribute("aria-label", `Меню: ${s.name}`);
   const item = div("menu-item");
   const label = span("", "Аналитика для ученика");
@@ -300,7 +275,6 @@ function menu(s) {
 async function setAnalytics(studentId, enabled) {
   students[studentId].off = !enabled;
   renderPanel();
-  // сервер рассылает новое состояние всем по WebSocket, свой экран меняется сразу
   await api(`/api/lessons/${LESSON_ID}/analytics`, {
     method: "POST",
     body: { type: "analytics", enabled, student_id: studentId },
@@ -323,8 +297,6 @@ const togglePanel = () => { panelOpen = !panelOpen; render(); };
 $("collapse").onclick = togglePanel;
 $("expand").onclick = togglePanel;
 
-// Ученик вошёл в класс во время урока: конвейер его уже засчитывает, а в составе экрана его нет.
-// Перечитываем состав один раз на пачку событий и применяем событие заново (#78)
 let rosterReload = null;
 function reloadRoster() {
   rosterReload ??= loadRoster()
@@ -347,14 +319,12 @@ function onEvent(event) {
   const st = students[event.student_id];
   if (st && event.mock) st.mock = true;
   if (st && event.type === "scale") {
-    st.level = Math.max(st.level ?? 1, event.level); // шкала только растёт
+    st.level = Math.max(st.level ?? 1, event.level);
     st.flags = event.flags ?? [];
   }
   if (st && event.type === "utterance") st.last = event.text;
   if (room) renderPanel();
 }
-
-// ---------- кнопки звонка ----------
 
 function renderControls() {
   const lp = room.localParticipant;
@@ -390,12 +360,10 @@ $("btnScreen").onclick = async () => {
   try {
     await room.localParticipant.setScreenShareEnabled(!room.localParticipant.isScreenShareEnabled);
   } catch {
-    // окно выбора экрана закрыли — это не ошибка
   }
   renderStage();
 };
 
-// «Завершить урок» — после вопроса: случайное касание не должно закончить урок всему классу
 $("btnLeave").onclick = async () => {
   if (!(await ask({ title: "Завершить урок?", text: "Урок закончится у всего класса, сводку пришлёт бот", ok: "Завершить" }))) return;
   leaving = true;
@@ -405,15 +373,10 @@ $("btnLeave").onclick = async () => {
   show("ended");
   $("duration").textContent = `${minutes} ${plural(minutes, "минута", "минуты", "минут")}`;
   $("studentsCount").textContent = `Учеников: ${roster.students.length}`;
-  // ассистент дораспознаёт очередь и выходит, сводку отправит бот (#21)
   api(`/api/lessons/${LESSON_ID}/end`, { method: "POST" }).catch((err) => console.warn("урок не завершился на сервере", err));
 };
 
-// После урока — обратно к классам на стартовую страницу. Закрыть мини-приложение
-// или открыть чат нельзя: в MAX web и на десктопе мост эти команды не выполняет
 $("backToClasses").onclick = () => toClasses();
-
-// ---------- общее ----------
 
 function render() {
   if (!room) return;
@@ -503,16 +466,13 @@ function iconSpan(cls, icon) {
   return el;
 }
 
-// Не пустили в урок: человек не из этого класса или ссылка устарела
 function fail(err) {
   show("lobby");
   setLobbyText("Не удалось открыть урок", failText(err));
   const actions = $("lobbyActions");
-  // устаревшую ссылку повтор не спасёт: урок открывается заново из чата с ботом
   actions.replaceChildren(...(err?.status === 401 ? [] : [button("primary", "Попробовать снова", () => location.reload())]));
   if (inMax()) actions.append(button(err?.status === 401 ? "primary" : "secondary", "К классам", toClasses));
   else {
-    // в браузере урок заново открывается из чата с ботом
     botLink().then((link) => {
       if (link) actions.append(button(err?.status === 401 ? "primary" : "secondary", "Открыть из чата с ботом", () => location.assign(link)));
     });
@@ -521,22 +481,18 @@ function fail(err) {
   throw err;
 }
 
-// К списку классов; данные запуска MAX (#WebAppData) несём с собой, а home=1 — чтобы
-// стартовая страница не начала этот же урок снова по start_param из них
 function toClasses() {
   location.replace(`index.html?home=1${location.hash}`);
 }
 
 $("lobbyBack").onclick = toClasses;
 
-// Урок только что начали («Начать урок», демо): входим сразу. «Готовы войти?» — для тех, кто присоединяется
 const params = new URLSearchParams(location.search);
 if (me.ended) {
   lobby("over");
 } else if (params.get("now") === "1") {
   params.delete("now");
   history.replaceState(null, "", `${location.pathname}?${params}${location.hash}`);
-  // в демо говорить не нужно: без проверки микрофона, которая на iPhone и компьютере уводит в браузер
   enter({ mic: !me.demo });
 } else {
   lobby();

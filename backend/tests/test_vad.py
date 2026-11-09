@@ -1,9 +1,4 @@
-"""Поиск речи на синтетическом сигнале.
-
-Silero принимает за речь гласную «и»: импульсы голосовых связок около 110 Гц,
-пропущенные через форманты 300, 2300 и 3000 Гц, с огибающей слогов 4 Гц.
-Тишину, шум и ровный тон он речью не считает.
-"""
+"""Поиск речи на синтетическом сигнале, Silero принимает за речь гласную и"""
 
 import numpy as np
 import pytest
@@ -12,12 +7,11 @@ pytest.importorskip("faster_whisper")
 
 from app.pipeline.vad import MAX_PHRASE_S, PAD_MS, SAMPLE_RATE, PhraseDetector, speech_segments  # noqa: E402
 
-FRAME = SAMPLE_RATE * 30 // 1000  # кадр из звонка, 30 мс
+FRAME = SAMPLE_RATE * 30 // 1000
 PAD = PAD_MS / 1000
 
 
 def around(start: float, end: float):
-    """Границы фразы: речь плюс запас тишины по краям."""
     return pytest.approx(start - PAD, abs=0.15), pytest.approx(end + PAD, abs=0.15)
 
 
@@ -41,7 +35,6 @@ def as_int16(audio: np.ndarray) -> np.ndarray:
 
 
 def phrases(audio: np.ndarray):
-    """Подать запись детектору кадрами по 30 мс, как из звонка."""
     detector = PhraseDetector()
     pcm = as_int16(audio)
     found = []
@@ -80,7 +73,6 @@ def test_stream_splits_phrases_on_pause():
     assert (first.start, first.end) == around(0.5, 2.0)
     assert (second.start, second.end) == around(3.0, 4.0)
     assert first.duration == pytest.approx(first.end - first.start, abs=0.01)
-    # сама речь — без запаса тишины
     assert first.speech_start == pytest.approx(0.5, abs=0.15)
     assert first.speech_end == pytest.approx(2.0, abs=0.15)
 
@@ -91,7 +83,6 @@ def test_short_pause_does_not_split():
 
 
 def test_phrase_waits_for_pause():
-    # речь ещё идёт — фраза не закончена
     assert phrases(np.concatenate([silence(0.3), vowel(2)])) == []
 
 

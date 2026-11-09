@@ -1,9 +1,4 @@
-"""REST API урока.
-
-Кто делает запрос, сервер знает по сессии мини-приложения (app/auth.py, #24):
-в урок пускает только участников его класса, а начать, завершить урок и
-выключить аналитику может только учитель класса.
-"""
+"""REST API урока"""
 
 import asyncio
 import logging
@@ -28,7 +23,6 @@ log = logging.getLogger(__name__)
 
 
 def _roster(lesson_id: str) -> Roster:
-    """Состав урока из базы: класс урока и его действующие участники (#44)."""
     roster = classes.lesson_roster(lesson_id)
     if roster is None:
         raise HTTPException(404, "Такого урока нет")
@@ -36,8 +30,6 @@ def _roster(lesson_id: str) -> Roster:
 
 
 def _lesson_roster(lesson_id: str, virtual: bool) -> Roster:
-    """Состав урока. С виртуальным классом у урока класса — его ученики и ученики
-    из записи, у демо-урока — только ученики из записи."""
     roster = _roster(lesson_id)
     if not virtual:
         return roster
@@ -54,19 +46,15 @@ def _demo() -> tuple[Roster, list]:
         raise HTTPException(503, f"Записи урока нет: {exc}") from exc
 
 
-# ---------- кто это ----------
-
 @dataclass(frozen=True)
 class Seat:
-    """Место человека в уроке: его id в звонке и роль."""
-
     participant_id: str
     name: str
-    role: str  # teacher | student
+    role: str
 
 
 def seat(lesson_id: str, user: User) -> Seat | None:
-    """Кто этот человек в уроке. None — не участник класса этого урока."""
+    """Кто этот человек в уроке, None если не участник класса"""
     roster = _roster(lesson_id)
     people = [(roster.teacher, "teacher"), *((s, "student") for s in roster.students)]
     for person, role in people:
@@ -74,7 +62,7 @@ def seat(lesson_id: str, user: User) -> Seat | None:
         if mine:
             return Seat(person.id, person.name, role)
     if user.max_user_id is None and user.dev_participant is None:
-        # DEV_AUTH без ?id= — это учитель: так открывается teacher.html при разработке
+        # без id в адресе это учитель
         return Seat(roster.teacher.id, roster.teacher.name, "teacher")
     return None
 
@@ -93,8 +81,6 @@ def teacher(lesson_id: str, user: User = Depends(current_user)) -> Seat:
     return found
 
 
-# ---------- вход ----------
-
 class InitData(BaseModel):
     init_data: str
 
@@ -105,7 +91,7 @@ class Ticket(BaseModel):
 
 @router.post("/auth/max")
 def auth_max(body: InitData):
-    """Данные запуска MAX → сессия мини-приложения. start_param — что открыть: c<класс> или l<урок>."""
+    """Данные запуска MAX меняются на сессию приложения"""
     data = auth.check_init_data(body.init_data, settings.max_bot_token) if settings.max_bot_token else None
     if data is None:
         raise HTTPException(401, "Не удалось проверить данные MAX, откройте урок из чата с ботом заново")
@@ -116,7 +102,7 @@ def auth_max(body: InitData):
 
 @router.post("/auth/ticket")
 def auth_ticket(user: User = Depends(current_user)):
-    """Одноразовая ссылка, чтобы открыть урок в браузере, когда в MAX нет микрофона."""
+    """Одноразовая ссылка, чтобы открыть урок в браузере"""
     if user.max_user_id is None:
         raise HTTPException(400, "В режиме разработки ссылка не нужна: участник уже в адресе")
     return {"ticket": auth.ticket_for(user)}
@@ -132,13 +118,6 @@ def auth_browser(body: Ticket):
 
 @router.get("/lessons/{lesson_id}/me")
 def me(lesson_id: str, who: Seat = Depends(member)):
-    """Кто я в этом уроке: мини-приложение открывает экран учителя или ученика.
-
-    analytics — ведётся ли аналитика этого участника (учитель может выключить её ученику).
-    ended — урок класса уже закончился: экран не зовёт в звонок, а ведёт к классам.
-    Демо-урок можно смотреть заново, он не «закончился».
-    demo — демо-урок: экран объясняет, что смотреть, и не просит микрофон.
-    """
     lesson = classes.get_lesson(lesson_id)
     demo = lesson is not None and lesson.demo
     ended = lesson is not None and lesson.ended_at is not None and not demo and not runner.is_running(lesson_id)
@@ -149,17 +128,13 @@ def me(lesson_id: str, who: Seat = Depends(member)):
     }
 
 
-# ---------- урок ----------
-
 @router.get("/lessons/{lesson_id}/roster", response_model=Roster, dependencies=[Depends(member)])
 def roster(lesson_id: str):
-    """Состав идущего урока, с виртуальными учениками, если они есть; иначе состав класса."""
     return runner.roster_of(lesson_id) or _roster(lesson_id)
 
 
 @router.get("/lessons/{lesson_id}/join", response_model=JoinInfo)
 def join(lesson_id: str, who: Seat = Depends(member)):
-    """Адрес LiveKit и токен для входа в звонок урока: под своим id и только участнику класса."""
     return JoinInfo(
         url=settings.livekit_public_url,
         token=participant_token(lesson_id, who.participant_id, who.name, teacher=who.role == "teacher"),
@@ -175,7 +150,6 @@ class ClassCode(BaseModel):
 
 @router.post("/classes/join")
 def join_class(body: ClassCode, user: User = Depends(current_user)):
-    """«Я ученик» → код класса в мини-приложении: те же ответы, что у бота на код."""
     if user.max_user_id is None:
         raise HTTPException(403, "Войти в класс можно из MAX")
     status, c = classes.find_by_code(body.code)
@@ -196,10 +170,6 @@ def join_class(body: ClassCode, user: User = Depends(current_user)):
 
 @router.post("/me/exit")
 async def exit_app(user: User = Depends(current_user)):
-    """«Выйти» на «Мои классы»: всё начатое сбрасывается, бот присылает в чат выбор роли заново.
-
-    Незавершённые уроки учителя закрываются: звонок не остаётся висеть «Урок идёт» у учеников.
-    """
     if user.max_user_id is None:
         return {"ended": []}
     loop = asyncio.get_running_loop()
@@ -207,13 +177,12 @@ async def exit_app(user: User = Depends(current_user)):
 
     async def close(lesson_id: str) -> None:
         await runner.stop_virtual(lesson_id)
-        # как «Завершить урок»: ученики выходят из звонка и видят «Урок завершён»
         await asyncio.gather(runner.end(lesson_id), call.close_room(lesson_id))
         classes.mark_ended(lesson_id)
 
     await asyncio.gather(*(close(lesson_id) for lesson_id in ended))
     await loop.run_in_executor(None, classes.set_role, user.max_user_id, "none")
-    # запрос к MAX синхронный и бывает долгим: цикл событий (уроки, WebSocket) он не держит
+    # запрос к MAX синхронный, выполняем его вне цикла событий
     await loop.run_in_executor(None, max_bot.role_again, user.max_user_id)
     return {"ended": ended}
 
@@ -224,13 +193,11 @@ class RoleChoice(BaseModel):
 
 @router.get("/me/role")
 def my_role(user: User = Depends(current_user)):
-    """Роль для стартовой страницы: та же, что выбрана в чате с ботом."""
     return {"role": classes.role_of(user.max_user_id) if user.max_user_id is not None else "none"}
 
 
 @router.put("/me/role")
 def choose_role(body: RoleChoice, user: User = Depends(current_user)):
-    """«Я учитель» / «Я ученик» на приветствии мини-приложения."""
     if body.role not in ("teacher", "student"):
         raise HTTPException(422, "Роль — учитель или ученик")
     if user.max_user_id is None:
@@ -241,10 +208,6 @@ def choose_role(body: RoleChoice, user: User = Depends(current_user)):
 
 @router.get("/me/classes")
 def my_classes(user: User = Depends(current_user)):
-    """Классы вошедшего для стартовой страницы: учителю — «Начать урок», ученику — идущий урок.
-
-    lesson — идущий урок класса (учитель уже в звонке), иначе null.
-    """
     if user.max_user_id is None:
         return []
     out = []
@@ -259,12 +222,10 @@ def my_classes(user: User = Depends(current_user)):
 
 @router.post("/demo")
 def demo(user: User = Depends(current_user)):
-    """Свой демо-урок: вошедший — учитель, класс заходит записью. Для стартовой страницы, как «Посмотреть демо» в боте."""
     return {"lesson_id": classes.demo_lesson(user.max_user_id, user.name or None).id}
 
 
 def _taught_class(class_id: int, user: User, deleted: bool = False):
-    """Класс, которым управляет вошедший учитель: иначе 404 или 403. deleted — и удалённый (для «Вернуть»)."""
     c = classes.get_class(class_id)
     if c is None or (c.deleted_at is not None and not deleted):
         raise HTTPException(404, "Такого класса нет")
@@ -287,7 +248,6 @@ class NewClass(BaseModel):
 
 
 def _class_fields(body: NewClass) -> tuple[str, str]:
-    """Класс и предмет с теми же проверками, что в боте: «10А, история»."""
     name, subject = body.name.strip(), body.subject.strip()
     if not name or not subject or len(name) > 40 or len(subject) > 60:
         raise HTTPException(422, "Укажите класс и предмет. Например: 10А и история")
@@ -296,7 +256,6 @@ def _class_fields(body: NewClass) -> tuple[str, str]:
 
 @router.post("/classes")
 def create_class(body: NewClass, user: User = Depends(current_user)):
-    """«Создать класс» в мини-приложении: как в боте, вошедший становится учителем класса."""
     if user.max_user_id is None:
         raise HTTPException(403, "Создать класс можно из MAX")
     name, subject = _class_fields(body)
@@ -306,7 +265,6 @@ def create_class(body: NewClass, user: User = Depends(current_user)):
 
 @router.patch("/classes/{class_id}")
 def update_class(class_id: int, body: NewClass, user: User = Depends(current_user)):
-    """Карандаш на экране класса: новое название и предмет."""
     _taught_class(class_id, user)
     classes.update_class(class_id, *_class_fields(body))
     return {"updated": class_id}
@@ -314,7 +272,6 @@ def update_class(class_id: int, body: NewClass, user: User = Depends(current_use
 
 @router.get("/classes/{class_id}")
 def class_card(class_id: int, user: User = Depends(current_user)):
-    """Экран класса в мини-приложении (design/screens/start-class.png): ученики по алфавиту, ссылка и код для приглашения."""
     c = _taught_class(class_id, user)
     return {
         "id": c.id, "name": c.name, "subject": c.subject,
@@ -326,13 +283,11 @@ def class_card(class_id: int, user: User = Depends(current_user)):
 
 @router.delete("/classes/{class_id}")
 def delete_class(class_id: int, user: User = Depends(current_user)):
-    """Удалить класс: как в боте, 30 дней его можно вернуть («Вернуть» на экране)."""
     _taught_class(class_id, user)
     if classes.live_lesson(class_id):
         raise HTTPException(409, "Идёт урок: удалить класс можно после него")
     students = classes.students_of(class_id)
     classes.delete_class(class_id)
-    # как в боте: ученики узнают, что уроков больше не будет (#98, п. 19)
     max_bot.tell(students, max_bot.class_deleted_text(classes.get_class(class_id)))
     return {"deleted": class_id}
 
@@ -348,7 +303,6 @@ def restore_class(class_id: int, user: User = Depends(current_user)):
 
 @router.delete("/classes/{class_id}/students/{member_id}")
 def remove_student(class_id: int, member_id: int, user: User = Depends(current_user)):
-    """«Убрать из класса»: сразу, без вопроса — на экране есть «Вернуть»."""
     _taught_class(class_id, user)
     member = _class_student(class_id, member_id)
     classes.remove_member(member.id)
@@ -367,7 +321,6 @@ def restore_student(class_id: int, member_id: int, user: User = Depends(current_
 
 @router.post("/classes/{class_id}/lessons")
 def lesson_for_class(class_id: int, user: User = Depends(current_user)):
-    """«Начать урок» в боте: урок класса, идущий или новый. Мини-приложение открывает его звонок."""
     c = classes.get_class(class_id)
     if c is None or c.deleted_at is not None:
         raise HTTPException(404, "Такого класса нет")
@@ -379,25 +332,16 @@ def lesson_for_class(class_id: int, user: User = Depends(current_user)):
 
 @router.post("/lessons/{lesson_id}/start", dependencies=[Depends(teacher)])
 async def start(lesson_id: str, virtual: bool = False):
-    """Учитель вошёл в звонок: ассистент заходит и слушает, ученики класса получают «Урок начался».
-
-    Демо-урок начинается сразу с записанным классом: так учитель или гость
-    показывают урок в одиночку. Пустой класс урок не начинает — для этого
-    «Посмотреть демо» в боте и мини-приложении. virtual=true —
-    в составе урока ученики из записи: так ассистент засчитает ботов, которых
-    заводит `python -m app.cli virtual-class`.
-    """
     lesson = classes.get_lesson(lesson_id)
     if lesson is not None and lesson.demo:
         return {"lesson_id": lesson_id, "started": _start_virtual(lesson_id)}
     if lesson is not None and lesson.ended_at is not None:
-        # новый прогон завершённого урока затёр бы его итоги (results.save_lesson)
+        # повторный прогон затёр бы итоги урока
         raise HTTPException(409, "Урок уже завершён: начните новый урок из чата с ботом")
     started = runner.start(lesson_id, _lesson_roster(lesson_id, virtual))
     if started:
         runner.when_finished(lesson_id, classes.mark_ended)
     if classes.mark_live(lesson_id):
-        # рассылка ходит в API MAX, цикл событий она не держит
         asyncio.get_running_loop().run_in_executor(None, max_bot.lesson_started, lesson_id)
     return {"lesson_id": lesson_id, "started": started}
 
@@ -414,27 +358,17 @@ def _start_virtual(lesson_id: str) -> bool:
 
 @router.post("/lessons/{lesson_id}/virtual-class", dependencies=[Depends(teacher)])
 async def start_virtual_class(lesson_id: str):
-    """Записанный урок заходит в звонок ботами вместо учеников (#18, демо для #45).
-
-    Урок начинается, если ещё не идёт, и сразу с учениками из записи. Если урок
-    уже идёт без них, ассистент не засчитал бы ботов, поэтому ответ 409.
-    """
     return {"lesson_id": lesson_id, "playing": _start_virtual(lesson_id)}
 
 
 @router.delete("/lessons/{lesson_id}/virtual-class", dependencies=[Depends(teacher)])
 async def stop_virtual_class(lesson_id: str):
-    """Боты виртуального класса выходят из звонка, урок идёт дальше."""
     stopped = await runner.stop_virtual(lesson_id)
     return {"lesson_id": lesson_id, "stopped": stopped}
 
 
 @router.post("/lessons/{lesson_id}/end", dependencies=[Depends(teacher)])
 async def end(lesson_id: str):
-    """Учитель нажал «Завершить урок»: ответ приходит, когда очередь дораспознана и ассистент вышел."""
-    # урок кончается у всего класса: ученики выходят из звонка и видят «Урок завершён».
-    # Комнату закрываем сразу, не дожидаясь, пока очередь дораспознается: runner.end до
-    # первого await уже велел ассистенту выйти, а ученикам незачем сидеть в пустом звонке
     ended, _ = await asyncio.gather(runner.end(lesson_id), call.close_room(lesson_id))
     classes.mark_ended(lesson_id)
     return {"lesson_id": lesson_id, "ended": ended}
@@ -442,7 +376,6 @@ async def end(lesson_id: str):
 
 @router.get("/lessons/{lesson_id}/summary", response_model=Summary, dependencies=[Depends(teacher)])
 def summary(lesson_id: str):
-    # сводка из базы (#21); для урока, который ещё идёт или не из базы, — мок
     return results.get_summary(lesson_id) or mocks.load("summary.json")
 
 
@@ -454,18 +387,12 @@ def card(lesson_id: str, student_id: str, who: Seat = Depends(member)):
     if card is not None:
         return card
     if results.get_summary(lesson_id) is not None:
-        # сводка есть, а карточки нет: аналитика была выключена или сказать нечего
         raise HTTPException(404, "Карточки по этому уроку нет")
     return next(c for c in mocks.load("cards.json") if c["student_id"] == student_id)
 
 
 @router.post("/lessons/{lesson_id}/analytics", response_model=AnalyticsState, dependencies=[Depends(teacher)])
 def set_analytics(lesson_id: str, state: AnalyticsState):
-    """Учитель выключил или включил аналитику ученику (student_id) или всему классу (null).
-
-    Выключенный ученик не попадает ни в шкалы, ни в итоги урока; ему и учителю
-    уходит событие analytics.
-    """
     runner.set_analytics(lesson_id, state.enabled, state.student_id)
     from app.ws import lesson as ws
 
@@ -475,6 +402,5 @@ def set_analytics(lesson_id: str, state: AnalyticsState):
 
 @router.get("/lessons/{lesson_id}/analytics", dependencies=[Depends(teacher)])
 def analytics_state(lesson_id: str):
-    """У кого в уроке выключена аналитика: панель учителя восстанавливает выключатели после перезагрузки."""
     off = runner.analytics_off_list(lesson_id)
     return {"all_off": runner.ALL in off, "off": [sid for sid in off if sid != runner.ALL]}

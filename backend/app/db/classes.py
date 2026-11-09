@@ -1,14 +1,4 @@
-"""Классы, участники и уроки (#44).
-
-Класс постоянный: учитель создаёт его в боте, ученики входят по коду класса
-один раз и дальше получают все его уроки. Удаление мягкое: класс 30 дней
-можно вернуть, вышедший ученик остаётся в базе, чтобы его реплики в прошлых
-уроках не потерялись.
-
-id участника в уроке (identity в LiveKit, student_id в событиях) — «m<members.id>».
-Демо-урок идёт без класса: состав из data/demo_lesson/roster.json, а учитель —
-тот, кто попросил демо.
-"""
+"""Классы, участники и уроки"""
 
 import re
 import secrets
@@ -22,17 +12,14 @@ from app.config import settings
 from app.db import Base
 from app.models import Roster, Student
 
-# Код класса: шесть знаков без похожих (нет 0 и O, 1 и I), его диктуют на уроке
+# Код без похожих знаков, его диктуют на уроке
 CODE_ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ"
 CODE_LENGTH = 6
 RESTORE_DAYS = 30
-# Урок, в который учитель так и не вошёл, через столько часов не переиспользуем
 LESSON_STALE_H = 3
-# Урок из roster.json: на нём работают разработка, демо-запись и тесты
 DEMO_LESSON_ID = "10a-history-05"
 
-# Код могут набрать русскими буквами: похожими на латинские («К7Х2М9»)
-# или на русской раскладке («Л7Ч2Ь9»). Пробуем оба прочтения
+# Код могут набрать русскими буквами, пробуем оба прочтения
 _LOOKALIKE = str.maketrans("АВЕКМНОРСТУХ", "ABEKMHOPCTYX")
 _LAYOUT = str.maketrans("ЙЦУКЕНГШЩЗФЫВАПРОЛДЯЧСМИТЬ", "QWERTYUIOPASDFGHJKLZXCVBNM")
 
@@ -53,8 +40,6 @@ class Class(Base):
 
 
 class InviteCode(Base):
-    """Все коды класса, включая заменённые: на старый код бот отвечает «ссылка устарела»."""
-
     __tablename__ = "invite_codes"
 
     code: Mapped[str] = mapped_column(String(CODE_LENGTH), primary_key=True)
@@ -68,7 +53,7 @@ class Member(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     class_id: Mapped[int] = mapped_column(ForeignKey("classes.id"), index=True)
     max_user_id: Mapped[int] = mapped_column(BigInteger, index=True)
-    role: Mapped[str] = mapped_column(String(10))  # teacher | student
+    role: Mapped[str] = mapped_column(String(10))
     name: Mapped[str] = mapped_column(String(80))
     joined_at: Mapped[datetime] = mapped_column(DateTime, default=now)
     left_at: Mapped[datetime | None] = mapped_column(DateTime, default=None)
@@ -81,21 +66,17 @@ class Member(Base):
 class Lesson(Base):
     __tablename__ = "lessons"
 
-    id: Mapped[str] = mapped_column(String(16), primary_key=True)  # комната lesson-<id>
+    id: Mapped[str] = mapped_column(String(16), primary_key=True)
     class_id: Mapped[int | None] = mapped_column(ForeignKey("classes.id"), default=None, index=True)
     demo: Mapped[bool] = mapped_column(Boolean, default=False)
-    # учитель демо-урока: у демо нет класса, а значит и учителя в members
     demo_teacher_max_id: Mapped[int | None] = mapped_column(BigInteger, default=None)
     demo_teacher_name: Mapped[str | None] = mapped_column(String(80), default=None)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
-    live_at: Mapped[datetime | None] = mapped_column(DateTime, default=None)  # учитель вошёл в звонок
+    live_at: Mapped[datetime | None] = mapped_column(DateTime, default=None)
     ended_at: Mapped[datetime | None] = mapped_column(DateTime, default=None)
 
 
-# ---------- имена и коды ----------
-
 def short_name(full: str) -> str:
-    """«Иван Иванов» → «Иван И.»: так ученик подписан в классе и в звонке."""
     words = full.split()
     if len(words) < 2:
         return full.strip()
@@ -103,7 +84,6 @@ def short_name(full: str) -> str:
 
 
 def code_candidates(text: str) -> list[str]:
-    """Как человек мог набрать код: латиницей, похожими русскими буквами, на русской раскладке."""
     raw = re.sub(r"[\s\-]", "", text).upper()
     out = []
     for table in (_LOOKALIKE, _LAYOUT):
@@ -124,8 +104,6 @@ def _restorable(c: Class) -> bool:
     return c.deleted_at is not None and now() - c.deleted_at < timedelta(days=RESTORE_DAYS)
 
 
-# ---------- классы ----------
-
 def create_class(teacher_max_id: int, teacher_name: str, name: str, subject: str) -> Class:
     with db.session() as s:
         code = _new_code(s)
@@ -134,7 +112,7 @@ def create_class(teacher_max_id: int, teacher_name: str, name: str, subject: str
         s.flush()
         s.add(InviteCode(code=code, class_id=c.id))
         s.add(Member(class_id=c.id, max_user_id=teacher_max_id, role="teacher", name=teacher_name))
-        _set_role(s, teacher_max_id, "teacher")  # создал класс — значит, учитель
+        _set_role(s, teacher_max_id, "teacher")
         return c
 
 
@@ -144,7 +122,6 @@ def get_class(class_id: int) -> Class | None:
 
 
 def find_by_code(text: str) -> tuple[str, Class | None]:
-    """Код из сообщения или ссылки: ("ok" | "old" | "deleted" | "none", класс)."""
     with db.session() as s:
         for code in code_candidates(text):
             row = s.get(InviteCode, code)
@@ -158,7 +135,6 @@ def find_by_code(text: str) -> tuple[str, Class | None]:
 
 
 def new_code(class_id: int) -> Class:
-    """Новая ссылка и код; старые перестают принимать новых учеников."""
     with db.session() as s:
         c = s.get(Class, class_id)
         s.get(InviteCode, c.invite_code).revoked_at = now()
@@ -168,7 +144,6 @@ def new_code(class_id: int) -> Class:
 
 
 def update_class(class_id: int, name: str, subject: str) -> None:
-    """Изменить название и предмет: ученики, ссылка и уроки остаются."""
     with db.session() as s:
         c = s.get(Class, class_id)
         c.name, c.subject = name, subject
@@ -180,7 +155,6 @@ def delete_class(class_id: int) -> None:
 
 
 def restore_class(class_id: int) -> bool:
-    """Вернуть удалённый класс с учениками и ссылкой. False — 30 дней прошло."""
     with db.session() as s:
         c = s.get(Class, class_id)
         if not _restorable(c):
@@ -188,8 +162,6 @@ def restore_class(class_id: int) -> bool:
         c.deleted_at = None
         return True
 
-
-# ---------- участники ----------
 
 def _active(s: Session, class_id: int, max_user_id: int) -> Member | None:
     return s.scalar(select(Member).where(
@@ -202,16 +174,14 @@ def membership(class_id: int, max_user_id: int) -> Member | None:
 
 
 def join(class_id: int, max_user_id: int, name: str) -> tuple[Member, bool]:
-    """Ученик входит в класс. (участник, вошёл ли только что)."""
     with db.session() as s:
         member = _active(s, class_id, max_user_id)
         if member is not None:
-            # «Изменить имя» после «Это я»: уже вошедший меняет имя, а не остаётся со старым (#98, п. 17)
             member.name = name
             return member, False
         member = Member(class_id=class_id, max_user_id=max_user_id, role="student", name=name)
         s.add(member)
-        _set_role(s, max_user_id, "student")  # вошёл в класс по коду — значит, ученик
+        _set_role(s, max_user_id, "student")
         s.flush()
         return member, True
 
@@ -222,7 +192,6 @@ def get_member(member_id: int) -> Member | None:
 
 
 def remove_member(member_id: int) -> Member:
-    """Ученик вышел сам или его убрал учитель."""
     with db.session() as s:
         m = s.get(Member, member_id)
         m.left_at = m.left_at or now()
@@ -230,7 +199,6 @@ def remove_member(member_id: int) -> Member:
 
 
 def restore_member(member_id: int) -> Member:
-    """«Вернуть»: тот же участник, его прошлые реплики остаются его."""
     with db.session() as s:
         m = s.get(Member, member_id)
         if _active(s, m.class_id, m.max_user_id) is None:
@@ -251,15 +219,12 @@ def students_of(class_id: int) -> list[Member]:
 
 
 def classes_of(max_user_id: int) -> list[tuple[Class, Member]]:
-    """Классы человека, где он сейчас учитель или ученик, без удалённых."""
     with db.session() as s:
         rows = s.execute(select(Class, Member).join(Member, Member.class_id == Class.id).where(
             Member.max_user_id == max_user_id, Member.left_at.is_(None), Class.deleted_at.is_(None),
         ).order_by(Class.created_at))
         return [(c, m) for c, m in rows]
 
-
-# ---------- уроки ----------
 
 def _lesson_id(s: Session) -> str:
     while True:
@@ -269,7 +234,6 @@ def _lesson_id(s: Session) -> str:
 
 
 def lesson_for_class(class_id: int) -> Lesson:
-    """Урок класса для «Начать урок»: идущий или только что созданный, иначе новый."""
     with db.session() as s:
         recent = now() - timedelta(hours=LESSON_STALE_H)
         lesson = s.scalar(select(Lesson).where(
@@ -283,7 +247,6 @@ def lesson_for_class(class_id: int) -> Lesson:
 
 
 def demo_lesson(max_user_id: int, name: str) -> Lesson:
-    """Свой демо-урок: человек учитель, класс заходит записью (#18)."""
     with db.session() as s:
         lesson = Lesson(id=_lesson_id(s), demo=True, demo_teacher_max_id=max_user_id, demo_teacher_name=name)
         s.add(lesson)
@@ -296,14 +259,12 @@ def get_lesson(lesson_id: str) -> Lesson | None:
 
 
 def live_lesson(class_id: int) -> Lesson | None:
-    """Урок класса, в котором учитель уже в звонке."""
     with db.session() as s:
         return s.scalar(select(Lesson).where(
             Lesson.class_id == class_id, Lesson.live_at.is_not(None), Lesson.ended_at.is_(None)))
 
 
 def mark_live(lesson_id: str) -> bool:
-    """Учитель вошёл в звонок. True — впервые: пора звать учеников."""
     with db.session() as s:
         lesson = s.get(Lesson, lesson_id)
         if lesson is None or lesson.live_at is not None:
@@ -313,7 +274,6 @@ def mark_live(lesson_id: str) -> bool:
 
 
 def open_lessons_of_teacher(max_user_id: int) -> list[str]:
-    """Незавершённые уроки классов, где человек учитель: их закрывает «Выйти»."""
     with db.session() as s:
         return list(s.scalars(select(Lesson.id).join(Member, Member.class_id == Lesson.class_id).where(
             Member.max_user_id == max_user_id, Member.role == "teacher", Member.left_at.is_(None),
@@ -333,7 +293,6 @@ def _demo_roster() -> Roster:
 
 
 def lesson_roster(lesson_id: str) -> Roster | None:
-    """Состав урока: учитель и действующие ученики класса. None — урока нет."""
     if lesson_id == DEMO_LESSON_ID:
         return _demo_roster()
     with db.session() as s:
@@ -362,17 +321,11 @@ def lesson_roster(lesson_id: str) -> Roster | None:
     )
 
 
-# ---------- роль: общая для бота и мини-приложения ----------
-
 ROLES = ("teacher", "student", "none")
 
 
 class UserRole(Base):
-    """Кто человек сейчас: учитель, ученик или none — нажал «Выйти» и роль ещё не выбрал.
-
-    Одна на бота и мини-приложение: выбор «Я учитель» в чате видно в приложении и наоборот.
-    Нет строки — человек роль не выбирал, её выводят из его классов.
-    """
+    """Роль общая для бота и приложения"""
 
     __tablename__ = "user_roles"
 
@@ -394,7 +347,6 @@ def set_role(max_user_id: int, role: str) -> None:
 
 
 def role_of(max_user_id: int) -> str:
-    """Роль для стартовой страницы: выбранная, иначе по классам — учитель, ученик или none."""
     with db.session() as s:
         r = s.get(UserRole, max_user_id)
         if r is not None:
@@ -405,15 +357,11 @@ def role_of(max_user_id: int) -> str:
     return "student" if mine else "none"
 
 
-# ---------- чего бот ждёт от человека ----------
-
 class Dialog(Base):
-    """Шаг разговора с ботом: название класса, код или имя. Переживает перезапуск сервера."""
-
     __tablename__ = "bot_dialogs"
 
     max_user_id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
-    step: Mapped[str] = mapped_column(String(20))  # class_name | code | name
+    step: Mapped[str] = mapped_column(String(20))
     class_id: Mapped[int | None] = mapped_column(Integer, default=None)
 
 

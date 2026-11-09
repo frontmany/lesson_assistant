@@ -1,13 +1,4 @@
-"""Распознавание речи.
-
-faster-whisper в int8 на CPU или GigaAM v3 через onnx-asr (имя модели
-начинается с «gigaam»). Модели учителя и учеников задаются раздельно (#55),
-по умолчанию у обоих GigaAM v3: на живых фразах она точнее Whisper и в разы
-быстрее, а на демо-уроке у учителя не теряет «?» и слышит имена без подсказки
-(docs/quality.md). Имена класса подсказкой получает только Whisper.
-Цель: шкала на экране не позже чем через 20 секунд после реплики, главное —
-чтобы очередь не росла к концу урока.
-"""
+"""Распознавание речи, Whisper или GigaAM"""
 
 from __future__ import annotations
 
@@ -27,15 +18,12 @@ from app.pipeline.vad import SAMPLE_RATE, to_float
 
 log = logging.getLogger(__name__)
 
-# Признаки галлюцинации, пороги из самого Whisper. На музыке и неразборчивом
-# звуке он повторяет одну фразу по кругу («это не то, что это не то, что…»)
-# или выдумывает текст там, где сам считает, что речи нет.
-MAX_COMPRESSION_RATIO = 2.4  # текст из повторов жмётся сильнее обычного
+# Признаки галлюцинации Whisper
+MAX_COMPRESSION_RATIO = 2.4
 NO_SPEECH_PROB = 0.6
 MIN_AVG_LOGPROB = -1.0
-# Потолок длины текста: речь — около 6 токенов в секунду, вдвое больше не бывает
 TOKENS_PER_SECOND = 12
-MAX_TOKENS = 350  # Whisper принимает 448 вместе с подсказкой; фразу длиннее 30 секунд он делит сам
+MAX_TOKENS = 350
 
 Role = Literal["teacher", "student"]
 BEAM_SIZE: dict[Role, int] = {"teacher": 1, "student": 5}
@@ -51,11 +39,10 @@ def is_gigaam(name: str) -> bool:
 
 @functools.cache
 def _load(name: str):
-    """Модель загружается один раз на процесс: первый вызов долгий, остальные мгновенные."""
+    """Модель загружается один раз на процесс"""
     if is_gigaam(name):
         import onnx_asr
 
-        # первый раз скачивается в эту папку, дальше берётся из неё без сети
         log.info("загружаю модель распознавания %s (onnx)", name)
         return onnx_asr.load_model(name, Path(settings.whisper_download_root) / name)
     log.info("загружаю модель распознавания %s (%s)", name, settings.whisper_compute_type)
@@ -72,7 +59,6 @@ def model(role: Role):
 
 
 def class_names(roster: Roster) -> str:
-    """Имена учеников подсказкой для учителя: «Иван, Ваня, Артём, ...»."""
     names: list[str] = []
     for student in roster.students:
         first = student.name.split()[0]
@@ -88,18 +74,9 @@ def is_hallucination(segment: Segment) -> bool:
 
 
 def transcribe(pcm: bytes | np.ndarray, role: Role = "student", hotwords: str | None = None) -> str:
-    """Распознать один отрезок речи на русском моделью для этой роли.
-
-    Отрезок уже найден VAD, поэтому свой VAD Whisper не включаем, а контекст
-    прошлых фраз не передаём: реплики разных людей не связаны. Повторы с
-    другой температурой выключены: на неуверенной фразе они растягивали
-    распознавание в несколько раз. Вместо них галлюцинации гасятся запретом
-    повторов и отбрасываются по признакам выше. hotwords — слова, которых
-    модель ждёт в этой фразе.
-    """
+    """Распознать отрезок речи моделью для этой роли"""
     audio = to_float(pcm)
     if is_gigaam(model_name(role)):
-        # GigaAM сама ставит знаки и не галлюцинирует повторами, как Whisper; подсказок у неё нет
         return model(role).recognize(audio, sample_rate=SAMPLE_RATE).strip()
     segments, _ = model(role).transcribe(audio, **options(role, audio, hotwords))
     return join_segments(segments)
@@ -120,7 +97,6 @@ def options(role: Role, audio: np.ndarray, hotwords: str | None = None) -> dict:
 
 
 def join_segments(segments) -> str:
-    """Текст фразы без отрезков с признаками галлюцинации."""
     kept = []
     for segment in segments:
         if is_hallucination(segment):

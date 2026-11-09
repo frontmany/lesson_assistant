@@ -1,15 +1,11 @@
-/* Экран ученика в звонке (#22). Своих цветов нет, всё из tokens.css.
-   Раскладка та же, что у учителя (call.css, js/stage.js): сетка плиток, страницы, показ экрана.
-   Панели класса нет; вместо неё своя шкала — внизу своей плитки. */
+/* Экран ученика, своя шкала вместо панели класса */
 
-/* Своя шкала: зелёная звезда «AI» и четыре сегмента прямо на плитке.
-   Учитель выключил аналитику — звезда и сегменты серые */
 .meter-pill {
   position: absolute; left: 8px; right: 8px; bottom: 8px; z-index: 2; display: flex; align-items: center; gap: 6px;
   padding: 4px 6px; transition: opacity .3s;
 }
-.parked { display: none; } /* до входа в звонок плашка ждёт своей плитки */
-.tile.self .avatar { margin-bottom: 14px; } /* аватар над плашкой шкалы, а не под ней */
+.parked { display: none; }
+.tile.self .avatar { margin-bottom: 14px; }
 .meter-pill .ai { width: 15px; height: 15px; flex: none; fill: var(--accent); stroke: none; }
 .meter { flex: 1; display: flex; gap: 3px; margin: 0; padding: 0; list-style: none; }
 .meter li { flex: 1; height: 4px; border-radius: 2px; background: var(--line-strong); transition: background .45s; }
@@ -18,7 +14,6 @@
 .meter-pill.off .ai { fill: var(--ink-soft); }
 .meter-pill.off .meter li { background: var(--line); }
 
-/* В полосе рядом с показом экрана плитки маленькие: шкала тоньше */
 .strip .meter-pill { left: 4px; right: 4px; bottom: 4px; padding: 2px 4px; gap: 4px; }
 .strip .meter-pill .ai { width: 12px; height: 12px; }
 
@@ -26,5 +21,5 @@
   .meter li, .meter-pill { transition: none; }
 }
 
-/* только для экранного чтения */
+/* для экранного чтения */
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }

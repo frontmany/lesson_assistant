@@ -1,4 +1,4 @@
-"""Отбраковка галлюцинаций Whisper, без модели."""
+"""Отбраковка галлюцинаций Whisper без модели"""
 
 import pytest
 
@@ -26,7 +26,6 @@ def test_normal_phrase_is_kept():
 
 
 def test_repeating_loop_is_dropped():
-    # реплика, которую Whisper выдал на музыке во время проверки
     assert is_hallucination(segment("это не то, что " * 40, 9.5, 0.1, -0.2))
 
 
@@ -35,7 +34,6 @@ def test_text_where_whisper_hears_no_speech_is_dropped():
 
 
 def test_quiet_but_confident_phrase_is_kept():
-    # тихо сказано, но Whisper уверен в словах
     assert not is_hallucination(segment("Табель о рангах", 1.0, 0.7, -0.4))
 
 

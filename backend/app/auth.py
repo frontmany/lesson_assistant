@@ -1,17 +1,4 @@
-"""Кто открыл мини-приложение (#24).
-
-MAX передаёт мини-приложению данные запуска (initData) с подписью: HMAC-SHA256,
-ключ — HMAC-SHA256("WebAppData", токен бота). Сервер проверяет подпись и выдаёт
-свою сессию: дальше мини-приложение ходит с ней, а не с initData.
-
-В браузере, куда урок открывают, если MAX не дал микрофон (js/mic.js), данных
-запуска нет: туда ведёт одноразовая ссылка, которая меняется на сессию.
-
-DEV_AUTH=1 — для разработки: участника можно назвать в адресе (?id=ivan_i).
-На сервере выключено.
-
-Документация: https://dev.max.ru/docs/webapps/validation
-"""
+"""Проверка данных запуска MAX и сессии приложения"""
 
 import base64
 import hashlib
@@ -30,19 +17,18 @@ INIT_DATA_MAX_AGE_S = 24 * 3600  # старые данные запуска не
 SESSION_S = 12 * 3600
 TICKET_S = 10 * 60
 
-_used_tickets: dict[str, float] = {}  # одноразовые ссылки: id → когда истекает
+_used_tickets: dict[str, float] = {}
 
 
 @dataclass(frozen=True)
 class User:
     max_user_id: int | None
     name: str
-    # DEV_AUTH: участник назван в адресе, а не узнан по MAX
     dev_participant: str | None = None
 
 
 def check_init_data(init_data: str, bot_token: str, now: float | None = None) -> dict | None:
-    """Данные запуска MAX, если подпись верна и они не старше суток; иначе None."""
+    """Данные запуска MAX, если подпись верна и они не старше суток, иначе None"""
     pairs = parse_qsl(init_data, keep_blank_values=True)
     keys = [k for k, _ in pairs]
     if keys.count("hash") != 1 or len(keys) != len(set(keys)):
@@ -67,11 +53,10 @@ def check_init_data(init_data: str, bot_token: str, now: float | None = None) ->
 def _secret() -> bytes:
     if settings.session_secret:
         return settings.session_secret.encode()
-    # без своего секрета сессии подписываются производным от токена бота
     return hmac.new(b"session", settings.max_bot_token.encode() or _fallback, hashlib.sha256).digest()
 
 
-_fallback = secrets.token_bytes(32)  # нет ни секрета, ни токена: сессии живут до перезапуска
+_fallback = secrets.token_bytes(32)
 
 
 def _b64(data: bytes) -> str:
@@ -101,7 +86,6 @@ def session_for(max_user_id: int, name: str) -> str:
 
 
 def ticket_for(user: User) -> str:
-    """Одноразовая ссылка в браузер: меняется на сессию один раз и не позже чем через 10 минут."""
     return sign({"kind": "ticket", "uid": user.max_user_id, "name": user.name, "jti": secrets.token_hex(8)}, TICKET_S)
 
 
@@ -127,7 +111,6 @@ def user_from_token(token: str | None) -> User | None:
 
 
 def current_user(authorization: str | None = Header(default=None), id: str | None = Query(default=None)) -> User:
-    """Зависимость FastAPI: кто делает запрос. 401 — без сессии."""
     token = (authorization or "").removeprefix("Bearer ").strip()
     user = user_from_token(token)
     if user is not None:

@@ -1,4 +1,4 @@
-"""Итоги уроков в базе: реплики, ступени, норма класса и сводки (#23)."""
+"""Итоги уроков в базе"""
 
 import asyncio
 import dataclasses
@@ -150,17 +150,15 @@ def test_pipeline_saves_lesson_with_class_norm(monkeypatch):
         assert await runner.end(lesson.id)
 
     asyncio.run(scenario())
-    assert norms == [4.0]  # медиана двух прошлых уроков класса, а не история из файла
+    assert norms == [4.0]
     rows = results.lesson_utterances(lesson.id)
     assert [(r.participant_id, r.kind) for r in rows] == [(teacher_id, None), (artem_id, "response")]
     levels = results.lesson_levels(lesson.id)
     assert levels[artem_id].level == 2 and levels[ivan_id].level == 1
-    # один отклик на двоих — 1 балл на ученика, меньше трети нормы 4: урок «тихий», в норму не идёт
     assert results.class_history(c.id) == [3, 5]
 
 
 def test_second_lesson_of_new_class_keeps_seed_norm(monkeypatch, tmp_path):
-    # норма не прыгает 4,5 → 6 → своя: пока своих уроков меньше двух — норма из seed (#98, п. 13)
     (tmp_path / "history_seed.json").write_text(json.dumps({"lessons": [
         {"date": "2026-10-01", "activity": 4.5}, {"date": "2026-10-08", "activity": 4.5},
     ]}), encoding="utf-8")

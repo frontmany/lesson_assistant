@@ -1,4 +1,4 @@
-"""Общее для тестов: у каждого теста своя пустая база SQLite в памяти и режим разработки."""
+"""Своя пустая база в памяти на каждый тест"""
 
 import dataclasses
 
@@ -13,7 +13,6 @@ from app.ws import lesson as ws_lesson
 
 @pytest.fixture(autouse=True)
 def fresh_db():
-    # StaticPool: одна база в памяти на все потоки, иначе у каждого соединения своя
     engine = db.create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
     previous = db.engine
     db.use(engine)
@@ -25,7 +24,6 @@ def fresh_db():
 
 @pytest.fixture
 def use_settings(monkeypatch):
-    """Подменить настройки там, где их читают вход и API."""
     def apply(**changes):
         changed = dataclasses.replace(settings, **changes)
         for module in (auth, routes, ws_lesson):
@@ -36,7 +34,7 @@ def use_settings(monkeypatch):
 
 @pytest.fixture(autouse=True)
 def no_llm(monkeypatch):
-    # тесты не ходят в GigaChat, даже если LLM_API_KEY есть в .env; тесты LLM подменяют ответ сами
+    # тесты не ходят в GigaChat
     from app.pipeline import llm
 
     monkeypatch.setattr(llm, "settings", dataclasses.replace(settings, llm_api_key=""))
@@ -44,5 +42,4 @@ def no_llm(monkeypatch):
 
 @pytest.fixture(autouse=True)
 def dev_auth(use_settings):
-    # старые тесты API называют участника в адресе, как при разработке; тесты входа выключают это сами
     use_settings(dev_auth=True)

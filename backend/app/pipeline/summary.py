@@ -1,11 +1,4 @@
-"""Сводка учителю и карточки ученикам (#21).
-
-Два запроса к GigaChat на урок: сводка по prompts/teacher_summary.md и карточки
-всего класса по prompts/student_card.md. Ответ проверяется по моделям Summary
-и StudentCard: чужие id, лишние пункты и пустые строки отбрасываются. Без
-LLM_API_KEY, при ошибке GigaChat или ответе не по схеме сводка и карточки
-строятся по шаблону из ступеней урока, чтобы демо работало всегда.
-"""
+"""Сводка учителю и карточки ученикам, без GigaChat по шаблону"""
 
 import json
 import logging
@@ -27,15 +20,11 @@ MAX_TOPICS = 3
 MAX_ASK = 3
 MAX_POINTS = 2
 
-# ступень, баллы и флаги ученика к концу урока: как их считает runner.finish_lesson
 Levels = dict[str, tuple[int, float, list[str]]]
 
 
 def prompt(name: str, **fields: str) -> str:
-    """Текст промпта после черты «---» с подставленными полями.
-
-    Подставляем заменой, а не str.format: в промпте есть фигурные скобки примера JSON.
-    """
+    """Подставляем заменой, потому что в промпте есть фигурные скобки"""
     text = (PROMPTS / name).read_text(encoding="utf-8").split("\n---\n", 1)[1]
     for key, value in fields.items():
         text = text.replace("{" + key + "}", value)
@@ -47,7 +36,6 @@ def _clock(seconds: float) -> str:
 
 
 def transcript(roster: Roster, utterances: list[dict]) -> str:
-    """Реплики урока строками: «[3:05] Иван И. (ivan_i, ответ): …», у учителя без типа."""
     names = {s.id: s.name for s in roster.students}
     teachers = {roster.teacher.id} | ({roster.virtual_teacher.id} if roster.virtual_teacher else set())
     lines = []
@@ -62,8 +50,7 @@ def transcript(roster: Roster, utterances: list[dict]) -> str:
 
 
 def _list(items, field: str) -> list:
-    """Поле-список из ответа GigaChat. Строка вместо списка — ответ не по схеме: иначе её
-    обошли бы по буквам и учитель прочёл бы «Класс не уверен: Т, а, б». Тогда — шаблон."""
+    """Строка вместо списка значит ответ не по схеме"""
     if items is None:
         return []
     if not isinstance(items, list):
@@ -76,18 +63,13 @@ def _strings(items, limit: int, field: str = "список") -> list[str]:
     return out[:limit]
 
 
-# ---------- сводка ----------
-
-
 def build_summary(roster: Roster, utterances: list[dict], levels: Levels, streaks: dict[str, int]) -> Summary:
-    """Сводка учителю: GigaChat, а без него или при ошибке — шаблон."""
     if llm.enabled():
         try:
             return _llm_summary(roster, utterances, levels, streaks)
         except llm.LlmError as exc:
             log.warning("сводка урока %s по шаблону: %s", roster.lesson_id, exc)
         except Exception:
-            # ответ не той формы (строка вместо списка, словарь вместо id): без сводки учителя не оставляем
             log.exception("сводка урока %s по шаблону: ответ GigaChat не разобрался", roster.lesson_id)
     return template_summary(roster, utterances, levels, streaks)
 
@@ -126,7 +108,7 @@ def _llm_summary(roster: Roster, utterances: list[dict], levels: Levels, streaks
 
 
 def _ask(text: str) -> dict:
-    """Запрос с одной повторной попыткой: GigaChat изредка отвечает не JSON."""
+    """Одна повторная попытка, GigaChat изредка отвечает не JSON"""
     try:
         return llm.chat_json(SYSTEM, text)
     except llm.LlmError as exc:
@@ -135,13 +117,10 @@ def _ask(text: str) -> dict:
 
 
 def template_summary(roster: Roster, utterances: list[dict], levels: Levels, streaks: dict[str, int]) -> Summary:
-    """Сводка без LLM: по ступеням урока. Слабые темы так не определить — их нет."""
     ids = [s.id for s in roster.students if s.id in levels]
     by_score = sorted(ids, key=lambda sid: -levels[sid][1])
     carried = [sid for sid in by_score if levels[sid][0] == 4][:MAX_CARRIED]
     dropped = [sid for sid in ids if levels[sid][0] == 1]
-    # спросить тех, кто выпал, начиная с тех, кто молчит дольше; вопрос — из вопросов учителя,
-    # без обращения к другому ученику: «Иван, какой налог…?» Дмитрию задать как есть нельзя
     questions = [
         q for q in (_question_for_class(u["text"], roster) for u in utterances if "kind" not in u and u["text"].strip().endswith("?"))
         if q
@@ -159,19 +138,11 @@ def template_summary(roster: Roster, utterances: list[dict], levels: Levels, str
     )
 
 
-# обращение к классу в начале вопроса учителя: «Ребята, кто знает…?» → «Кто знает…?»
 ADDRESS_WORDS = {"ребята", "дети", "класс", "друзья", "итак", "так", "хорошо", "ладно", "верно", "отлично"}
 
 
 def _question_for_class(text: str, roster: Roster) -> str:
-    """Вопрос учителя, который можно задать любому: без обращения в начале и без имён учеников.
-
-    «Иван, какой налог Пётр ввёл вместо подворного?» → «Какой налог Пётр ввёл вместо подворного?».
-    Обращение снимается, только если это имя ученика или слово вроде «Ребята»:
-    «Пётр Первый, когда родился?» остаётся как есть.
-    Пусто — вопрос не подходит: короткий («Вопросы есть?») или называет ученика внутри фразы,
-    в любом падеже («Что Ивана спросили?»).
-    """
+    """Вопрос учителя без обращения и имён учеников, пусто если не подходит"""
     stems = [_name_stem(s.name) for s in roster.students]
     stems = [x for x in stems if len(x) >= 3]
 
@@ -193,7 +164,6 @@ def _question_for_class(text: str, roster: Roster) -> str:
 
 
 def _name_stem(name: str) -> str:
-    """Основа имени для поиска в любом падеже: «Мария» → «мари», «Дмитрий» → «дмитри», «Иван» → «иван»."""
     first = _norm_word(name.split()[0]) if name.split() else ""
     return first[:-1] if first[-1:] in "аяйьоеи" else first
 
@@ -203,15 +173,10 @@ def _norm_word(word: str) -> str:
 
 
 def _last_sentence(text: str) -> str:
-    """Из реплики учителя — сам вопрос: «Верно. А флот? Артём, что Пётр сделал с флотом?» → последнее предложение."""
     return re.split(r"(?<=[.!?])\s+", text.strip())[-1]
 
 
-# ---------- карточки ----------
-
-
 def build_cards(roster: Roster, utterances: list[dict], levels: Levels) -> list[StudentCard]:
-    """Карточки ученикам, у которых аналитика была включена. Пустые не отдаём."""
     cards: dict[str, StudentCard] = {}
     if llm.enabled():
         try:
@@ -221,7 +186,6 @@ def build_cards(roster: Roster, utterances: list[dict], levels: Levels) -> list[
         except Exception:
             log.exception("карточки урока %s по шаблону: ответ GigaChat не разобрался", roster.lesson_id)
     template = {c.student_id: c for c in template_cards(roster, utterances, levels)}
-    # кого модель пропустила, тем — шаблонная карточка
     merged = [cards.get(sid) or template.get(sid) for sid in levels]
     return [c for c in merged if c is not None and (c.went_well or c.to_repeat)]
 
@@ -252,7 +216,7 @@ def _llm_cards(roster: Roster, utterances: list[dict], levels: Levels) -> dict[s
             lesson_id=roster.lesson_id,
             student_id=sid,
             level=levels[sid][0],
-            # хвалить молчавшего не за что: такую похвалу модель придумала
+            # хвалить молчавшего не за что
             went_well=_strings(item.get("went_well"), MAX_POINTS, "went_well") if _said(utterances, sid) else [],
             to_repeat=_strings(item.get("to_repeat"), MAX_POINTS, "to_repeat"),
         )
@@ -260,7 +224,6 @@ def _llm_cards(roster: Roster, utterances: list[dict], levels: Levels) -> dict[s
 
 
 def template_cards(roster: Roster, utterances: list[dict], levels: Levels) -> list[StudentCard]:
-    """Карточки без LLM: засчитанные реплики ученика и тема урока."""
     labels = {"answer": "Ответ", "initiative": "Свой вопрос", "response": "Ответ, когда к тебе обратились"}
     cards = []
     for sid in levels:
@@ -281,7 +244,6 @@ def _short(text: str, words: int = 8) -> str:
 
 
 def dump(summary: Summary, cards: list[StudentCard]) -> str:
-    """Сводка и карточки одним JSON: для примеров ответов в задаче."""
     return json.dumps(
         {"summary": summary.model_dump(), "cards": [c.model_dump() for c in cards]}, ensure_ascii=False, indent=2,
     )

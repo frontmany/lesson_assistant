@@ -1,12 +1,4 @@
-"""Сравнение моделей распознавания на живых фразах (#55).
-
-    docker compose run --rm --no-deps -v "$PWD:/srv" -w /srv/backend app python -m analytics.compare_asr
-
-Набор — data/asr_check/labels.csv и wav рядом с ним: file, speaker, text, kind
-(question, answer, other), intonation_only, noise. Для каждой модели считает
-ошибки в словах, долю вопросов со знаком, лишние «?» и секунды счёта на секунду
-речи и печатает таблицу в markdown. Настройки Whisper — те же, что у учеников.
-"""
+"""Сравнение моделей распознавания на живых фразах"""
 
 import argparse
 import csv
@@ -91,7 +83,7 @@ def share(hits: int, total: int) -> str:
 
 def evaluate(name: str, phrases: list[Phrase], show_text: bool) -> dict[str, str]:
     run = recognizer(name)
-    run(phrases[0].audio)  # первый проход прогревает модель и в замер не идёт
+    run(phrases[0].audio)  # первый прогон прогревает модель
     errors = reference = 0
     spent = spoken = 0.0
     marked = marked_intonation = extra = 0
@@ -119,7 +111,6 @@ def evaluate(name: str, phrases: list[Phrase], show_text: bool) -> dict[str, str
         "Из них только интонацией": share(marked_intonation, sum(p.intonation_only for p in questions)),
         "Лишние «?»": share(extra, len(phrases) - len(questions)),
         "Счёт на секунду речи": f"{spent / spoken:.2f} с",
-        # Whisper дополняет любую фразу до 30 секунд, поэтому короткая реплика стоит почти как длинная
         "Счёт на фразу": f"{spent / len(phrases):.1f} с",
     }
 

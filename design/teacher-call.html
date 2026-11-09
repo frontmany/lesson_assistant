@@ -4,8 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Макет: звонок учителя</title>
-  <!-- Макет экрана учителя. Стили и сетка плиток — настоящие (webapp/css, webapp/js/stage.js),
-       участники и шкалы подставные. Состояние — в адресе, см. design/README.md -->
+  <!-- Макет экрана учителя, состояние задаётся в адресе -->
   <link rel="stylesheet" href="../webapp/css/tokens.css">
   <link rel="stylesheet" href="../webapp/css/call.css">
   <link rel="stylesheet" href="mock-call.css">
@@ -84,8 +83,6 @@
     import { $, NAMES, button, div, iconSpan, initials, lobby, params, person, setIconButton, span, svg } from "./mock-call.js";
     const { createStage, mobile } = await import("../webapp/js/stage.js");
 
-    // ?n= людей в звонке (с учителем), ?panel=0 свёрнутая панель, ?share=1 показ экрана,
-    // ?mode=start шкал ещё нет, ?menu=<ученик> меню выключателя, ?state=lobby|connecting|nomic|muted|reconnecting|over|ended|fail
     const n = Math.max(1, +(params.get("n") ?? 6));
     const state = params.get("state") ?? "live";
     const started = params.get("mode") !== "start";
@@ -97,7 +94,6 @@
       "Пётр построил флот на Балтике и основал Петербург.", "Налог брали с каждого мужчины, а не с двора.",
       "Армию набирали рекрутами, по одному с двадцати дворов.", "Бороды брили, чтобы было как в Европе.",
     ];
-    // ученики: ступень, метки, последняя реплика, выключена ли аналитика
     const students = NAMES.slice(0, Math.max(0, n - 1)).map((name, i) => ({
       id: `s${i}`, name,
       level: [3, 2, 4, 1, 2, 1, 3, 2][i % 8],

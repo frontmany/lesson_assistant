@@ -1,8 +1,4 @@
-"""Звонок урока на LiveKit: комнаты и токены входа.
-
-Один урок = одна комната. identity участника = его id из состава класса,
-поэтому сервер всегда знает, чей это звук.
-"""
+"""Звонок урока на LiveKit, одна комната на урок"""
 
 import logging
 
@@ -29,14 +25,12 @@ def _token(identity: str, name: str, grants: api.VideoGrants) -> str:
     )
 
 
-# Что участник может показывать в звонке. Экран — только учитель: урок ведёт он,
-# а ученик со своей демонстрацией перекрыл бы класс
+# Показ экрана только у учителя
 STUDENT_SOURCES = ["microphone", "camera"]
 TEACHER_SOURCES = [*STUDENT_SOURCES, "screen_share", "screen_share_audio"]
 
 
 def participant_token(lesson_id: str, identity: str, name: str, teacher: bool = False) -> str:
-    """Токен учителя или ученика: говорит и слышит остальных; экран показывает только учитель."""
     grants = api.VideoGrants(
         room_join=True,
         room=room_name(lesson_id),
@@ -48,7 +42,6 @@ def participant_token(lesson_id: str, identity: str, name: str, teacher: bool = 
 
 
 def assistant_token(lesson_id: str) -> str:
-    """Токен ассистента: скрытый участник, только слушает."""
     grants = api.VideoGrants(
         room_join=True,
         room=room_name(lesson_id),
@@ -60,22 +53,17 @@ def assistant_token(lesson_id: str) -> str:
 
 
 async def close_room(lesson_id: str) -> bool:
-    """Закрыть комнату урока: учеников выводит из звонка, их экран показывает «Урок завершён».
-
-    False — LiveKit не ответил: урок на сервере всё равно завершён, ученики выйдут сами.
-    """
     url = settings.livekit_url.replace("ws://", "http://", 1).replace("wss://", "https://", 1)
     try:
         async with api.LiveKitAPI(url, settings.livekit_api_key, settings.livekit_api_secret) as lk:
             await lk.room.delete_room(api.DeleteRoomRequest(room=room_name(lesson_id)))
-    except Exception as exc:  # сеть, LiveKit недоступен или комнаты уже нет
+    except Exception as exc:
         log.warning("комната урока %s не закрыта: %s", lesson_id, exc)
         return False
     return True
 
 
 def bot_token(lesson_id: str, identity: str, name: str) -> str:
-    """Токен участника виртуального класса: только говорит записанной дорожкой."""
     grants = api.VideoGrants(
         room_join=True,
         room=room_name(lesson_id),

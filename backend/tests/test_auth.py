@@ -1,4 +1,4 @@
-"""Вход по данным запуска MAX и права в уроке (#24)."""
+"""Вход по данным запуска MAX и права в уроке"""
 
 import dataclasses
 import hashlib
@@ -22,7 +22,6 @@ client = TestClient(app)
 
 
 def init_data(user_id, first="Иван", last="Иванов", auth_date=None, start_param=None, token=TOKEN):
-    """Данные запуска, подписанные так, как их подписывает MAX."""
     fields = {
         "auth_date": str(auth_date or int(time.time())),
         "query_id": "q1",
@@ -81,7 +80,7 @@ def test_student_joins_only_as_self(lesson):
     headers = sign_in(IVAN)
     me = client.get(f"/api/lessons/{lesson_id}/me", headers=headers).json()
     assert me == {"participant_id": ivan.participant_id, "name": "Иван И.", "role": "student", "analytics": True, "ended": False, "demo": False}
-    # чужой id в адресе ничего не меняет: участника сервер берёт из сессии
+    # чужой id в адресе ничего не меняет
     join = client.get(f"/api/lessons/{lesson_id}/join", params={"id": "m999"}, headers=headers).json()
     assert join["participant_id"] == ivan.participant_id
 
@@ -107,7 +106,6 @@ def test_browser_ticket_works_once(lesson):
     me = client.get(f"/api/lessons/{lesson_id}/me", headers={"Authorization": f"Bearer {token}"}).json()
     assert me["role"] == "student"
     assert client.post("/api/auth/browser", json={"ticket": ticket}).status_code == 401
-    # сессия не годится как одноразовая ссылка, и наоборот
     assert client.post("/api/auth/browser", json={"ticket": token}).status_code == 401
 
 
@@ -124,7 +122,7 @@ def test_student_socket_gets_only_own_scale(lesson):
             assert ws.receive_json() == {"type": "scale", "student_id": ivan, "level": 3, "label": "x", "flags": []}
             ws.portal.call(ws_lesson.publish, lesson_id, ScaleUpdate(student_id=maria, level=3, label="x"))
             ws.portal.call(ws_lesson.publish, lesson_id, ScaleUpdate(student_id=ivan, level=4, label="x"))
-            assert ws.receive_json()["level"] == 4  # шкала Марии до Ивана не дошла
+            assert ws.receive_json()["level"] == 4
         teacher = sign_in(TEACHER)["Authorization"].split()[1]
         with client.websocket_connect(f"/ws/lessons/{lesson_id}?token={teacher}") as ws:
             got = {(e["type"], e["student_id"]) for e in (ws.receive_json() for _ in range(3))}
@@ -180,7 +178,6 @@ def test_analytics_switch_is_kept_and_sent_to_student(lesson):
 
 
 def test_class_screen_lists_students_and_removes_with_undo(monkeypatch):
-    """Экран класса в мини-приложении (design/screens/start-class.png): только учителю этого класса."""
     from app.bot import max_bot
     from app.db import classes as db
 
@@ -192,7 +189,7 @@ def test_class_screen_lists_students_and_removes_with_undo(monkeypatch):
     teacher = sign_in(MARIA)
 
     card = client.get(f"/api/classes/{c.id}", headers=teacher).json()
-    assert [s["name"] for s in card["students"]] == ["Артём К.", "Софья Л."]  # по алфавиту, коротко
+    assert [s["name"] for s in card["students"]] == ["Артём К.", "Софья Л."]
     assert card["link"] == f"https://max.ru/lesson_bot?start={c.invite_code}"
 
     assert client.delete(f"/api/classes/{c.id}/students/{artem.id}", headers=teacher).status_code == 200
@@ -244,7 +241,6 @@ def test_class_is_renamed_from_the_app():
     assert client.patch(f"/api/classes/{c.id}", json={"name": "1", "subject": "х"}, headers=sign_in(31)).status_code == 403
 
 
-
 def test_exit_in_app_sends_role_choice_again(monkeypatch):
     from app.bot import max_bot
 
@@ -274,7 +270,7 @@ def test_exit_ends_teachers_unfinished_lessons():
 
     assert client.post("/api/me/exit", headers=sign_in(MARIA)).json()["ended"] == [lesson_id]
     assert db.live_lesson(c.id) is None
-    assert db.lesson_for_class(other.id).id == foreign  # урок чужого класса, где Мария ученица, идёт
+    assert db.lesson_for_class(other.id).id == foreign
 
 
 def test_role_is_shared_by_bot_and_app(monkeypatch):
@@ -292,19 +288,15 @@ def test_role_is_shared_by_bot_and_app(monkeypatch):
 
     me = sign_in(MARIA)
     assert client.get("/api/me/role", headers=me).json()["role"] == "none"
-    # «Я учитель» в чате — приложение уже знает
     max_bot.Bot(Api(), "ideya_bot").press({"user_id": MARIA}, "cb", "teacher")
     assert client.get("/api/me/role", headers=me).json()["role"] == "teacher"
-    # «Назад» в чате снова спрашивает «Кто вы?» — роли нет и в приложении
     bot = max_bot.Bot(Api(), "ideya_bot")
     bot.press({"user_id": MARIA}, "cb", "student")
     bot.press({"user_id": MARIA}, "cb", "back")
     assert client.get("/api/me/role", headers=me).json()["role"] == "none"
-    # «Выйти» в приложении — роли нет, даже если классы есть
     db.create_class(MARIA, "Мария Смирнова", "10А", "история")
     client.post("/api/me/exit", headers=me)
     assert client.get("/api/me/role", headers=me).json()["role"] == "none"
-    # создал класс в чате после выхода — снова учитель
     db.create_class(MARIA, "Мария Смирнова", "11А", "история")
     assert client.get("/api/me/role", headers=me).json()["role"] == "teacher"
     assert client.put("/api/me/role", json={"role": "student"}, headers=me).json()["role"] == "student"
@@ -332,7 +324,6 @@ def test_student_joins_class_by_code_from_the_app(monkeypatch):
 
 
 def test_finished_class_lesson_is_marked_ended_for_screens(lesson):
-    # кнопка закончившегося урока ведёт к классам, а не в пустой звонок
     c, lesson_id = lesson
     assert client.get(f"/api/lessons/{lesson_id}/me", headers=sign_in(IVAN)).json()["ended"] is False
     db.mark_ended(lesson_id)
@@ -377,7 +368,6 @@ def test_close_room_survives_unreachable_livekit(monkeypatch):
 
 
 def test_demo_lesson_is_marked_for_screens(lesson):
-    # экран демо объясняет, что смотреть, и не просит микрофон
     demo = db.demo_lesson(MARIA, "Мария Смирнова")
     assert client.get(f"/api/lessons/{demo.id}/me", headers=sign_in(MARIA)).json()["demo"] is True
     c, lesson_id = lesson

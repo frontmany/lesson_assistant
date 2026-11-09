@@ -4,9 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Макет: регистрация в боте</title>
-  <!-- Макет переписки с ботом (issue #46). Все шаги на одной странице, один шаг: ?step=1…14.
-       Тексты прошли ru-text. Неразрывные пробелы (&nbsp;) расставлены в тексте, их нужно сохранить в боте.
-       Цвета и тени берём из токенов, своих значений здесь нет. Тёмная тема включается системной. -->
+  <!-- Макет переписки с ботом, шаг задаётся в адресе -->
   <link rel="stylesheet" href="../webapp/css/tokens.css">
   <style>
     * { box-sizing: border-box; }
@@ -25,7 +23,6 @@
     .phones { display: flex; flex-wrap: wrap; gap: 24px; }
     .who { margin: 0 0 6px; font-size: 13px; font-weight: 600; color: var(--ink-soft); }
 
-    /* Окно чата */
     .chat { width: 100%; max-width: 375px; border: 1px solid var(--line); border-radius: 24px; overflow: hidden;
             background: var(--bg); box-shadow: var(--shadow-float); }
     .bar { display: flex; align-items: center; gap: 10px; padding: 12px 16px; background: var(--surface); border-bottom: 1px solid var(--line); }
@@ -48,12 +45,10 @@
     .kb.danger { color: var(--danger); }
     .tap { align-self: center; margin: 4px 0; padding: 2px 10px; font-size: 12px; color: var(--ink-soft); border-radius: 999px; background: var(--surface-muted); }
 
-    /* Заметка для разработчика */
     .note { max-width: 375px; margin: 12px 0 0; font-size: 13px; color: var(--ink-soft); }
     .note p { margin: 0 0 4px; }
     .note b { color: var(--ink); }
 
-    /* Один шаг */
     body.single .scene { display: none; }
     body.single .scene.on { display: block; grid-column: 1 / -1; }
     body.single .scenes { display: block; }

@@ -1,8 +1,4 @@
-// Доступ к микрофону в MAX.
-// По документации MAX Bridge (dev.max.ru/docs/webapps/bridge) доступ двухуровневый:
-// мини-приложению внутри MAX и самому MAX в системе телефона, нужны оба.
-// PermissionsManager пока есть только на Android и в веб-клиенте MAX, поэтому
-// на iOS и десктопе, а также при любом непонятном отказе урок открывается в браузере.
+// Доступ к микрофону в MAX, без него урок открывается в браузере
 
 import { browserLink } from "./lesson.js";
 
@@ -11,28 +7,20 @@ const REASON = "Ассистенту урока нужно слышать ваш
 const MAX_SETTINGS = ["app_permission_denied", "mic_app_permission_denied"];
 const SYSTEM_SETTINGS = ["system_permission_denied", "mic_system_permission_denied"];
 const REINIT = ["not_inited", "not_found"];
-// PermissionsManager по документации есть только на Android и в веб-клиенте MAX
 const SUPPORTED = ["android", "web"];
-// Мост не ответил за это время — считаем, что микрофона в MAX нет. Так бывает в MAX web,
-// когда страница открыта не с адреса, привязанного к боту: ответы MAX до неё не доходят
+// Мост не ответил за это время, считаем, что микрофона нет
 const ASK_TIMEOUT_MS = 6000;
 
-// Внутри MAX у страницы есть данные запуска; в обычном браузере их нет
 export function inMax() {
   return Boolean(window.WebApp?.initData);
 }
 
-// Что нужно, чтобы был микрофон:
-// "ok" — можно звать getUserMedia; "max-settings" — разрешить мини-приложению в MAX;
-// "system-settings" — разрешить MAX в настройках телефона; "update" — обновить MAX;
-// "browser" — открыть урок в браузере
 export async function micAccess() {
   if (!inMax()) return "ok";
   const supported = SUPPORTED.includes(window.WebApp.platform);
   const timeout = new Promise((resolve) => setTimeout(() => resolve("browser"), ASK_TIMEOUT_MS));
   const access = supported ? await Promise.race([ask(window.WebApp.PermissionsManager), timeout]) : "browser";
-  // Ссылку в браузер готовим заранее: MAX откроет её только сразу по нажатию,
-  // а запрос к серверу внутри нажатия этот жест теряет
+  // Ссылку готовим заранее, MAX откроет её только сразу по нажатию
   if (access !== "ok") link = await browserLink().catch(() => location.href);
   return access;
 }
@@ -55,17 +43,13 @@ export function openSystemSettings() {
   return window.WebApp.PermissionsManager.openSystemSettings();
 }
 
-// Тот же урок во внешнем браузере. Только по нажатию: без клика MAX ссылку не откроет.
-// Данных запуска в браузере нет, поэтому в ссылке одноразовый вход (#24)
 let link = null;
 
-// Ссылка на этот же урок для браузера: с одноразовым входом, если успели его получить
 function browserUrl() {
   return link ?? location.href;
 }
 
 export function openInBrowser() {
-  // MAX web — это уже браузер: новая вкладка надёжнее моста
   if (window.WebApp.platform === "web") window.open(browserUrl(), "_blank", "noopener");
   else window.WebApp.openLink(browserUrl());
 }
@@ -74,14 +58,12 @@ async function request(pm) {
   try {
     return await pm.requestAccess(["mic"], REASON);
   } catch (err) {
-    // Сессия моста сбросилась: init() и ещё одна попытка
     if (!REINIT.includes(code(err))) throw err;
     await pm.init();
     return await pm.requestAccess(["mic"], REASON);
   }
 }
 
-// Отказ не всегда приходит ошибкой: requestAccess может вернуть флаги доступа
 function verdict(info) {
   const mic = info?.mic;
   if (!mic) return "ok";
@@ -92,16 +74,14 @@ function verdict(info) {
 }
 
 function fromError(err) {
-  // Старый MAX на Android (26.34.1) отказывает уже в init(), после обновления работает
+  // Старый MAX на Android отказывает уже в init
   if (err?.error?.code === "client.permissions_get_info.refused" && window.WebApp.platform === "android") return "update";
   const c = code(err);
   if (MAX_SETTINGS.includes(c)) return "max-settings";
   if (SYSTEM_SETTINGS.includes(c)) return "system-settings";
-  // mic_not_supported, client.unsupported_method (десктоп) и всё неизвестное
   return "browser";
 }
 
-// «client.permissions_request_access.mic_app_permission_denied» → «mic_app_permission_denied»
 function code(err) {
   return String(err?.error?.code ?? "").split(".").pop();
 }

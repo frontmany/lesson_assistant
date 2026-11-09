@@ -1,4 +1,3 @@
-/* Черновые стили каркаса. Заменяются по макетам из design/screens/. */
 * { box-sizing: border-box; }
 
 body {
@@ -82,7 +81,6 @@ h1 { font-size: 24px; margin: 0 0 16px; }
   .scale { grid-template-columns: repeat(2, 1fr); }
 }
 
-/* Подсказка, когда в MAX нет микрофона */
 .mic-help {
   display: flex;
   flex-wrap: wrap;
@@ -108,5 +106,5 @@ h1 { font-size: 24px; margin: 0 0 16px; }
 }
 .mic-help button.secondary { background: var(--surface); color: var(--ink); }
 
-/* hidden сильнее стилей вроде .roles { display: grid } */
+/* hidden сильнее стилей с display */
 [hidden] { display: none !important; }

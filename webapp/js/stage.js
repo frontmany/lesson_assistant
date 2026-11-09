@@ -1,14 +1,10 @@
-// Сцена звонка: плитки участников, страницы и показ экрана. Общая для учителя и ученика —
-// раскладка у них одна, разное только то, что вокруг (панель класса у учителя, своя шкала у ученика).
-//
-// Плитка всегда одной формы (16:9, на телефоне 4:3) и не мельче минимума: кто не помещается,
-// уходит на следующую страницу, а не сжимает всех. Сетка — по центру сцены.
+// Сцена звонка, общая для учителя и ученика
 
 const { Track } = window.LivekitClient;
 
-const TILE_RATIO = { mobile: 4 / 3, desktop: 16 / 9 }; // на телефоне сцена узкая и высокая
+const TILE_RATIO = { mobile: 4 / 3, desktop: 16 / 9 };
 const TILE_MIN_W = { mobile: 150, desktop: 260 };
-const TILE_MAX_W = 960; // один участник не разъезжается на весь монитор
+const TILE_MAX_W = 960;
 const GAP = 8;
 const MAX_TILES = 16;
 
@@ -18,13 +14,11 @@ export function tileRatio() {
   return mobile.matches ? TILE_RATIO.mobile : TILE_RATIO.desktop;
 }
 
-// { cols, w, size }: столбцы, ширина плитки в px и сколько плиток на странице
 export function layout(n, width, height) {
   const ratio = tileRatio();
   const minW = Math.min(mobile.matches ? TILE_MIN_W.mobile : TILE_MIN_W.desktop, width);
   const span = (total, k) => (total - (k - 1) * GAP) / k;
   const maxCols = Math.max(1, Math.floor((width + GAP) / (minW + GAP)));
-  // все на одной странице, если плитки при этом не мельче минимума — берём самые крупные
   let best = null;
   if (n <= MAX_TILES) {
     for (let cols = 1; cols <= Math.min(n, maxCols); cols++) {
@@ -33,19 +27,11 @@ export function layout(n, width, height) {
     }
   }
   if (best || n === 0) return best ?? { cols: 1, w: 0, size: 1 };
-  // не помещаются: плитки минимального размера по ширине, сколько рядов влезает — столько на страницу
   const w = Math.max(0, Math.min(span(width, maxCols), height * ratio, TILE_MAX_W));
   const rows = Math.max(1, Math.floor((height + GAP) / (w / ratio + GAP)));
   return { cols: maxCols, w, size: Math.min(MAX_TILES, maxCols * rows) };
 }
 
-/**
- * Сцена на странице с разметкой #stage, #banner, #tiles, #share/#shared/#sharedBy/#strip,
- * #prev, #next, #pager.
- *
- * tile(p, i) — плитка участника; name(p) — имя для «… показывает экран»;
- * redraw() — перерисовать экран целиком (сцена зовёт его при смене размера и страницы).
- */
 export function createStage({ tile, name, redraw }) {
   const $ = (id) => document.getElementById(id);
   const videos = new Map();
@@ -73,7 +59,6 @@ export function createStage({ tile, name, redraw }) {
     return el;
   }
 
-  // all — участники по порядку, self — свой участник (для «Вы показываете экран»)
   function render(all, { self, reconnecting = false }) {
     const live = new Set();
     for (const p of all) for (const pub of p.trackPublications.values()) if (pub.track) live.add(pub.track.sid);
@@ -120,14 +105,12 @@ export function createStage({ tile, name, redraw }) {
   $("prev").onclick = () => go(page - 1);
   $("next").onclick = () => go(page + 1);
 
-  // Сцена поменяла размер (панель класса, поворот телефона, окно) — пересчитываем страницу
   let lastBox = "";
   new ResizeObserver(([e]) => {
     const key = `${Math.round(e.contentRect.width)}x${Math.round(e.contentRect.height)}`;
     if (key !== lastBox) { lastBox = key; redraw(); }
   }).observe($("tiles"));
 
-  // На телефоне страницы листаются свайпом по плиткам
   let swipeX = null;
   $("tiles").addEventListener("pointerdown", (e) => { swipeX = e.clientX; });
   $("tiles").addEventListener("pointerup", (e) => {

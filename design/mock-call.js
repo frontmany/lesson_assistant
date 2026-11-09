@@ -1,8 +1,5 @@
-// Общее для макетов звонка (teacher-call.html, student-call.html): подставные участники
-// для настоящей сцены webapp/js/stage.js и настоящих стилей webapp/css/*. Макет не рисует
-// экран сам — он собирается тем же кодом, что приложение, поэтому с ним не расходится.
+// Подставные участники для настоящей сцены приложения
 
-// stage.js берёт Track из клиента LiveKit; в макете LiveKit нет — источники дорожек строками
 window.LivekitClient = { Track: { Source: { Camera: "camera", Microphone: "microphone", ScreenShare: "screen" } } };
 
 export const $ = (id) => document.getElementById(id);
@@ -17,7 +14,6 @@ export const NAMES = [
 
 let sid = 0;
 
-// Камера в макете — силуэт на цветном фоне вместо видео
 function fakeVideo(hue) {
   const el = document.createElement("div");
   el.className = "fakecam";
@@ -32,7 +28,6 @@ function fakeScreen() {
   return el;
 }
 
-/** Подставной участник: то, что сцена спрашивает у участника LiveKit. */
 export function person(identity, name, { cam = false, mic = true, speaking = false, screen = false, hue = 200 } = {}) {
   const pubs = new Map();
   const add = (source, extra) => pubs.set(source, { source, isMuted: false, ...extra });
@@ -93,7 +88,6 @@ export function setIconButton(btn, on, icon) {
   btn.querySelector("use").setAttribute("href", `#${icon}${on ? "" : "-off"}`);
 }
 
-/** Экран до входа: те же тексты и кнопки, что в приложении (teacher.js / student.js, lobby). */
 export function lobby(kind, { title, avatar }) {
   $("lobby").hidden = false;
   $("previewAvatar").textContent = avatar;

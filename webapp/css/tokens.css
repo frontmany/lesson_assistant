@@ -1,6 +1,6 @@
-/* Цвета, тени и шрифт интерфейса. Светлая и тёмная тема. */
+/* Цвета, тени и шрифт интерфейса, светлая и тёмная тема */
 
-/* Onest лежит в репозитории (OFL, лицензия рядом), по сети шрифт не грузим. */
+/* Шрифт лежит в репозитории */
 @font-face {
   font-family: "Onest";
   src: url("../fonts/Onest.ttf") format("truetype");
@@ -18,16 +18,15 @@
   --ink-soft: #4a5468;
   --accent: #5b6b3f;
   --accent-soft: #a6b58a;
-  --accent-tint: #e2e8d6; /* был #dfe5d2: олива на нём давала 4,497:1, а нужно 4,5 */
+  --accent-tint: #e2e8d6;
   --warn-tint: #f1dfc0;
   --warn-ink: #7a5420;
   --line: #ddd6c6;
-  /* граница нажимаемого элемента: не меньше 3:1 к фону, в отличие от --line */
+  /* граница нажимаемого элемента не меньше 3 к 1 к фону */
   --line-strong: #857f6e;
   --danger: #b3392f;
   --on-danger: #ffffff;
 
-  /* поверх камеры и слайда */
   --scrim: rgba(16, 16, 16, 0.62);
   --on-scrim: #ffffff;
   --accent-on-scrim: #a6b58a;
@@ -55,7 +54,6 @@
     --warn-ink: #e7c58f;
     --line: #2d3749;
     --line-strong: #738098;
-    /* белый на #d4574c давал 3,99:1; на этом красном 5,09:1 */
     --danger: #c0443a;
     --on-danger: #ffffff;
 
@@ -64,27 +62,22 @@
   }
 }
 
-/* Отклик на наведение и нажатие по всему приложению. Только там, где есть мышь:
-   на телефоне подсветка после касания «залипала» бы */
+/* Отклик на наведение только там, где есть мышь */
 button, a { transition: background-color .15s, border-color .15s, filter .15s, transform .1s; }
 button:not(:disabled):not([aria-disabled="true"]):active { transform: scale(0.97); }
 @media (hover: hover) {
   button:not(:disabled):not([aria-disabled="true"]):hover { filter: brightness(0.94); }
-  /* прозрачные кнопки-иконки: яркость не видна, нужна подложка */
   .ib:hover, .exit:hover, .back:hover, .toggle:hover, .toast button:hover, .dots:hover { filter: none; background: var(--surface-muted); }
   a:hover { filter: brightness(0.85); }
 }
 @media (hover: hover) and (prefers-color-scheme: dark) {
   button:not(:disabled):not([aria-disabled="true"]):hover { filter: brightness(1.12); }
 }
-/* пункт меню «Убрать из класса»: при наведении лёгкий оттенок своего цвета, а не серая плашка */
 @media (hover: hover) {
   .menu button:hover { filter: none; background: color-mix(in srgb, var(--danger) 12%, transparent); }
 }
-/* системная подсветка касания на телефоне — прямоугольник без скруглений; отклик даёт :active выше */
 * { -webkit-tap-highlight-color: transparent; }
 
-/* Диалог подтверждения (js/confirm.js): снизу на телефоне, по центру на большом экране */
 .confirm-back {
   position: fixed; inset: 0; z-index: 100; display: flex; align-items: flex-end; justify-content: center;
   padding: 16px 16px calc(16px + env(safe-area-inset-bottom)); background: var(--scrim); animation: confirm-fade .15s ease-out;

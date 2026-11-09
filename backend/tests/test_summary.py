@@ -1,4 +1,4 @@
-"""Сводка учителю и карточки ученикам после урока (#21): GigaChat, шаблон и рассылка ботом."""
+"""Сводка учителю и карточки ученикам после урока"""
 
 import asyncio
 import dataclasses
@@ -21,7 +21,6 @@ def demo():
 
 @pytest.fixture
 def gigachat(monkeypatch):
-    """Подменить GigaChat: ответы по очереди, словарь — JSON, исключение — ошибка."""
     monkeypatch.setattr(llm, "settings", dataclasses.replace(llm.settings, llm_api_key="ключ"))
     answers: list = []
     asked: list[str] = []
@@ -37,9 +36,7 @@ def gigachat(monkeypatch):
     return answers, asked
 
 
-
 async def finish_and_report(lesson_id, roster, utterances, board):
-    """Конец урока и сводка: сводка — отдельная задача после конца урока, ждём и её."""
     task = await runner.finish_lesson(lesson_id, roster, utterances, board)
     if task is not None:
         await task
@@ -48,11 +45,11 @@ async def finish_and_report(lesson_id, roster, utterances, board):
 def test_template_summary_without_key(demo):
     roster, utterances, levels = demo
     s = summary.build_summary(roster, utterances, levels, {"dmitry_p": 5})
-    assert s.carried == ["ivan_i", "maria_s"]  # ступень 4, по убыванию баллов
+    assert s.carried == ["ivan_i", "maria_s"]
     assert s.dropped == ["dmitry_p"]
-    assert s.weak_topics == []  # без LLM слабые темы не определить
+    assert s.weak_topics == []
     assert [a.student_id for a in s.ask_next] == ["dmitry_p"]
-    assert s.ask_next[0].question.endswith("?")  # вопрос учителя с урока, последнее предложение
+    assert s.ask_next[0].question.endswith("?")
     assert "." not in s.ask_next[0].question[:-1]
 
 
@@ -81,7 +78,7 @@ def test_llm_answer_is_checked(demo, gigachat):
         ],
     })
     s = summary.build_summary(roster, utterances, levels, {})
-    assert s.carried == ["ivan_i", "maria_s", "alisa_n"]  # не больше трёх, только ученики урока
+    assert s.carried == ["ivan_i", "maria_s", "alisa_n"]
     assert s.dropped == ["dmitry_p"]
     assert s.weak_topics == ["Коллегии", "Сенат", "Флот"]
     assert s.ask_next == [AskNext(student_id="dmitry_p", topic="Реформы Петра I", question="Что такое подушная подать?")]
@@ -93,7 +90,7 @@ def test_one_retry_then_template(demo, gigachat):
     answers.extend([llm.LlmError("не JSON"), {"carried": ["alisa_n"], "dropped": [], "weak_topics": [], "ask_next": []}])
     assert summary.build_summary(roster, utterances, levels, {}).carried == ["alisa_n"]
     answers.extend([llm.LlmError("не JSON"), llm.LlmError("опять")])
-    assert summary.build_summary(roster, utterances, levels, {}).carried == ["ivan_i", "maria_s"]  # шаблон
+    assert summary.build_summary(roster, utterances, levels, {}).carried == ["ivan_i", "maria_s"]
     assert len(asked) == 4
 
 
@@ -106,8 +103,7 @@ def test_cards_never_praise_silence_and_fill_gaps(demo, gigachat):
     ]})
     cards = {c.student_id: c for c in summary.build_cards(roster, utterances, levels)}
     assert cards["ivan_i"].went_well == ["Ответ про рекрутские наборы"]
-    assert cards["dmitry_p"].went_well == []  # молчал: похвалу модель придумала
-    # Алису модель пропустила: шаблонная карточка по её ответу
+    assert cards["dmitry_p"].went_well == []
     assert cards["alisa_n"].went_well[0].startswith("Ответ: «")
     assert set(cards) == {s.id for s in roster.students}
 
@@ -117,7 +113,7 @@ def test_empty_card_is_not_made(demo):
     roster = roster.model_copy(update={"topic": ""})
     cards = {c.student_id for c in summary.template_cards(roster, utterances, levels)
              if c.went_well or c.to_repeat}
-    assert "dmitry_p" not in cards  # молчал, а темы нет: пустая карточка хуже тишины
+    assert "dmitry_p" not in cards
     assert {c.student_id for c in summary.build_cards(roster, utterances, levels)} == cards
 
 
@@ -157,13 +153,12 @@ def test_silent_streaks_of_demo_come_from_seed():
 def test_silent_streaks_of_class():
     c, _, (ivan, artem) = lesson_of_class()
     ids = [f"m{ivan.id}", f"m{artem.id}"]
-    # от старого к новому: оба ответили, потом ответил только Иван
     for lesson_levels in ({ids[0]: (2, 3.0, []), ids[1]: (2, 2.0, [])}, {ids[0]: (3, 5.0, []), ids[1]: (1, 0.0, [])}):
         lesson = classes.lesson_for_class(c.id)
         assert results.save_lesson(lesson.id, [], lesson_levels, 2.0, 6.0, False, False)
         classes.mark_ended(lesson.id)
     now = classes.lesson_for_class(c.id)
-    newcomer = "m999"  # в прошлых уроках его не было: истории нет
+    newcomer = "m999"
     assert results.silent_streaks(now.id, ids + [newcomer]) == {ids[0]: 0, ids[1]: 1}
 
 
@@ -197,11 +192,10 @@ def test_finished_lesson_is_saved_and_sent(monkeypatch):
     assert to_teacher[0][2][0][0]["payload"] == f"c{c.id}" and to_teacher[0][3]
     to_ivan = [m for m in api.sent if m[0] == 10]
     assert len(to_ivan) == 1 and "Карточка не показывается классу." in to_ivan[0][1]
-    assert not [m for m in api.sent if m[0] == 11]  # у Артёма тема пуста и реплик нет: карточки нет
+    assert not [m for m in api.sent if m[0] == 11]
 
 
 def test_demo_summary_counts_only_recorded_class(monkeypatch):
-    """В демо ученики урока — запись с приставкой virtual-; состав класса без неё на уроке не был."""
     api = FakeApi()
     monkeypatch.setattr(max_bot, "_bot", max_bot.Bot(api, "ideya_bot"))
     lesson = classes.demo_lesson(1, "Елена Викторовна")
@@ -215,11 +209,11 @@ def test_demo_summary_counts_only_recorded_class(monkeypatch):
 
     asyncio.run(finish_and_report(lesson.id, roster, utterances, board))
 
-    (to_teacher,) = api.sent  # ученикам из записи карточки не уходят
+    (to_teacher,) = api.sent
     assert to_teacher[0] == 1
     assert "6 учеников" in to_teacher[1]
     assert "**Выпали**\nМария С., Артём К., Софья Л., Алиса Н. и ещё 1" in to_teacher[1]
-    assert to_teacher[2] is None  # у демо нет класса: кнопки «Начать урок» нет
+    assert to_teacher[2] is None
 
 
 def test_card_api_gives_stored_card_or_404(monkeypatch):
@@ -244,7 +238,6 @@ def test_card_api_gives_stored_card_or_404(monkeypatch):
     TypeError("ответ модели не того вида"),
 ])
 def test_summary_falls_back_to_template_on_any_error(demo, gigachat, answer):
-    # не только LlmError: ответ не той формы не должен оставить учителя без сводки
     roster, utterances, levels = demo
     answers, _ = gigachat
     answers.append(answer)
@@ -260,7 +253,6 @@ def test_cards_fall_back_to_template_on_any_error(demo, gigachat):
 
 
 def test_student_switched_off_just_before_end_is_not_in_results(monkeypatch):
-    # шкала забывает ученика только на реплике или раз в 30 с: выключатель проверяется и при завершении
     api = FakeApi()
     monkeypatch.setattr(max_bot, "_bot", max_bot.Bot(api, "ideya_bot"))
     c, lesson, (ivan, artem) = lesson_of_class()
@@ -279,7 +271,6 @@ def test_student_switched_off_just_before_end_is_not_in_results(monkeypatch):
 
 
 def test_template_question_is_not_addressed_to_another_student(demo):
-    # в демо последний вопрос учителя — «Иван, какой налог…?»: Дмитрию его нельзя задать как есть
     roster, utterances, levels = demo
     s = summary.build_summary(roster, utterances, levels, {"dmitry_p": 5})
     question = s.ask_next[0].question
@@ -296,9 +287,7 @@ def test_short_or_named_questions_are_not_offered(demo):
 
 def test_question_filter_knows_names_in_any_case_and_keeps_non_student_subject(demo):
     roster, _, _ = demo
-    # имя ученика в другом падеже — вопрос про конкретного ученика, классу не подходит
     assert summary._question_for_class("Что Ивана спросили про флот?", roster) == ""
     assert summary._question_for_class("Кто помнит, что ответила Марии?", roster) == ""
-    # «Пётр Первый» — не обращение к ученику: вопрос остаётся целиком
     assert summary._question_for_class("Пётр Первый, когда родился?", roster) == "Пётр Первый, когда родился?"
     assert summary._question_for_class("Дмитрий, что такое подушная подать?", roster) == "Что такое подушная подать?"

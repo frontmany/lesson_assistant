@@ -1,4 +1,4 @@
-"""Сборка конвейера: источник → VAD → ASR → классификатор → скоринг → события."""
+"""Конвейер урока от источника звука до событий"""
 
 import asyncio
 import bisect
@@ -18,25 +18,18 @@ from app.models import LEVEL_LABELS, LessonEvent, Roster, ScaleUpdate, Student, 
 
 log = logging.getLogger(__name__)
 
-# Поиск речи и распознавание идут каждый в своём потоке, а цикл событий
-# в это время принимает кадры и рассылает события. Несколько потоков
-# распознавания и cpu_threads — в #26
+# Поиск речи и распознавание идут в своих потоках
 _vad = ThreadPoolExecutor(max_workers=1, thread_name_prefix="vad")
 _asr = ThreadPoolExecutor(max_workers=1, thread_name_prefix="asr")
-# Сколько кадров ждёт поиска речи: около секунды звука от 30 участников.
-# Если поток не успевает, старые кадры сбрасываются, как и в sources/call.py
+# Если поиск речи не успевает, старые кадры сбрасываются
 BACKLOG_FRAMES = 1000
-# Как часто проверять флаги без новых реплик: «давно не отвечал» — это минуты
 FLAGS_EVERY_S = 30
-# Кадры того, кого нет в составе урока: раз в столько секунд проверяем, не вошёл ли он в класс
 STRANGER_RECHECK_S = 10
 @dataclass
 class _Lesson:
-    """Идущий урок: конвейер, его состав и виртуальный класс, если он есть."""
-
     roster: Roster
-    stop: asyncio.Event  # «завершить урок»
-    listening: asyncio.Event  # ассистент в комнате: виртуальный класс может начинать
+    stop: asyncio.Event
+    listening: asyncio.Event
     task: asyncio.Task | None = None
     virtual: asyncio.Task | None = None
     virtual_stop: asyncio.Event | None = None
@@ -44,8 +37,7 @@ class _Lesson:
 
 _lessons: dict[str, _Lesson] = {}
 
-# Выключатель аналитики (#22): у кого в уроке она выключена. ALL — у всего класса.
-# Живёт, пока урок не закончится: учитель может выключить и до входа в звонок
+# У кого в уроке выключена аналитика, ALL значит у всего класса
 ALL = "*"
 _off: dict[str, set[str]] = {}
 
@@ -53,7 +45,6 @@ _off: dict[str, set[str]] = {}
 def set_analytics(lesson_id: str, enabled: bool, student_id: str | None = None) -> None:
     off = _off.setdefault(lesson_id, set())
     if student_id is None:
-        # выключить у класса — ни у кого не считать; включить у класса — у всех снова считать
         off.clear()
         if not enabled:
             off.add(ALL)
@@ -73,7 +64,6 @@ def analytics_off_list(lesson_id: str) -> list[str]:
 
 
 def start(lesson_id: str, roster: Roster) -> bool:
-    """Запустить конвейер урока в фоне. False — он уже работает."""
     if is_running(lesson_id):
         return False
     lesson = _Lesson(roster, asyncio.Event(), asyncio.Event())
@@ -89,11 +79,7 @@ def is_running(lesson_id: str) -> bool:
 
 
 def when_finished(lesson_id: str, callback: Callable[[str], None]) -> None:
-    """Вызвать callback(lesson_id), когда конвейер урока закончится: «Завершить урок» или пустая комната.
-
-    Упавший конвейер урок не заканчивает: учитель войдёт снова, и урок начнётся заново,
-    а не ответит «Урок уже завершён» (409) в звонке, где ничего не распознаётся.
-    """
+    """Упавший конвейер урок не заканчивает"""
     lesson = _lessons.get(lesson_id)
     if lesson is None or lesson.task is None:
         return
@@ -108,16 +94,11 @@ def when_finished(lesson_id: str, callback: Callable[[str], None]) -> None:
 
 
 def roster_of(lesson_id: str) -> Roster | None:
-    """Состав идущего урока: с виртуальными учениками, если урок начат с ними."""
     return _lessons[lesson_id].roster if is_running(lesson_id) else None
 
 
 async def end(lesson_id: str) -> bool:
-    """Учитель завершил урок: ассистент выходит из комнаты, очередь дораспознаётся.
-
-    Возвращает, когда конвейер закончил и урок завершён (finish_lesson).
-    False — урок не идёт: не начат или уже завершён, повторный вызов безопасен.
-    """
+    """Учитель завершил урок, повторный вызов безопасен"""
     if not is_running(lesson_id):
         return False
     lesson = _lessons[lesson_id]
@@ -127,11 +108,6 @@ async def end(lesson_id: str) -> bool:
 
 
 def play_virtual(lesson_id: str, demo: Roster, tracks: list[Path]) -> bool:
-    """Завести в идущий урок виртуальный класс: записанные дорожки заходят ботами.
-
-    Боты начинают говорить, когда ассистент уже в комнате, и уходят вместе
-    с уроком. False — урок не идёт или виртуальный класс уже играет.
-    """
     from app.sources.virtual_class import play
 
     if not is_running(lesson_id):
@@ -141,7 +117,7 @@ def play_virtual(lesson_id: str, demo: Roster, tracks: list[Path]) -> bool:
         return False
 
     async def run() -> None:
-        # ждём, пока ассистент войдёт в комнату, иначе начало записи пропадёт
+        # ждём ассистента, иначе начало записи пропадёт
         waits = [asyncio.create_task(lesson.listening.wait()), asyncio.create_task(lesson.virtual_stop.wait())]
         await asyncio.wait(waits, return_when=asyncio.FIRST_COMPLETED)
         for task in waits:
@@ -156,7 +132,6 @@ def play_virtual(lesson_id: str, demo: Roster, tracks: list[Path]) -> bool:
 
 
 async def stop_virtual(lesson_id: str) -> bool:
-    """Боты виртуального класса выходят, урок идёт дальше. False — их нет."""
     lesson = _lessons.get(lesson_id)
     if lesson is None or lesson.virtual is None or lesson.virtual.done():
         return False
@@ -171,12 +146,6 @@ def _log_end(lesson_id: str, task: asyncio.Task) -> None:
 
 
 async def run_call(lesson_id: str, lesson: _Lesson) -> None:
-    """Слушать звонок урока до его конца и рассылать события по WebSocket.
-
-    Урок кончается, когда выставлен stop (POST /end) или комната пуста
-    5 минут (sources.call.EMPTY_ROOM_S). Тогда ассистент выходит из комнаты,
-    виртуальный класс тоже, конвейер дораспознаёт очередь и вызывает finish_lesson.
-    """
     from app.db import results
     from app.pipeline.scoring import Scoreboard, lesson_norm
     from app.sources.call import listen
@@ -208,24 +177,14 @@ async def run_call(lesson_id: str, lesson: _Lesson) -> None:
 
 
 async def finish_lesson(lesson_id: str, roster: Roster, utterances: list[dict], board) -> asyncio.Task | None:
-    """Урок закончен, ассистент вышел, все реплики распознаны.
-
-    Единственная точка конца урока: итоги урока пишутся в базу (db.results),
-    отсюда же строится сводка, а бот рассылает её учителю и карточки ученикам (#21).
-    utterances — реплики урока по времени: {"student_id", "t", "end", "text"}
-    и "kind" у учеников (см. transcribe_stream); board — шкала урока (scoring.Scoreboard).
-    Возвращает задачу сводки и рассылки — она идёт уже после конца урока; None — итоги не сохранены.
-    """
+    """Единственная точка конца урока"""
     from app.bot import max_bot
     from app.db import results
     from app.db.classes import lesson_roster
     from app.pipeline import summary
 
     loop = asyncio.get_running_loop()
-    # у кого аналитика выключена, тех нет ни в репликах, ни в ступенях урока (#22)
     utterances = [u for u in utterances if not u.get("off")]
-    # шкала забывает ученика только на его реплике или раз в FLAGS_EVERY_S: если урок
-    # завершили сразу после выключения, проверяем выключатель здесь
     off_now = {s.id for s in roster.students if analytics_off(lesson_id, s.id)}
     _off.pop(lesson_id, None)
     ended = max((u["end"] for u in utterances), default=0.0)
@@ -245,11 +204,8 @@ async def finish_lesson(lesson_id: str, roster: Roster, utterances: list[dict], 
         return None
 
     def report() -> None:
-        # запросы к базе, GigaChat и боту блокирующие: целиком в отдельном потоке
+        # запросы к базе, GigaChat и боту блокирующие
         nonlocal roster
-        # кто вошёл в класс во время урока, того нет в составе на начало урока. Берём
-        # только тех, кто был на шкале: в демо состав класса — записанные ученики
-        # без приставки virtual-, на уроке их не было
         fresh = lesson_roster(lesson_id)
         known = {s.id for s in roster.students}
         if fresh:
@@ -263,8 +219,7 @@ async def finish_lesson(lesson_id: str, roster: Roster, utterances: list[dict], 
         log.info("сводка урока %s готова, карточек: %d", lesson_id, len(cards))
         max_bot.lesson_finished(roster, teacher_summary, cards, max(1, round(ended / 60)))
 
-    # Сводка — до четырёх запросов к GigaChat по минуте каждый. Урок к этому времени уже
-    # закончен: задача урока (её ждут /end, «Выйти» и mark_ended) сводку не ждёт
+    # Сводка идёт уже после конца урока
     async def send_report() -> None:
         try:
             await loop.run_in_executor(None, report)
@@ -277,30 +232,21 @@ async def finish_lesson(lesson_id: str, roster: Roster, utterances: list[dict], 
     return task
 
 
-# сводки в работе: без ссылки на задачу её мог бы собрать сборщик мусора
+# ссылки на задачи, чтобы их не собрал сборщик мусора
 _reports: set[asyncio.Task] = set()
 
 
 @dataclass
 class _Job:
-    """Найденная фраза, которая ждёт распознавания."""
-
     who: str
     pcm: np.ndarray
-    t: float  # начало речи, секунды от начала урока
-    end: float  # конец речи
-    detected: float  # time.monotonic(), когда фраза найдена
+    t: float
+    end: float
+    detected: float
 
 
 def next_job(jobs: list[_Job], students: set[str]) -> _Job:
-    """Какую фразу распознавать следующей.
-
-    Ученики раньше учителя: их реплики ждут на экране, а учитель нужен
-    только как контекст. Но фраза учителя, которая кончилась до начала фразы
-    ученика, и есть этот контекст: в ней учитель мог назвать ученика по
-    имени или задать вопрос. Её распознаём раньше, иначе классификатор не
-    увидит обращения и отклик станет «другим».
-    """
+    """Ученики раньше учителя, но реплика учителя перед фразой ученика первой"""
     waiting = [j for j in jobs if j.who in students]
     teacher = [j for j in jobs if j.who not in students]
     if not waiting:
@@ -311,7 +257,6 @@ def next_job(jobs: list[_Job], students: set[str]) -> _Job:
 
 
 def save_phrase(directory: Path, job: _Job, text: str) -> None:
-    """Записать фразу в wav и рядом распознанный текст: так собирается набор для замеров."""
     try:
         directory.mkdir(parents=True, exist_ok=True)
         name = f"{job.t:07.1f}-{job.who}"
@@ -322,7 +267,7 @@ def save_phrase(directory: Path, job: _Job, text: str) -> None:
             out.writeframes((np.clip(job.pcm, -1, 1) * 32767).astype(np.int16).tobytes())
         (directory / f"{name}.txt").write_text(text, encoding="utf-8")
     except OSError:
-        # набор — побочная задача, урок из-за неё не падает
+        # ошибка сохранения не роняет урок
         log.exception("не удалось сохранить фразу %s", job.who)
 
 
@@ -336,27 +281,7 @@ async def transcribe_stream(
     board=None,
     off: Callable[[str], bool] = lambda student_id: False,
 ) -> list[dict]:
-    """Кадры участников → фразы → текст → тип реплики и шкала → события.
-
-    Задачи: приём кадров, поиск фраз, распознавание и проверка флагов. Поиск
-    фраз идёт в своём потоке пачками: на 30 учеников это около тысячи
-    прогонов Silero в секунду, и в цикле событий они задерживали бы приём
-    кадров и WebSocket. Порядок распознавания — next_job. Кадры тех, кого
-    нет в составе класса, отбрасываются.
-
-    Когда кадры кончились, недоговорённые фразы дораспознаются, и функция
-    возвращает реплики урока по времени: {"student_id", "t", "end", "text"}
-    и "kind" у учеников. board — шкала урока (scoring.Scoreboard); без неё
-    шкала строится здесь с нормой norm, по умолчанию из history_seed.json.
-
-    find_student(id) ищет в составе урока того, чьих кадров не ждали: ученик
-    мог войти в класс уже во время урока. Найденный добавляется в roster.students
-    и на шкалу; посторонних по-прежнему отбрасываем.
-
-    off(id) — выключена ли аналитика ученика (#22). Его речь распознаётся только
-    как контекст для правил: события, шкала и итоги урока его не касаются, а в
-    возвращаемых репликах он помечен "off" и снят со шкалы урока.
-    """
+    """Кадры участников превращаются в реплики, шкалу и события"""
     from app.pipeline import asr
     from app.pipeline.classify import CONTINUE_S, classify
     from app.db.results import seed_history
@@ -370,14 +295,13 @@ async def transcribe_stream(
         def transcribe(pcm: np.ndarray, role: str) -> str:
             return asr.transcribe(pcm, role, names if role == "teacher" else None)
 
-        # загрузить модели до первой фразы
         for role in ("teacher", "student"):
             await loop.run_in_executor(_asr, asr.model, role)
 
     started = time.monotonic()
     students = [s.id for s in roster.students]
     is_student = set(students)
-    # учитель из записи виртуального класса — тоже учитель: контекст классификатора
+    # учитель из записи тоже учитель
     teachers = {roster.teacher.id} | ({roster.virtual_teacher.id} if roster.virtual_teacher else set())
     known = is_student | teachers
     context: list[dict] = []
@@ -395,25 +319,21 @@ async def transcribe_stream(
             norm if norm is not None else lesson_norm(seed_history()),
             settings.lesson_minutes * 60,
         )
-    shown: dict[str, tuple[int, list]] = {}  # что сейчас на шкале у каждого ученика
+    shown: dict[str, tuple[int, list]] = {}
 
     def show_scale(now: float) -> None:
-        """Разослать ступени и флаги, которые изменились с прошлого раза."""
         for sid in students:
             if off(sid):
                 board.forget(sid)
                 shown.pop(sid, None)
                 continue
-            board.add_student(sid)  # аналитику включили снова: шкала та же, что до выключения
+            board.add_student(sid)
             level, flags = board.level(sid), board.flags(sid, now)
             if shown.get(sid) != (level, flags):
                 shown[sid] = (level, flags)
                 emit(ScaleUpdate(student_id=sid, level=level, label=LEVEL_LABELS[level], flags=flags))
 
-    # Поток _vad. Время урока у каждого участника — его звук: позиция детектора
-    # плюс сдвиг. Сдвиг ставится по первому кадру и только растёт: если кадры
-    # пришли позже, чем шёл звук (переподключение, сброшенные кадры), часы
-    # участника догоняют время урока. Дрожание сети их не двигает назад.
+    # Сдвиг времени участника только растёт
     detectors: dict[str, PhraseDetector] = {}
     shifts: dict[str, float] = {}
 
@@ -428,7 +348,6 @@ async def transcribe_stream(
             if who not in detectors:
                 detectors[who] = PhraseDetector()
             phrases = detectors[who].feed(pcm)
-            # at — время урока, когда пришёл кадр; звук в нём кончается на position
             shifts[who] = max(shifts.get(who, float("-inf")), at - detectors[who].position)
             found += [to_job(who, phrase) for phrase in phrases]
         return found
@@ -449,7 +368,7 @@ async def transcribe_stream(
                 jobs.extend(found)
                 changed.notify_all()
 
-    checked: dict[str, float] = {}  # кого не ждали → когда последний раз искали в составе
+    checked: dict[str, float] = {}
 
     async def admit(who: str) -> None:
         student = await loop.run_in_executor(None, find_student, who)
@@ -492,11 +411,9 @@ async def transcribe_stream(
             backlog.clear()
             if batch:
                 await add_jobs(await loop.run_in_executor(_vad, find_phrases, batch))
-        # кадров больше не будет: кто говорил до последнего, тоже попадёт в урок
         await add_jobs(await loop.run_in_executor(_vad, flush))
 
     def continues(who: str, t: float) -> bool:
-        """Фраза — продолжение прошлой реплики того же ученика: между ними никто не говорил."""
         before = [item for item in context if item["t"] < t]
         return bool(before) and before[-1]["student_id"] == who and t - before[-1]["end"] <= CONTINUE_S
 
@@ -517,7 +434,7 @@ async def transcribe_stream(
         who = job.who if job.who in is_student else roster.teacher.id
         item = {"student_id": who, "t": job.t, "end": job.end, "text": text}
         if job.who in is_student and off(job.who):
-            # аналитика выключена: реплика остаётся контекстом для правил, но не считается
+            # реплика остаётся контекстом, но не считается
             item["off"] = True
             board.forget(job.who)
         elif job.who in is_student:
@@ -530,7 +447,7 @@ async def transcribe_stream(
             else:
                 board.add(job.who, kind, text, job.t, job.end)
             show_scale(lesson_time())
-        # распознаём не по порядку (next_job), а классификатор ждёт реплики по времени
+        # распознаём не по порядку, а классификатор ждёт реплики по времени
         bisect.insort(context, item, key=lambda i: i["t"])
 
     async def recognize() -> None:
@@ -544,8 +461,7 @@ async def transcribe_stream(
             try:
                 await handle(job)
             except Exception:
-                # одна плохая фраза не должна останавливать урок: иначе очередь
-                # перестала бы разбираться, а /end ждал бы её вечно
+                # одна плохая фраза не останавливает урок
                 log.exception("%s, %.1f–%.1f с: фраза пропущена", job.who, job.t, job.end)
             finally:
                 async with changed:
@@ -553,7 +469,6 @@ async def transcribe_stream(
                     changed.notify_all()
 
     async def watch_flags() -> None:
-        # «давно не отвечал» появляется, когда ученик молчит, а не когда он говорит
         while True:
             await asyncio.sleep(FLAGS_EVERY_S)
             try:
@@ -562,7 +477,7 @@ async def transcribe_stream(
             except Exception:
                 log.exception("не удалось обновить флаги шкалы")
 
-    show_scale(0.0)  # все начинают с первой ступени
+    show_scale(0.0)
     reader = asyncio.create_task(read())
     detector = asyncio.create_task(detect())
     tasks = [reader, detector, asyncio.create_task(recognize()), asyncio.create_task(watch_flags())]
@@ -578,9 +493,4 @@ async def transcribe_stream(
 
 
 def run_lesson(roster: Roster, tracks: list[Path]) -> None:
-    """Прогнать записанный урок без звонка и напечатать транскрипт, шкалы и сводку.
-
-    Нужно для отладки конвейера и замеров качества (analytics/).
-    TODO: тот же конвейер, что в run_call, но кадры читаются из WAV.
-    """
     raise NotImplementedError("pipeline/runner.py: run_lesson")
